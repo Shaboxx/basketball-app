@@ -9,8 +9,10 @@ struct Player: Codable, Identifiable, Hashable {
     let position: String
     let heightInches: Int?
     let weightLbs: Int?
+    let birthdate: String?       // ISO-8601 "YYYY-MM-DD"
     let primaryRole: String?
     let secondaryRole: String?
+    let defensiveRole: String?
     let salaryY1: Int?
     let salaryY2: Int?
     let salaryY3: Int?
@@ -40,7 +42,8 @@ struct Player: Codable, Identifiable, Hashable {
     // decode as nil (or fail to encode) without any compile-time warning.
     enum CodingKeys: String, CodingKey {
         case slug, name, teamId, position
-        case heightInches, weightLbs, primaryRole, secondaryRole
+        case heightInches, weightLbs, birthdate
+        case primaryRole, secondaryRole, defensiveRole
         case salaryY1, salaryY2, salaryY3, salaryY4
         case yos, standardMax, minSalary, supermaxEligible
         case nextContractMax, nextContractMaxBasis, maxTierPct, higherMaxCriteriaMet
