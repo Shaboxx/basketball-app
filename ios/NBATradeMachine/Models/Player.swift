@@ -57,7 +57,7 @@ struct Player: Codable, Identifiable, Hashable {
     var headshotPath: String { "headshots/\(slug).png" }
 
     var heightDisplay: String {
-        guard let inches = heightInches else { return "-" }
+        guard let inches = heightInches else { return "—" }
         return "\(inches / 12)'\(inches % 12)\""
     }
 
