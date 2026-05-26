@@ -16,6 +16,35 @@ struct Player: Codable, Identifiable, Hashable {
     let salaryY3: Int?
     let salaryY4: Int?
 
+    // CBA Phase 1 fields (spec §4.3). All optional — old docs without CBA
+    // data decode as nil.
+    let yos: Int?
+    let standardMax: Int?
+    let minSalary: Int?
+    let supermaxEligible: Bool?
+    let nextContractMax: Int?
+    let nextContractMaxBasis: String?
+    let maxTierPct: Int?
+    let higherMaxCriteriaMet: Bool?
+    let supermaxPath: String?
+    let contractFinalYearSalary: Int?
+    let contractFinalYearSeasonEnd: Int?
+    let cbaSeason: String?
+    let cbaUpdatedAt: Date?
+
+    // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
+    // decoder) don't look for it in the document payload. Firestore populates
+    // @DocumentID out-of-band from the document reference.
+    enum CodingKeys: String, CodingKey {
+        case slug, name, teamId, position
+        case heightInches, weightLbs, primaryRole, secondaryRole
+        case salaryY1, salaryY2, salaryY3, salaryY4
+        case yos, standardMax, minSalary, supermaxEligible
+        case nextContractMax, nextContractMaxBasis, maxTierPct, higherMaxCriteriaMet
+        case supermaxPath, contractFinalYearSalary, contractFinalYearSeasonEnd
+        case cbaSeason, cbaUpdatedAt
+    }
+
     var id: String { docId ?? slug }
     var currentSalary: Int { salaryY1 ?? 0 }
 
