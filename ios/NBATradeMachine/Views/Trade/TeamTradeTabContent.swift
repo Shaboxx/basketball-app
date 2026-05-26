@@ -4,10 +4,14 @@ struct TeamTradeTabContent: View {
     let team: Team
     @ObservedObject var vm: TradeMachineViewModel
     @State private var pendingPlayer: Player?
+    @State private var cashText: String = ""
+    @State private var showingAddPick = false
+    @FocusState private var cashFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             capStatusBox
+            cashRow
 
             let incoming = vm.incomingPlayers(to: team.teamId)
             if !incoming.isEmpty {
@@ -19,6 +23,21 @@ struct TeamTradeTabContent: View {
                             }
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             if idx < incoming.count - 1 { Divider() }
+                        }
+                    }
+                    .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+
+            let incomingPicks = vm.trade.picksIncoming(to: team.teamId)
+            if !incomingPicks.isEmpty {
+                section("Incoming picks to \(team.teamId)") {
+                    VStack(spacing: 0) {
+                        ForEach(Array(incomingPicks.enumerated()), id: \.element.id) { idx, mv in
+                            PickRow(movement: mv, direction: .incoming) {
+                                vm.removePickMovement(mv.id)
+                            }
+                            if idx < incomingPicks.count - 1 { Divider() }
                         }
                     }
                     .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
@@ -44,6 +63,8 @@ struct TeamTradeTabContent: View {
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
+
+            picksSection
 
             if !vm.fitWarnings.filter({ $0.receivingTeamId == team.teamId }).isEmpty {
                 section("Fit warnings") {
@@ -80,10 +101,92 @@ struct TeamTradeTabContent: View {
             }
             Button("Cancel", role: .cancel) { pendingPlayer = nil }
         }
+        .sheet(isPresented: $showingAddPick) {
+            AddPickSheet(fromTeam: team, vm: vm)
+        }
+    }
+
+    private var picksSection: some View {
+        let outgoing = vm.trade.picksOutgoing(from: team.teamId)
+        return section("Outgoing picks from \(team.teamId)") {
+            VStack(spacing: 0) {
+                if outgoing.isEmpty {
+                    HStack {
+                        Text("No picks added.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                } else {
+                    ForEach(Array(outgoing.enumerated()), id: \.element.id) { idx, mv in
+                        PickRow(movement: mv, direction: .outgoing) {
+                            vm.removePickMovement(mv.id)
+                        }
+                        if idx < outgoing.count - 1 { Divider() }
+                    }
+                }
+                Divider()
+                Button {
+                    showingAddPick = true
+                } label: {
+                    Label("Add Pick", systemImage: "plus.circle")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                }
+                .disabled(otherTeams.isEmpty)
+            }
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        }
     }
 
     private var otherTeams: [Team] {
         vm.trade.teams.filter { $0.teamId != team.teamId }
+    }
+
+    private var cashRow: some View {
+        let amount = vm.trade.cash(from: team.teamId)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("Cash sent").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                TextField("0", text: $cashText)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($cashFocused)
+                    .frame(maxWidth: 130)
+                Text(amount > 0 ? Money.display(amount) : "—")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            if amount > Trade.cashLimit {
+                Label("Over $8.12M season cash limit", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        .onAppear { syncCashText() }
+        .onChange(of: cashFocused) { _, focused in
+            if !focused { commitCash() }
+        }
+        .onChange(of: vm.trade.cash(from: team.teamId)) { _, _ in
+            if !cashFocused { syncCashText() }
+        }
+    }
+
+    private func syncCashText() {
+        let amount = vm.trade.cash(from: team.teamId)
+        cashText = amount > 0 ? String(amount) : ""
+    }
+
+    private func commitCash() {
+        let parsed = Int(cashText.filter(\.isNumber)) ?? 0
+        vm.setCash(parsed, from: team.teamId)
+        syncCashText()
     }
 
     private var capStatusBox: some View {
@@ -155,5 +258,42 @@ struct IncomingRow: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+struct PickRow: View {
+    enum Direction { case incoming, outgoing }
+
+    let movement: PickMovement
+    let direction: Direction
+    let onRemove: () -> Void
+
+    private static let referenceYear = Calendar.current.component(.year, from: Date())
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: direction == .incoming ? "ticket.fill" : "ticket")
+                .foregroundStyle(direction == .incoming ? .green : .secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(movement.pick.shortLabel).font(.subheadline)
+                Text(direction == .incoming ? "from \(movement.fromTeamId)" : "to \(movement.toTeamId)")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(valueText)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red.opacity(0.75))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+    }
+
+    private var valueText: String {
+        let v = PickValuator.value(for: movement.pick, currentYear: Self.referenceYear)
+        return String(format: "≈ $%.1fM", v)
     }
 }

@@ -4,12 +4,27 @@ import Combine
 @MainActor
 final class TradeMachineViewModel: ObservableObject {
     static let maxTeams = 6
+    private static let historyLimit = 50
+
+    struct HistoryEntry: Identifiable {
+        let id = UUID()
+        let label: String
+        let trade: Trade
+        let isOffseason: Bool
+    }
 
     @Published var trade = Trade()
     @Published var validation: TradeValidation?
     @Published var fitWarnings: [PositionFitWarning] = []
     @Published var alertMessage: String?
+    @Published private(set) var history: [HistoryEntry] = []
+
     @Published var isOffseason: Bool = false {
+        willSet {
+            if newValue != isOffseason && !isApplyingHistory {
+                recordHistory(newValue ? "Enable offseason mode" : "Disable offseason mode")
+            }
+        }
         didSet {
             guard isOffseason != oldValue else { return }
             pruneSelectionsForActiveYear()
@@ -22,8 +37,10 @@ final class TradeMachineViewModel: ObservableObject {
     private weak var teamsVM: TeamsViewModel?
     private weak var rulesVM: LeagueRulesViewModel?
     private var cancellables = Set<AnyCancellable>()
+    private var isApplyingHistory = false
 
     var activeYearOffset: Int { isOffseason ? 1 : 0 }
+    var canUndo: Bool { !history.isEmpty }
 
     func configure(teamsVM: TeamsViewModel, rulesVM: LeagueRulesViewModel) {
         guard self.teamsVM !== teamsVM || self.rulesVM !== rulesVM else { return }
@@ -47,8 +64,10 @@ final class TradeMachineViewModel: ObservableObject {
     }
 
     func setInitialTeams(_ a: Team, _ b: Team) {
+        recordHistory("Start trade: \(a.teamId) and \(b.teamId)")
         trade.teams = [a, b]
         trade.movements.removeAll()
+        trade.cashSent.removeAll()
         validation = nil
         fitWarnings = []
         alertMessage = nil
@@ -57,10 +76,13 @@ final class TradeMachineViewModel: ObservableObject {
     func addTeam(_ team: Team) {
         guard trade.teams.count < Self.maxTeams,
               !trade.teamIds.contains(team.teamId) else { return }
+        recordHistory("Add \(team.teamId)")
         trade.teams.append(team)
     }
 
     func tradePlayer(_ playerId: String, from fromTeamId: String, to toTeamId: String) {
+        let name = playerName(playerId, hint: fromTeamId)
+        recordHistory("Move \(name): \(fromTeamId) -> \(toTeamId)")
         trade.movements.removeAll { $0.playerId == playerId }
         trade.movements.append(PlayerMovement(playerId: playerId, fromTeamId: fromTeamId, toTeamId: toTeamId))
         validation = nil
@@ -68,7 +90,42 @@ final class TradeMachineViewModel: ObservableObject {
     }
 
     func untradePlayer(_ playerId: String) {
+        let name = playerName(playerId, hint: nil)
+        recordHistory("Cancel \(name)'s move")
         trade.movements.removeAll { $0.playerId == playerId }
+        validation = nil
+        alertMessage = nil
+    }
+
+    func addPickMovement(_ pick: Pick, from fromTeamId: String, to toTeamId: String) {
+        guard fromTeamId != toTeamId,
+              trade.teamIds.contains(fromTeamId),
+              trade.teamIds.contains(toTeamId) else { return }
+        recordHistory("Move \(pick.shortLabel): \(fromTeamId) -> \(toTeamId)")
+        trade.pickMovements.append(PickMovement(pick: pick, fromTeamId: fromTeamId, toTeamId: toTeamId))
+        validation = nil
+        alertMessage = nil
+    }
+
+    func removePickMovement(_ movementId: PickMovement.ID) {
+        guard let movement = trade.pickMovements.first(where: { $0.id == movementId }) else { return }
+        recordHistory("Cancel \(movement.pick.shortLabel)")
+        trade.pickMovements.removeAll { $0.id == movementId }
+        validation = nil
+        alertMessage = nil
+    }
+
+    func setCash(_ amount: Int, from teamId: String) {
+        let clean = max(0, amount)
+        let current = trade.cash(from: teamId)
+        guard clean != current else { return }
+        let display = clean > 0 ? Money.display(clean) : "$0"
+        recordHistory("\(teamId) cash: \(display)")
+        if clean == 0 {
+            trade.cashSent.removeValue(forKey: teamId)
+        } else {
+            trade.cashSent[teamId] = clean
+        }
         validation = nil
         alertMessage = nil
     }
@@ -150,6 +207,9 @@ final class TradeMachineViewModel: ObservableObject {
         if let capLines = buildCapWarningLines(), !capLines.isEmpty {
             sections.append("This trade pushes a team into a worse cap tier:\n" + capLines.joined(separator: "\n"))
         }
+        if let cashLines = buildCashWarningLines(), !cashLines.isEmpty {
+            sections.append("Cash limit warning:\n" + cashLines.joined(separator: "\n"))
+        }
         return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
     }
 
@@ -166,11 +226,71 @@ final class TradeMachineViewModel: ObservableObject {
         return lines
     }
 
+    private func buildCashWarningLines() -> [String]? {
+        var lines: [String] = []
+        for team in trade.teams {
+            let amount = trade.cash(from: team.teamId)
+            if amount > Trade.cashLimit {
+                lines.append("\(team.fullName) sending \(Money.display(amount)) (over $8.12M season limit)")
+            }
+        }
+        return lines.isEmpty ? nil : lines
+    }
+
     func reset() {
+        recordHistory("Reset trade")
         trade.reset()
         validation = nil
         fitWarnings = []
         alertMessage = nil
+    }
+
+    func undo() {
+        guard let last = history.popLast() else { return }
+        isApplyingHistory = true
+        trade = last.trade
+        if isOffseason != last.isOffseason {
+            isOffseason = last.isOffseason
+        }
+        isApplyingHistory = false
+        validation = nil
+        fitWarnings = []
+        alertMessage = nil
+    }
+
+    func undoTo(entryId: HistoryEntry.ID) {
+        guard let idx = history.firstIndex(where: { $0.id == entryId }) else { return }
+        let entry = history[idx]
+        history.removeSubrange(idx...)
+        isApplyingHistory = true
+        trade = entry.trade
+        if isOffseason != entry.isOffseason {
+            isOffseason = entry.isOffseason
+        }
+        isApplyingHistory = false
+        validation = nil
+        fitWarnings = []
+        alertMessage = nil
+    }
+
+    func clearHistory() {
+        history.removeAll()
+    }
+
+    private func recordHistory(_ label: String) {
+        guard !isApplyingHistory else { return }
+        history.append(HistoryEntry(label: label, trade: trade, isOffseason: isOffseason))
+        if history.count > Self.historyLimit { history.removeFirst() }
+    }
+
+    private func playerName(_ playerId: String, hint: String?) -> String {
+        let teamIds = (hint.map { [$0] } ?? []) + trade.teams.map(\.teamId)
+        for tid in teamIds {
+            if let p = teamsVM?.players(for: tid).first(where: { $0.id == playerId }) {
+                return p.name
+            }
+        }
+        return "player"
     }
 
     private func pruneSelectionsForActiveYear() {

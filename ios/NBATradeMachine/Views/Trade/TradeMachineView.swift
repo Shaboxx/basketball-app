@@ -6,6 +6,7 @@ struct TradeMachineView: View {
     @StateObject private var vm = TradeMachineViewModel()
     @State private var selectedTeamId: String = ""
     @State private var showingAddTeam = false
+    @State private var showingHistory = false
 
     var body: some View {
         NavigationStack {
@@ -42,6 +43,9 @@ struct TradeMachineView: View {
                 selectedTeamId = id
             }
         }
+        .sheet(isPresented: $showingHistory) {
+            TradeHistorySheet(vm: vm)
+        }
     }
 
     private var activeTradeView: some View {
@@ -76,14 +80,31 @@ struct TradeMachineView: View {
     }
 
     private var actionButtons: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button {
                 vm.validate()
             } label: {
-                Label("Validate Trade", systemImage: "checkmark.seal")
+                Label("Validate", systemImage: "checkmark.seal")
                     .frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
+
+            Button {
+                vm.undo()
+            } label: {
+                Label("Undo", systemImage: "arrow.uturn.backward")
+                    .padding(.vertical, 6).padding(.horizontal, 4)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!vm.canUndo)
+            .contextMenu {
+                Button {
+                    showingHistory = true
+                } label: {
+                    Label("View History (\(vm.history.count))", systemImage: "clock.arrow.circlepath")
+                }
+                .disabled(vm.history.isEmpty)
+            }
 
             Button(role: .destructive) {
                 vm.reset()
