@@ -35,6 +35,9 @@ struct Player: Codable, Identifiable, Hashable {
     // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
     // decoder) don't look for it in the document payload. Firestore populates
     // @DocumentID out-of-band from the document reference.
+    // IMPORTANT: every stored property of `Player` except `@DocumentID docId`
+    // MUST be listed below. A property missing from this enum will silently
+    // decode as nil (or fail to encode) without any compile-time warning.
     enum CodingKeys: String, CodingKey {
         case slug, name, teamId, position
         case heightInches, weightLbs, primaryRole, secondaryRole
