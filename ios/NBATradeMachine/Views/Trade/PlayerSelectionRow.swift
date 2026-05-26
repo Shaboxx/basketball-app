@@ -15,13 +15,17 @@ struct PlayerSelectionRow: View {
                         Text(player.position).font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 1) {
+                    VStack(alignment: .trailing, spacing: 3) {
                         Text(Money.display(player.salary(forSeasonOffset: seasonOffset)))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
-                        Text("\(player.contractYearsRemaining(from: seasonOffset))y left")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if let short = player.contractExpirySeasonShort {
+                            PlayerChip(
+                                label: "Expires \(short)",
+                                background: .expiryChip,
+                                foreground: .black
+                            )
+                        }
                     }
                 }
                 .contentShape(Rectangle())
