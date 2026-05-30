@@ -34,6 +34,10 @@ struct Player: Codable, Identifiable, Hashable {
     let cbaSeason: String?
     let cbaUpdatedAt: Date?
 
+    // Phase 7 v2 latent value (theta-hat). Optional — old docs without latent
+    // -value data decode as nil. Written by scripts/upload_latent_value.py.
+    let latentValue: LatentValue?
+
     // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
     // decoder) don't look for it in the document payload. Firestore populates
     // @DocumentID out-of-band from the document reference.
@@ -49,6 +53,7 @@ struct Player: Codable, Identifiable, Hashable {
         case nextContractMax, nextContractMaxBasis, maxTierPct, higherMaxCriteriaMet
         case supermaxPath, contractFinalYearSalary, contractFinalYearSeasonEnd
         case cbaSeason, cbaUpdatedAt
+        case latentValue
     }
 
     var id: String { docId ?? slug }
