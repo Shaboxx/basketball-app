@@ -36,6 +36,8 @@ final class TradeMachineViewModel: ObservableObject {
         let years: Int
         let kind: FreeAgentKind     // UFA or RFA at time of signing
         var exceptionUsed: ExceptionType = .capSpace   // M2: cap exception used
+        var isSignAndTrade: Bool = false               // M3
+        var priorTeamId: String? = nil                 // M3: FA's prior team (must be a trade participant)
     }
 
     enum FreeAgentKind: String, Codable, Hashable {
