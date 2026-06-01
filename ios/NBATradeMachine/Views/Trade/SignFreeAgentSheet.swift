@@ -155,6 +155,7 @@ struct SignFreeAgentDetail: View {
     @State private var years: Int = 2
     @State private var showSoftWarning = false
     @State private var exceptionUsed: ExceptionType = .capSpace
+    @State private var isSignAndTrade: Bool = false
 
     private static let fallbackVetMin = 2_000_000
     private static let fallbackMax = 75_000_000
@@ -243,14 +244,30 @@ struct SignFreeAgentDetail: View {
                     }
                 }
                 Section("Exception") {
-                    Picker("Used", selection: $exceptionUsed) {
-                        ForEach(ExceptionType.allCases, id: \.self) { ex in
-                            Text(ex.label).tag(ex)
+                    Toggle("Sign-and-trade", isOn: $isSignAndTrade)
+                    if isSignAndTrade {
+                        if let prior = fa.priorTeamId {
+                            HStack {
+                                Text("Prior team").font(.caption).foregroundStyle(.secondary)
+                                Spacer()
+                                Text(prior).font(.caption.monospacedDigit())
+                            }
+                            Text("The prior team must be a participant in this trade. The acquirer is hard-capped at the first apron.")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        } else {
+                            Text("This free agent has no recorded prior team — sign-and-trade can't be modeled.")
+                                .font(.caption2).foregroundStyle(.orange)
                         }
-                    }
-                    if exceptionUsed.hardCapsAtFirstApron {
-                        Text("Using this hard-caps the team at the first apron for the season.")
-                            .font(.caption2).foregroundStyle(.secondary)
+                    } else {
+                        Picker("Used", selection: $exceptionUsed) {
+                            ForEach(ExceptionType.allCases.filter { $0 != .signAndTrade }, id: \.self) { ex in
+                                Text(ex.label).tag(ex)
+                            }
+                        }
+                        if exceptionUsed.hardCapsAtFirstApron {
+                            Text("Using this hard-caps the team at the first apron for the season.")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -318,7 +335,9 @@ struct SignFreeAgentDetail: View {
         let signed = TradeMachineViewModel.SignedFreeAgent(
             id: fa.id, name: fa.name, position: fa.position,
             salary: parsedSalary, years: years, kind: fa.kind,
-            exceptionUsed: exceptionUsed
+            exceptionUsed: isSignAndTrade ? .signAndTrade : exceptionUsed,
+            isSignAndTrade: isSignAndTrade,
+            priorTeamId: isSignAndTrade ? fa.priorTeamId : nil
         )
         vm.signFreeAgent(signed, to: teamId)
         dismiss()
