@@ -364,6 +364,11 @@ final class TradeMachineViewModel: ObservableObject {
     }
 
     func validate() {
+        let issues = complianceIssues()
+        let blocks = issues.filter { $0.severity == .block }
+
+        // Keep the existing structural matching from TradeAnalyzer as a baseline
+        // (each team must send and receive); compliance blocks supersede it.
         let flows = trade.teams.map {
             TradeAnalyzer.TeamFlow(
                 teamId: $0.teamId,
@@ -372,7 +377,15 @@ final class TradeMachineViewModel: ObservableObject {
                 incoming: incomingSalary(to: $0.teamId)
             )
         }
-        validation = TradeAnalyzer.validate(flows: flows)
+        let structural = TradeAnalyzer.validate(flows: flows)
+
+        if !structural.isValid {
+            validation = structural
+        } else if let firstBlock = blocks.first {
+            validation = TradeValidation(isValid: false, reason: firstBlock.message)
+        } else {
+            validation = TradeValidation(isValid: true, reason: "")
+        }
 
         var warnings: [PositionFitWarning] = []
         for team in trade.teams {
@@ -383,14 +396,94 @@ final class TradeMachineViewModel: ObservableObject {
             )
         }
         fitWarnings = warnings
-        alertMessage = buildAlertMessage()
+
+        alertMessage = buildAlertMessage(issues: issues)
     }
 
-    private func buildAlertMessage() -> String? {
+    /// Run the CBA compliance engine for every team in the trade.
+    private func complianceIssues() -> [ComplianceIssue] {
+        guard rulesVM?.rules != nil else { return [] }
+        let contexts = trade.teams.map { teamContext(for: $0) }
+        return TradeCompliance.evaluate(teams: contexts)
+    }
+
+    private func teamContext(for team: Team) -> TeamContext {
+        let id = team.teamId
+        let incoming = incomingPlayers(to: id).map(contractLite)
+        let outgoing = outgoingPlayers(from: id).map(contractLite)
+        let postCount = postTradeRosterCount(for: id)
+        let tier = capTier(for: id) ?? .underCap
+        let horizon = draftYearHorizon()
+        return TeamContext(
+            teamId: id,
+            teamName: team.fullName,
+            preTradeSalary: teamTotalSalary(for: id),
+            postTradeSalary: postTradeTotal(for: id),
+            postTradeTier: tier,
+            incoming: incoming,
+            outgoing: outgoing,
+            cashSent: trade.cash(from: id),
+            postTradeRosterCount: postCount,
+            isOffseason: isOffseason,
+            ownedFirstRoundYears: ownedFirstRoundYears(for: id),
+            draftYearHorizon: horizon
+        )
+    }
+
+    private func contractLite(_ p: Player) -> ContractLite {
+        ContractLite(playerId: p.id, name: p.name, salaryY1: p.salaryY1 ?? 0,
+                     standardMax: p.standardMax, nextContractMax: p.nextContractMax)
+    }
+
+    /// kept roster + incoming + signed FAs + drafted prospects.
+    private func postTradeRosterCount(for teamId: String) -> Int {
+        roster(for: teamId).count
+            + incomingPlayers(to: teamId).count
+            + signedFAs(for: teamId).count
+            + draftPicks(for: teamId).count
+    }
+
+    /// Future draft years with >=1 owned first-round pick AFTER the trade.
+    private func ownedFirstRoundYears(for teamId: String) -> Set<Int> {
+        var countByYear: [Int: Int] = [:]
+        for pick in (picksVM?.picks(for: teamId) ?? []) where pick.round == 1 {
+            countByYear[pick.year, default: 0] += 1
+        }
+        for pm in trade.picksOutgoing(from: teamId) where pm.pick.round == 1 {
+            countByYear[pm.pick.year, default: 0] -= 1
+        }
+        for pm in trade.picksIncoming(to: teamId) where pm.pick.round == 1 {
+            countByYear[pm.pick.year, default: 0] += 1
+        }
+        return Set(countByYear.filter { $0.value > 0 }.map(\.key))
+    }
+
+    /// Inclusive span of future draft years to evaluate Stepien over — derived
+    /// from the league-wide picks data; falls back to a 7-year window.
+    private func draftYearHorizon() -> ClosedRange<Int> {
+        let years = (picksVM?.picksByTeamId.values.flatMap { $0 } ?? [])
+            .filter { $0.round == 1 }.map(\.year)
+        guard let lo = years.min(), let hi = years.max(), lo <= hi else {
+            return 2026...2032
+        }
+        return lo...hi
+    }
+
+    private func buildAlertMessage(issues: [ComplianceIssue] = []) -> String? {
         var sections: [String] = []
         if let v = validation, !v.isValid {
             sections.append("Trade is invalid:\n\(v.reason)")
         }
+
+        let blocks = issues.filter { $0.severity == .block }
+        if !blocks.isEmpty {
+            sections.append("CBA violations:\n" + blocks.map { "• \($0.message)" }.joined(separator: "\n"))
+        }
+        let warns = issues.filter { $0.severity == .warn }
+        if !warns.isEmpty {
+            sections.append("CBA warnings:\n" + warns.map { "• \($0.message)" }.joined(separator: "\n"))
+        }
+
         if let capLines = buildCapWarningLines(), !capLines.isEmpty {
             sections.append("This trade pushes a team into a worse cap tier:\n" + capLines.joined(separator: "\n"))
         }
