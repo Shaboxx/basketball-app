@@ -471,11 +471,13 @@ final class TradeMachineViewModel: ObservableObject {
 
     private func buildAlertMessage(issues: [ComplianceIssue] = []) -> String? {
         var sections: [String] = []
-        if let v = validation, !v.isValid {
+        let blocks = issues.filter { $0.severity == .block }
+        // Show the generic "invalid" header only when there are NO CBA blocks;
+        // when blocks exist they are listed in full below, so repeating
+        // validation.reason (which mirrors the first block) would duplicate it.
+        if blocks.isEmpty, let v = validation, !v.isValid {
             sections.append("Trade is invalid:\n\(v.reason)")
         }
-
-        let blocks = issues.filter { $0.severity == .block }
         if !blocks.isEmpty {
             sections.append("CBA violations:\n" + blocks.map { "• \($0.message)" }.joined(separator: "\n"))
         }
