@@ -5,7 +5,7 @@ import Foundation
 struct ComplianceIssue: Identifiable, Hashable {
     enum Severity: Hashable { case block, warn }
     enum Category: Hashable {
-        case roster, stepien, salaryMatch, apron, maxSalary, cash, hardCap
+        case roster, stepien, salaryMatch, apron, maxSalary, cash, hardCap, signAndTrade
     }
     let id = UUID()
     let severity: Severity
@@ -45,4 +45,6 @@ struct TeamContext {
     /// Dollar ceiling this team can't exceed this scenario (first-apron hard
     /// cap from an exception/sign-and-trade); nil = not hard-capped. (M2)
     let hardCapLimit: Int?
+    /// True if this team is acquiring a player via sign-and-trade this scenario. (M3)
+    let acquiringViaSignAndTrade: Bool
 }
