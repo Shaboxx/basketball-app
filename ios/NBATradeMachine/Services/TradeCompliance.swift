@@ -156,6 +156,21 @@ enum TradeCompliance {
             message: "\(t.teamName): hard-capped at \(dollars(limit)) this season (an exception or sign-and-trade was used) — this move pushes salary to \(dollars(t.postTradeSalary)).")]
     }
 
+    // MARK: §4.8 Sign-and-trade (M3)
+    static func signAndTradeIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard t.acquiringViaSignAndTrade else { return [] }
+        var issues: [ComplianceIssue] = []
+        if t.postTradeTier == .overFirstApron || t.postTradeTier == .overSecondApron {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .signAndTrade, teamId: t.teamId,
+                message: "\(t.teamName): teams over the first apron cannot acquire a player via sign-and-trade."))
+        }
+        issues.append(ComplianceIssue(
+            severity: .warn, category: .signAndTrade, teamId: t.teamId,
+            message: "\(t.teamName): sign-and-trade requires a 3-4 year contract with the first year fully guaranteed, signed before opening night, and the prior team must be a trade participant. The acquirer is hard-capped at the first apron."))
+        return issues
+    }
+
     // MARK: aggregate
     static func evaluate(teams: [TeamContext]) -> [ComplianceIssue] {
         var issues: [ComplianceIssue] = []
@@ -167,6 +182,7 @@ enum TradeCompliance {
             issues += maxSalaryIssues(t)
             issues += cashIssues(t)
             issues += hardCapIssues(t)
+            issues += signAndTradeIssues(t)
         }
         return issues
     }
