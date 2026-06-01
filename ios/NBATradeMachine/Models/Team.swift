@@ -10,5 +10,12 @@ struct Team: Codable, Identifiable, Hashable {
     let conference: String
     let division: String
 
+    // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
+    // decoder) don't look for it in the document payload — Firestore populates
+    // @DocumentID out-of-band from the document reference. Mirrors `Player`.
+    enum CodingKeys: String, CodingKey {
+        case teamId, fullName, city, name, conference, division
+    }
+
     var id: String { teamId }
 }
