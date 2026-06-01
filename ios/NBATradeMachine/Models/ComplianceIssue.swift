@@ -5,7 +5,7 @@ import Foundation
 struct ComplianceIssue: Identifiable, Hashable {
     enum Severity: Hashable { case block, warn }
     enum Category: Hashable {
-        case roster, stepien, salaryMatch, apron, maxSalary, cash
+        case roster, stepien, salaryMatch, apron, maxSalary, cash, hardCap
     }
     let id = UUID()
     let severity: Severity
@@ -42,4 +42,7 @@ struct TeamContext {
     let ownedFirstRoundYears: Set<Int>
     /// Inclusive range of future draft years to evaluate Stepien gaps over.
     let draftYearHorizon: ClosedRange<Int>
+    /// Dollar ceiling this team can't exceed this scenario (first-apron hard
+    /// cap from an exception/sign-and-trade); nil = not hard-capped. (M2)
+    let hardCapLimit: Int?
 }

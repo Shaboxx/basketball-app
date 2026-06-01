@@ -411,6 +411,15 @@ final class TradeMachineViewModel: ObservableObject {
         return TradeCompliance.evaluate(teams: contexts)
     }
 
+    /// First-apron hard cap if any in-scenario signing for this team used a
+    /// hard-capping exception (sign-and-trade forces `.signAndTrade`, which is
+    /// hard-capping); else nil. (M2)
+    private func hardCapLimit(for teamId: String) -> Int? {
+        guard let rules = rulesVM?.rules else { return nil }
+        let hardCapped = signedFAs(for: teamId).contains { $0.exceptionUsed.hardCapsAtFirstApron }
+        return hardCapped ? rules.firstApron : nil
+    }
+
     private func teamContext(for team: Team) -> TeamContext {
         let id = team.teamId
         let incoming = incomingPlayers(to: id).map(contractLite)
@@ -430,7 +439,8 @@ final class TradeMachineViewModel: ObservableObject {
             postTradeRosterCount: postCount,
             isOffseason: isOffseason,
             ownedFirstRoundYears: ownedFirstRoundYears(for: id),
-            draftYearHorizon: horizon
+            draftYearHorizon: horizon,
+            hardCapLimit: hardCapLimit(for: id)
         )
     }
 
