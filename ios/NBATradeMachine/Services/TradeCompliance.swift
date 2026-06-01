@@ -148,6 +148,14 @@ enum TradeCompliance {
         }
     }
 
+    // MARK: §4.7 Hard cap (M2)
+    static func hardCapIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard let limit = t.hardCapLimit, t.postTradeSalary > limit else { return [] }
+        return [ComplianceIssue(
+            severity: .block, category: .hardCap, teamId: t.teamId,
+            message: "\(t.teamName): hard-capped at \(dollars(limit)) this season (an exception or sign-and-trade was used) — this move pushes salary to \(dollars(t.postTradeSalary)).")]
+    }
+
     // MARK: aggregate
     static func evaluate(teams: [TeamContext]) -> [ComplianceIssue] {
         var issues: [ComplianceIssue] = []
@@ -158,6 +166,7 @@ enum TradeCompliance {
             issues += apronIssues(t)
             issues += maxSalaryIssues(t)
             issues += cashIssues(t)
+            issues += hardCapIssues(t)
         }
         return issues
     }
