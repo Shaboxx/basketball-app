@@ -117,4 +117,24 @@ enum TradeCompliance {
             severity: .warn, category: .cash, teamId: t.teamId,
             message: "\(t.teamName): sending \(dollars(t.cashSent)) — over the \(dollars(cashLimitPerTeam)) per-team season cash limit.")]
     }
+
+    // MARK: §4.2 Stepien rule
+    static func stepienIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        var run = 0
+        var gapStart = 0
+        for year in t.draftYearHorizon {
+            if t.ownedFirstRoundYears.contains(year) {
+                run = 0
+            } else {
+                if run == 0 { gapStart = year }
+                run += 1
+                if run >= 2 {
+                    return [ComplianceIssue(
+                        severity: .block, category: .stepien, teamId: t.teamId,
+                        message: "\(t.teamName): Stepien rule — no first-round pick in \(gapStart) and \(year). A team can't be without a first-round pick in consecutive drafts.")]
+                }
+            }
+        }
+        return []
+    }
 }
