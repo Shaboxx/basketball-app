@@ -83,4 +83,38 @@ enum TradeCompliance {
         f.locale = Locale(identifier: "en_US")
         return f.string(from: NSNumber(value: n)) ?? "$\(n)"
     }
+
+    // MARK: §4.4 Apron restrictions
+    static func apronIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard t.postTradeTier == .overSecondApron else { return [] }
+        var issues: [ComplianceIssue] = []
+
+        // No aggregation: heuristic — sends >=2 players AND takes back a single
+        // contract larger than its largest single outgoing salary.
+        if t.outgoing.count >= 2, let biggestOut = t.outgoing.map(\.salaryY1).max(),
+           t.incoming.contains(where: { $0.salaryY1 > biggestOut }) {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .apron, teamId: t.teamId,
+                message: "\(t.teamName): second-apron teams cannot aggregate salaries — combining outgoing contracts to absorb a larger player is not allowed."))
+        }
+        // No cash sent.
+        if t.cashSent > 0 {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .apron, teamId: t.teamId,
+                message: "\(t.teamName): second-apron teams cannot send cash in trades."))
+        }
+        // Frozen pick (advisory).
+        issues.append(ComplianceIssue(
+            severity: .warn, category: .apron, teamId: t.teamId,
+            message: "\(t.teamName): while in the second apron, its first-round pick seven drafts out is frozen (moved to the end of the round)."))
+        return issues
+    }
+
+    // MARK: §4.6 Cash limit
+    static func cashIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard t.cashSent > cashLimitPerTeam else { return [] }
+        return [ComplianceIssue(
+            severity: .warn, category: .cash, teamId: t.teamId,
+            message: "\(t.teamName): sending \(dollars(t.cashSent)) — over the \(dollars(cashLimitPerTeam)) per-team season cash limit.")]
+    }
 }
