@@ -137,4 +137,28 @@ enum TradeCompliance {
         }
         return []
     }
+
+    // MARK: §4.5 Max-salary sanity
+    static func maxSalaryIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        t.incoming.compactMap { c in
+            guard let cap = c.standardMax ?? c.nextContractMax, c.salaryY1 > cap else { return nil }
+            return ComplianceIssue(
+                severity: .warn, category: .maxSalary, teamId: t.teamId,
+                message: "\(t.teamName): incoming \(c.name) at \(dollars(c.salaryY1)) exceeds the \(dollars(cap)) max for their tier — check the contract data.")
+        }
+    }
+
+    // MARK: aggregate
+    static func evaluate(teams: [TeamContext]) -> [ComplianceIssue] {
+        var issues: [ComplianceIssue] = []
+        for t in teams {
+            issues += rosterIssues(t)
+            issues += stepienIssues(t)
+            issues += salaryMatchIssues(t)
+            issues += apronIssues(t)
+            issues += maxSalaryIssues(t)
+            issues += cashIssues(t)
+        }
+        return issues
+    }
 }
