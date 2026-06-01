@@ -108,6 +108,9 @@ final class TradeMachineViewModel: ObservableObject {
         rulesVM.objectWillChange
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        picksVM.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
         objectWillChange.send()
     }
 
@@ -489,9 +492,6 @@ final class TradeMachineViewModel: ObservableObject {
         if let capLines = buildCapWarningLines(), !capLines.isEmpty {
             sections.append("This trade pushes a team into a worse cap tier:\n" + capLines.joined(separator: "\n"))
         }
-        if let cashLines = buildCashWarningLines(), !cashLines.isEmpty {
-            sections.append("Cash limit warning:\n" + cashLines.joined(separator: "\n"))
-        }
         return sections.isEmpty ? nil : sections.joined(separator: "\n\n")
     }
 
@@ -506,17 +506,6 @@ final class TradeMachineViewModel: ObservableObject {
             }
         }
         return lines
-    }
-
-    private func buildCashWarningLines() -> [String]? {
-        var lines: [String] = []
-        for team in trade.teams {
-            let amount = trade.cash(from: team.teamId)
-            if amount > Trade.cashLimit {
-                lines.append("\(team.fullName) sending \(Money.display(amount)) (over $8.12M season limit)")
-            }
-        }
-        return lines.isEmpty ? nil : lines
     }
 
     func reset() {
