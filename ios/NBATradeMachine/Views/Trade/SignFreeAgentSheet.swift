@@ -302,7 +302,7 @@ struct SignFreeAgentDetail: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Sign") { signTapped() }
-                        .disabled(hardError != nil || parsedSalary <= 0)
+                        .disabled(hardError != nil || parsedSalary <= 0 || (isSignAndTrade && fa.priorTeamId == nil))
                 }
             }
             .alert("Unusual offer", isPresented: $showSoftWarning) {
