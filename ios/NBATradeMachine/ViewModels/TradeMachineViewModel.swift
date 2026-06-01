@@ -35,6 +35,7 @@ final class TradeMachineViewModel: ObservableObject {
         let salary: Int
         let years: Int
         let kind: FreeAgentKind     // UFA or RFA at time of signing
+        var exceptionUsed: ExceptionType = .capSpace   // M2: cap exception used
     }
 
     enum FreeAgentKind: String, Codable, Hashable {
