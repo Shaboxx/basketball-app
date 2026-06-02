@@ -38,6 +38,15 @@ struct Player: Codable, Identifiable, Hashable {
     // -value data decode as nil. Written by scripts/upload_latent_value.py.
     let latentValue: LatentValue?
 
+    // Phase 7e composite valuation block. Optional — docs predating the
+    // Phase 7e join decode as nil and downstream consumers fall back to
+    // raw latentValue + contract math.
+    let compZ: CompZValuation?
+
+    // SP1 position eligibility (primary + adjacent-eligible positions).
+    // Optional — docs without the upload decode as nil.
+    let positionEligibility: PositionEligibility?
+
     // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
     // decoder) don't look for it in the document payload. Firestore populates
     // @DocumentID out-of-band from the document reference.
@@ -54,6 +63,8 @@ struct Player: Codable, Identifiable, Hashable {
         case supermaxPath, contractFinalYearSalary, contractFinalYearSeasonEnd
         case cbaSeason, cbaUpdatedAt
         case latentValue
+        case compZ
+        case positionEligibility
     }
 
     var id: String { docId ?? slug }
@@ -85,3 +96,65 @@ struct Player: Codable, Identifiable, Hashable {
         return count
     }
 }
+
+#if DEBUG
+extension Player {
+    /// Lightweight builder for unit/preview construction. Every field has a
+    /// neutral default so tests can override only the fields they care about.
+    /// `compZ`, `latentValue`, and all CBA Phase 1 fields default to nil so
+    /// callers can exercise the "missing optional" branches explicitly.
+    static func testFixture(
+        slug: String = "test-player",
+        name: String = "Test Player",
+        teamId: String = "1610612737",
+        position: String = "G",
+        heightInches: Int? = 78,
+        weightLbs: Int? = 210,
+        birthdate: String? = nil,
+        primaryRole: String? = nil,
+        secondaryRole: String? = nil,
+        defensiveRole: String? = nil,
+        salaryY1: Int? = 10_000_000,
+        salaryY2: Int? = nil,
+        salaryY3: Int? = nil,
+        salaryY4: Int? = nil,
+        yos: Int? = nil,
+        standardMax: Int? = nil,
+        minSalary: Int? = nil,
+        supermaxEligible: Bool? = nil,
+        nextContractMax: Int? = nil,
+        nextContractMaxBasis: String? = nil,
+        maxTierPct: Int? = nil,
+        higherMaxCriteriaMet: Bool? = nil,
+        supermaxPath: String? = nil,
+        contractFinalYearSalary: Int? = nil,
+        contractFinalYearSeasonEnd: Int? = nil,
+        cbaSeason: String? = nil,
+        cbaUpdatedAt: Date? = nil,
+        latentValue: LatentValue? = nil,
+        compZ: CompZValuation? = nil,
+        positionEligibility: PositionEligibility? = nil
+    ) -> Player {
+        Player(
+            slug: slug, name: name, teamId: teamId, position: position,
+            heightInches: heightInches, weightLbs: weightLbs,
+            birthdate: birthdate, primaryRole: primaryRole,
+            secondaryRole: secondaryRole, defensiveRole: defensiveRole,
+            salaryY1: salaryY1, salaryY2: salaryY2,
+            salaryY3: salaryY3, salaryY4: salaryY4,
+            yos: yos, standardMax: standardMax, minSalary: minSalary,
+            supermaxEligible: supermaxEligible,
+            nextContractMax: nextContractMax,
+            nextContractMaxBasis: nextContractMaxBasis,
+            maxTierPct: maxTierPct,
+            higherMaxCriteriaMet: higherMaxCriteriaMet,
+            supermaxPath: supermaxPath,
+            contractFinalYearSalary: contractFinalYearSalary,
+            contractFinalYearSeasonEnd: contractFinalYearSeasonEnd,
+            cbaSeason: cbaSeason, cbaUpdatedAt: cbaUpdatedAt,
+            latentValue: latentValue, compZ: compZ,
+            positionEligibility: positionEligibility
+        )
+    }
+}
+#endif
