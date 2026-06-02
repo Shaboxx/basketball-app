@@ -161,14 +161,12 @@ struct DepthEntry: Identifiable, Hashable {
         self.salary = salary
     }
 
-    /// Sort key used by the depth chart column. Players use their best
-    /// channel theta-z; synthetic entries fall back to salary so they
-    /// land near the bottom of the column when unrated.
+    /// Sort key used by the depth chart column. Players use their v2 display
+    /// total (dispTotal); synthetic / unrated entries fall back to salary so
+    /// they land near the bottom of the column.
     var rank: Double {
-        if let lv = player?.latentValue {
-            let off = lv.thetaZOff ?? -.infinity
-            let def = lv.thetaZDef ?? -.infinity
-            return max(off, def)
+        if let total = player?.dispTotal {
+            return total
         }
         return -Double(Int.max - salary) / 1_000_000  // crude tiebreaker
     }
@@ -221,9 +219,11 @@ private struct DepthChartCell: View {
                 .font(.caption2.bold())
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
-            if let sigma = sigmaLabel {
-                Text(sigma).font(.system(size: 9).monospacedDigit())
+            if let valueLine {
+                Text(valueLine).font(.system(size: 9).monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
             }
             Text(Money.display(entry.salary))
                 .font(.system(size: 9).monospacedDigit())
@@ -243,11 +243,12 @@ private struct DepthChartCell: View {
         )
     }
 
-    private var sigmaLabel: String? {
-        guard let lv = entry.player?.latentValue else { return nil }
-        let o = lv.thetaZOff.map { String(format: "%+.1f", $0) } ?? "—"
-        let d = lv.thetaZDef.map { String(format: "%+.1f", $0) } ?? "—"
-        return "O\(o) D\(d)"
+    /// v2 value summary for real players: TOT / OFF / DEF, one stat per line.
+    /// Synthetic entries (FA signings / drafted prospects) have no player and
+    /// show only salary + tag.
+    private var valueLine: String? {
+        guard let player = entry.player else { return nil }
+        return "TOT \(Player.fmtVal(player.dispTotal))\nOFF \(Player.fmtVal(player.dispOff))\nDEF \(Player.fmtVal(player.dispDef))"
     }
 
     private var tagLabel: String? {

@@ -4,7 +4,9 @@ struct DepthSlot: Identifiable, Hashable {
     let player: Player
     let bestPosition: String
     let secondaryPositions: [String]   // canonical, excludes bestPosition
-    let thetaZ: Double?
+    let total: Double?                  // v2 display total (dispTotal)
+    let off: Double?                    // v2 display offense (dispOff)
+    let def: Double?                    // v2 display defense (dispDef)
     var id: String { player.id }
 }
 
@@ -60,7 +62,9 @@ enum TeamDepthChartBuilder {
                 player: p,
                 bestPosition: profile.best,
                 secondaryPositions: profile.secondaries,
-                thetaZ: p.latentValue?.thetaZ
+                total: p.dispTotal,
+                off: p.dispOff,
+                def: p.dispDef
             )
             for col in profile.columns where positions.contains(col) {
                 buckets[col, default: []].append(slot)
@@ -69,8 +73,8 @@ enum TeamDepthChartBuilder {
         var result: [String: ColumnResult] = [:]
         for pos in positions {
             let sorted = (buckets[pos] ?? []).sorted {
-                let a = $0.thetaZ ?? -.greatestFiniteMagnitude
-                let b = $1.thetaZ ?? -.greatestFiniteMagnitude
+                let a = $0.total ?? -.greatestFiniteMagnitude
+                let b = $1.total ?? -.greatestFiniteMagnitude
                 if a != b { return a > b }
                 return $0.player.name < $1.player.name
             }
@@ -149,8 +153,10 @@ private struct DepthSlotCell: View {
                 .font(.caption2.bold())
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
-            Text(sigma).font(.system(size: 9).monospacedDigit())
+            Text(valueLine).font(.system(size: 9).monospacedDigit())
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
             HStack(spacing: 3) {
                 Text("Best: \(slot.bestPosition)")
                     .font(.system(size: 8).bold())
@@ -168,7 +174,9 @@ private struct DepthSlotCell: View {
             .stroke(Color.black.opacity(0.06), lineWidth: 0.5))
     }
 
-    private var sigma: String {
-        slot.thetaZ.map { String(format: "%+.1fσ", $0) } ?? "—"
+    /// v2 value summary: TOT / OFF / DEF, one stat per line so it stays
+    /// legible inside the narrow column cell.
+    private var valueLine: String {
+        "TOT \(Player.fmtVal(slot.total))\nOFF \(Player.fmtVal(slot.off))\nDEF \(Player.fmtVal(slot.def))"
     }
 }
