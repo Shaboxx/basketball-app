@@ -4,6 +4,7 @@ struct TeamDetailView: View {
     let team: Team
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
+    @EnvironmentObject var normsVM: LeagueNormsViewModel
     @State private var showingDepthChart = false
 
     var body: some View {
@@ -76,7 +77,8 @@ struct TeamDetailView: View {
                 DepthChartLayersView(
                     columns: TeamDepthChartBuilder.columns(for: roster),
                     league: TeamDepthChartBuilder.leagueLayerStats(
-                        rostersByTeam: teamsVM.playersByTeamId)
+                        rostersByTeam: teamsVM.playersByTeamId),
+                    norms: normsVM.norms
                 )
                 .navigationTitle("Depth Chart")
                 .navigationBarTitleDisplayMode(.inline)

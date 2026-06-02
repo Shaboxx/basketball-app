@@ -14,8 +14,38 @@ struct DepthChartLayersView: View {
     let columns: [String: ColumnResult]
     let league: TeamDepthChartBuilder.LeagueLayerStats
     var cap: Int = 4
+    /// League norms for the lineup-breakdown sheet. nil → the breakdown shows
+    /// "unavailable" rather than crashing.
+    var norms: LeagueNorms? = nil
 
     private var positions: [String] { TeamDepthChartBuilder.positions }
+
+    /// Identifiable wrapper so a tapped layer index can drive `.sheet(item:)`.
+    private struct BreakdownLayer: Identifiable { let id: Int }
+
+    /// The layer whose Lineup cell was tapped (drives the breakdown sheet).
+    @State private var breakdownLayer: BreakdownLayer?
+
+    /// The five filled Player cells of `layer` (the layer's lineup), in PG-SG-
+    /// SF-PF-C column order.
+    private func layerPlayers(_ layer: Int) -> [Player] {
+        positions.compactMap { pos -> Player? in
+            guard let shown = columns[pos]?.shown, layer < shown.count else { return nil }
+            return shown[layer].player
+        }
+    }
+
+    /// Per-player composite impact (thetaV2.l2Signed) for `layer`, same order as
+    /// `layerPlayers`.
+    private func layerImpacts(_ layer: Int) -> [Double?] {
+        layerPlayers(layer).map { $0.thetaV2?.l2Signed }
+    }
+
+    /// Tier label the labeler uses: the first (starters) layer is "starters",
+    /// every deeper layer is a reserve unit ("bench").
+    private func tier(for layer: Int) -> String {
+        layer == 0 ? "starters" : "bench"
+    }
 
     /// Layers (0..<cap) that hold at least one filled position cell.
     private var activeLayers: [Int] {
@@ -61,6 +91,20 @@ struct DepthChartLayersView: View {
                 }
             }
             .padding(12)
+        }
+        .sheet(item: $breakdownLayer) { item in
+            let layer = item.id
+            NavigationStack {
+                LineupBreakdownView(
+                    players: layerPlayers(layer),
+                    norms: norms,
+                    impacts: layerImpacts(layer),
+                    tier: tier(for: layer)
+                )
+                .navigationDestination(for: Player.self) { p in
+                    PlayerDetailView(player: p)
+                }
+            }
         }
     }
 
@@ -140,22 +184,32 @@ struct DepthChartLayersView: View {
         }
     }
 
+    /// The trailing layer-Total cell. Tapping it opens the generated
+    /// `LineupBreakdownView` for that layer's five filled players.
     private func totalCell(layer: Int) -> some View {
         let sums = TeamDepthChartBuilder.layerTotals(columns, layer: layer)
         let stats = league.totalByLayer[layer]
-        return cellBox {
-            VStack(spacing: 2) {
-                Text("Total")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                metricLine("TOT", sums.tot,
-                           TeamDepthChartBuilder.highlight(sums.tot, stats?.tot ?? zero))
-                metricLine("OFF", sums.off,
-                           TeamDepthChartBuilder.highlight(sums.off, stats?.off ?? zero))
-                metricLine("DEF", sums.def,
-                           TeamDepthChartBuilder.highlight(sums.def, stats?.def ?? zero))
+        return Button {
+            breakdownLayer = BreakdownLayer(id: layer)
+        } label: {
+            cellBox {
+                VStack(spacing: 2) {
+                    Text("Lineup")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                    metricLine("TOT", sums.tot,
+                               TeamDepthChartBuilder.highlight(sums.tot, stats?.tot ?? zero))
+                    metricLine("OFF", sums.off,
+                               TeamDepthChartBuilder.highlight(sums.off, stats?.off ?? zero))
+                    metricLine("DEF", sums.def,
+                               TeamDepthChartBuilder.highlight(sums.def, stats?.def ?? zero))
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color.accentColor)
+                }
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Cell helpers

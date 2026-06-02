@@ -13,6 +13,7 @@ import SwiftUI
 struct DepthChartSheet: View {
     @ObservedObject var vm: TradeMachineViewModel
     @EnvironmentObject var teamsVM: TeamsViewModel
+    @EnvironmentObject var normsVM: LeagueNormsViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTeamId: String = ""
 
@@ -31,7 +32,8 @@ struct DepthChartSheet: View {
                         DepthChartLayersView(
                             columns: TeamDepthChartBuilder.columns(for: roster(for: team)),
                             league: TeamDepthChartBuilder.leagueLayerStats(
-                                rostersByTeam: teamsVM.playersByTeamId)
+                                rostersByTeam: teamsVM.playersByTeamId),
+                            norms: normsVM.norms
                         )
                     }
                 }
