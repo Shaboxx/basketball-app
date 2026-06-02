@@ -43,9 +43,8 @@ struct TeamDetailView: View {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(Money.display(p.currentSalary))
                                     .font(.caption.monospacedDigit())
-                                if let lv = p.latentValue,
-                                   (lv.thetaZOff != nil || lv.thetaZDef != nil) {
-                                    Text(rosterRowSigma(lv))
+                                if p.hasDisplayValue {
+                                    Text(rosterRowValue(p))
                                         .font(.caption2.monospacedDigit())
                                         .foregroundStyle(.secondary)
                                 }
@@ -72,9 +71,9 @@ struct TeamDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// Summary band: sum of OFF/DEF σ across the roster (incoming-style
-    /// rollup). Hidden when no player on the roster has Rev-2 z fields yet —
-    /// avoids showing 0.00 for the handful of teams whose roster still has
+    /// Summary band: sum of OFF/DEF value across the roster (incoming-style
+    /// rollup). Hidden when no player on the roster has a display value yet —
+    /// avoids showing 0.0 for the handful of teams whose roster still has
     /// only Tier-A docs.
     @ViewBuilder
     private func rosterValueSection(roster: [Player]) -> some View {
@@ -82,8 +81,8 @@ struct TeamDetailView: View {
         if rated > 0 {
             Section("Roster Latent Value") {
                 HStack(spacing: 16) {
-                    rollupCell("OFF Σσ", signed(off))
-                    rollupCell("DEF Σσ", signed(def))
+                    rollupCell("OFF Σ", signed(off))
+                    rollupCell("DEF Σ", signed(def))
                     rollupCell("Coverage", "\(rated) / \(total)")
                 }
             }
@@ -103,9 +102,8 @@ struct TeamDetailView: View {
         var def = 0.0
         var rated = 0
         for p in roster {
-            guard let lv = p.latentValue else { continue }
-            let o = lv.thetaZOff
-            let d = lv.thetaZDef
+            let o = p.dispOff
+            let d = p.dispDef
             guard o != nil || d != nil else { continue }
             off += o ?? 0
             def += d ?? 0
@@ -114,27 +112,24 @@ struct TeamDetailView: View {
         return (off, def, rated, roster.count)
     }
 
-    /// Top-3 OFF and top-3 DEF on the roster by Rev-2 σ. Lets you eyeball
+    /// Top-3 OFF and top-3 DEF on the roster by display value. Lets you eyeball
     /// who actually carries each side of the ball. Section auto-hides when
     /// fewer than 2 rated players exist on the roster — under 2 it's not a
     /// "leaderboard," it's just one name.
     @ViewBuilder
     private func teamLeadersSection(roster: [Player]) -> some View {
-        let rated = roster.filter { p in
-            guard let lv = p.latentValue else { return false }
-            return lv.thetaZOff != nil || lv.thetaZDef != nil
-        }
+        let rated = roster.filter { $0.dispOff != nil || $0.dispDef != nil }
         if rated.count >= 2 {
             let topOff = rated
                 .compactMap { p -> (Player, Double)? in
-                    guard let z = p.latentValue?.thetaZOff else { return nil }
+                    guard let z = p.dispOff else { return nil }
                     return (p, z)
                 }
                 .sorted { $0.1 > $1.1 }
                 .prefix(3)
             let topDef = rated
                 .compactMap { p -> (Player, Double)? in
-                    guard let z = p.latentValue?.thetaZDef else { return nil }
+                    guard let z = p.dispDef else { return nil }
                     return (p, z)
                 }
                 .sorted { $0.1 > $1.1 }
@@ -158,7 +153,7 @@ struct TeamDetailView: View {
                         HStack {
                             Text(player.name).font(.subheadline)
                             Spacer()
-                            Text(String(format: "%+.2fσ", value))
+                            Text(Player.fmtVal(value))
                                 .font(.caption.monospacedDigit().bold())
                                 .foregroundStyle(value >= 0 ? .green : .red)
                         }
@@ -169,13 +164,14 @@ struct TeamDetailView: View {
         }
     }
 
-    private func rosterRowSigma(_ lv: LatentValue) -> String {
-        let o = lv.thetaZOff.map { String(format: "%+.2f", $0) } ?? "—"
-        let d = lv.thetaZDef.map { String(format: "%+.2f", $0) } ?? "—"
-        return "OFF \(o) · DEF \(d)"
+    private func rosterRowValue(_ p: Player) -> String {
+        let t = Player.fmtVal(p.dispTotal)
+        let o = Player.fmtVal(p.dispOff)
+        let d = Player.fmtVal(p.dispDef)
+        return "TOT \(t) · OFF \(o) · DEF \(d)"
     }
 
     private func signed(_ v: Double) -> String {
-        String(format: "%+.2f", v)
+        Player.fmtVal(v)
     }
 }

@@ -27,8 +27,8 @@ struct PlayersListView: View {
                                     Text(Money.display(p.currentSalary))
                                         .font(.caption.monospacedDigit())
                                         .foregroundStyle(.secondary)
-                                    if let sigma = sigmaLine(for: p) {
-                                        Text(sigma)
+                                    if let valueLine = valueLine(for: p) {
+                                        Text(valueLine)
                                             .font(.caption2.monospacedDigit())
                                             .foregroundStyle(.secondary)
                                     }
@@ -63,25 +63,21 @@ struct PlayersListView: View {
         .task { await vm.load() }
     }
 
-    /// One-line σ summary appended to the row — picks the channel matching
+    /// One-line value summary appended to the row — picks the channel matching
     /// the current sort, or shows the joint OFF/DEF pair under name/salary
-    /// sorts. Returns nil for players without Rev-2 z fields so the row
+    /// sorts. Returns nil for players without a display value so the row
     /// degrades cleanly.
-    private func sigmaLine(for p: Player) -> String? {
-        guard let lv = p.latentValue,
-              (lv.thetaZOff != nil || lv.thetaZDef != nil || lv.thetaZ != nil)
-        else { return nil }
+    private func valueLine(for p: Player) -> String? {
+        guard p.hasDisplayValue else { return nil }
         switch vm.sortMode {
         case .offSigmaDesc:
-            return lv.thetaZOff.map { String(format: "OFF %+.2fσ", $0) }
+            return p.dispOff.map { "OFF \(Player.fmtVal($0))" }
         case .defSigmaDesc:
-            return lv.thetaZDef.map { String(format: "DEF %+.2fσ", $0) }
+            return p.dispDef.map { "DEF \(Player.fmtVal($0))" }
         case .totalSigmaDesc:
-            return lv.thetaZ.map { String(format: "TOT %+.2fσ", $0) }
+            return p.dispTotal.map { "TOT \(Player.fmtVal($0))" }
         case .name, .salaryDesc:
-            let o = lv.thetaZOff.map { String(format: "%+.2f", $0) } ?? "—"
-            let d = lv.thetaZDef.map { String(format: "%+.2f", $0) } ?? "—"
-            return "OFF \(o) · DEF \(d)"
+            return "OFF \(Player.fmtVal(p.dispOff)) · DEF \(Player.fmtVal(p.dispDef))"
         }
     }
 }

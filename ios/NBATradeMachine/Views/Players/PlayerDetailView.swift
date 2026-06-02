@@ -20,8 +20,9 @@ struct PlayerDetailView: View {
                     stat("Height", player.heightDisplay)
                     stat("Weight", player.weightLbs.map { "\($0) lb" } ?? "—")
                     stat("Age", player.age().map { String($0) } ?? "—")
-                    stat(offLabel, offValue)
-                    stat(defLabel, defValue)
+                    stat("TOT", Player.fmtVal(player.dispTotal))
+                    stat("OFF", Player.fmtVal(player.dispOff))
+                    stat("DEF", Player.fmtVal(player.dispDef))
                 }
 
                 RolesSection(player: player)
@@ -65,26 +66,6 @@ struct PlayerDetailView: View {
             Text(value).font(.title3.bold())
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
-    }
-
-    /// Prefer the league-relative z value (Δσ) — that's the single most
-    /// interpretable scalar. Fall back to raw theta (Δθ in points/100) when
-    /// the Rev-2 z fields haven't been written yet for this player.
-    private var offLabel: String {
-        player.latentValue?.thetaZOff != nil ? "OFF σ" : "OFF θ"
-    }
-    private var offValue: String {
-        if let z = player.latentValue?.thetaZOff { return String(format: "%+.2f", z) }
-        if let v = player.latentValue?.thetaOff { return String(format: "%+.2f", v) }
-        return "—"
-    }
-    private var defLabel: String {
-        player.latentValue?.thetaZDef != nil ? "DEF σ" : "DEF θ"
-    }
-    private var defValue: String {
-        if let z = player.latentValue?.thetaZDef { return String(format: "%+.2f", z) }
-        if let v = player.latentValue?.thetaDef { return String(format: "%+.2f", v) }
-        return "—"
     }
 }
 

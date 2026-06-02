@@ -53,8 +53,8 @@ final class TeamsViewModel: ObservableObject {
         let salaries = players.map(\.currentSalary).filter { $0 > 0 }
         guard !salaries.isEmpty, salary > 0 else { return nil }
 
-        guard let sigma = player.latentValue?.thetaZ else { return nil }
-        let sigmas = players.compactMap { $0.latentValue?.thetaZ }
+        guard let sigma = player.dispTotal else { return nil }
+        let sigmas = players.compactMap { $0.dispTotal }
         guard sigmas.count >= 10 else { return nil }   // too few rated to rank
 
         let salaryPct = Self.percentile(of: Double(salary), in: salaries.map(Double.init))
@@ -76,19 +76,18 @@ final class TeamsViewModel: ObservableObject {
         return Int((below / n * 100).rounded())
     }
 
-    /// Sum of Rev-2 OFF/DEF σ across the rated roster, plus how many players
-    /// of the roster carry z fields. Returns (0,0,0,total) when no roster
-    /// player is rated yet — callers must treat `rated == 0` as "hide the
-    /// summary," not as "team is exactly average."
+    /// Sum of OFF/DEF display value across the rated roster, plus how many
+    /// players of the roster carry a display value. Returns (0,0,0,total) when
+    /// no roster player is rated yet — callers must treat `rated == 0` as "hide
+    /// the summary," not as "team is exactly average."
     func latentValueRollup(for teamId: String) -> (off: Double, def: Double, rated: Int, total: Int) {
         let roster = players(for: teamId)
         var off = 0.0
         var def = 0.0
         var rated = 0
         for p in roster {
-            guard let lv = p.latentValue else { continue }
-            let o = lv.thetaZOff
-            let d = lv.thetaZDef
+            let o = p.dispOff
+            let d = p.dispDef
             guard o != nil || d != nil else { continue }
             off += o ?? 0
             def += d ?? 0

@@ -76,8 +76,8 @@ struct LatentValueSection: View {
         VStack(alignment: .leading, spacing: 6) {
             ratePair(label: "θ̂  (pts/100)",
                      off: lv.thetaOff, def: lv.thetaDef, total: lv.theta)
-            ratePair(label: "σ vs league",
-                     off: lv.thetaZOff, def: lv.thetaZDef, total: lv.thetaZ)
+            ratePair(label: "Value",
+                     off: player.dispOff, def: player.dispDef, total: player.dispTotal)
 
             if let se = lv.se {
                 row("SE", String(format: "±%.2f", se))

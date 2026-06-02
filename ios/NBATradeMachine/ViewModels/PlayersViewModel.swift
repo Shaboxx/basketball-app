@@ -58,22 +58,22 @@ final class PlayersViewModel: ObservableObject {
             return list.sorted { $0.name < $1.name }
         case .totalSigmaDesc:
             return list.sorted { lhs, rhs in
-                key(lhs, \.thetaZ) > key(rhs, \.thetaZ)
+                key(lhs, \.dispTotal) > key(rhs, \.dispTotal)
             }
         case .offSigmaDesc:
             return list.sorted { lhs, rhs in
-                key(lhs, \.thetaZOff) > key(rhs, \.thetaZOff)
+                key(lhs, \.dispOff) > key(rhs, \.dispOff)
             }
         case .defSigmaDesc:
             return list.sorted { lhs, rhs in
-                key(lhs, \.thetaZDef) > key(rhs, \.thetaZDef)
+                key(lhs, \.dispDef) > key(rhs, \.dispDef)
             }
         case .salaryDesc:
             return list.sorted { ($0.currentSalary) > ($1.currentSalary) }
         }
     }
 
-    private func key(_ p: Player, _ kp: KeyPath<LatentValue, Double?>) -> Double {
-        p.latentValue?[keyPath: kp] ?? Self.missingSigmaSentinel
+    private func key(_ p: Player, _ kp: KeyPath<Player, Double?>) -> Double {
+        p[keyPath: kp] ?? Self.missingSigmaSentinel
     }
 }

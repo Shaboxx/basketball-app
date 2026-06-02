@@ -86,8 +86,8 @@ struct TeamsListView: View {
                 .lineLimit(1)
             if rollup.rated > 0 {
                 VStack(spacing: 1) {
-                    Text(String(format: "OFF %+.1f", rollup.off))
-                    Text(String(format: "DEF %+.1f", rollup.def))
+                    Text("OFF \(Player.fmtVal(rollup.off))")
+                    Text("DEF \(Player.fmtVal(rollup.def))")
                 }
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
