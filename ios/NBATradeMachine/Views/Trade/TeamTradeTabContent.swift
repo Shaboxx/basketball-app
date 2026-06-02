@@ -4,6 +4,9 @@ struct TeamTradeTabContent: View {
     let team: Team
     @ObservedObject var vm: TradeMachineViewModel
     @State private var pendingPlayer: Player?
+    @State private var resignTarget: Player?
+    @State private var showingSignFA = false
+    @State private var showingDraft = false
     @State private var cashText: String = ""
     @State private var showingAddPick = false
     @FocusState private var cashFocused: Bool
@@ -53,8 +56,18 @@ struct TeamTradeTabContent: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(roster.enumerated()), id: \.element.id) { idx, p in
-                            PlayerSelectionRow(player: p, seasonOffset: vm.activeYearOffset) {
-                                pendingPlayer = p
+                            let expired = vm.isExpired(p)
+                            PlayerSelectionRow(
+                                player: p,
+                                seasonOffset: vm.activeYearOffset,
+                                displayedSalary: vm.effectiveSalary(for: p),
+                                isExpired: expired
+                            ) {
+                                if expired {
+                                    resignTarget = p
+                                } else {
+                                    pendingPlayer = p
+                                }
                             }
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             if idx < roster.count - 1 { Divider() }
@@ -62,6 +75,12 @@ struct TeamTradeTabContent: View {
                     }
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                 }
+            }
+
+            if vm.isOffseason {
+                offseasonActions
+                signedFreeAgentsBlock
+                draftedProspectsBlock
             }
 
             picksSection
@@ -103,6 +122,79 @@ struct TeamTradeTabContent: View {
         }
         .sheet(isPresented: $showingAddPick) {
             AddPickSheet(fromTeam: team, vm: vm)
+        }
+        .sheet(item: $resignTarget) { player in
+            ResignContractSheet(player: player, teamId: team.teamId, vm: vm)
+        }
+        .sheet(isPresented: $showingSignFA) {
+            SignFreeAgentSheet(teamId: team.teamId, vm: vm)
+        }
+        .sheet(isPresented: $showingDraft) {
+            DraftPlayerSheet(team: team, vm: vm)
+        }
+    }
+
+    /// "Sign Player" / "Draft Player" buttons surfaced only in offseason
+    /// mode. Sit just below the roster so they sit beside the asset that
+    /// the user just inspected. The draft button is disabled when the team
+    /// owns no upcoming first-round picks.
+    private var offseasonActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                showingSignFA = true
+            } label: {
+                Label("Sign Player", systemImage: "person.crop.circle.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button {
+                showingDraft = true
+            } label: {
+                Label("Draft Player", systemImage: "sparkles")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 8)
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    private var signedFreeAgentsBlock: some View {
+        let signed = vm.signedFAs(for: team.teamId)
+        if !signed.isEmpty {
+            section("Signed free agents") {
+                VStack(spacing: 0) {
+                    ForEach(Array(signed.enumerated()), id: \.element.id) { idx, fa in
+                        SignedFreeAgentRow(fa: fa) {
+                            vm.cancelFreeAgent(id: fa.id, from: team.teamId)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        if idx < signed.count - 1 { Divider() }
+                    }
+                }
+                .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var draftedProspectsBlock: some View {
+        let drafted = vm.draftPicks(for: team.teamId)
+        if !drafted.isEmpty {
+            section("Drafted prospects") {
+                VStack(spacing: 0) {
+                    ForEach(Array(drafted.enumerated()), id: \.element.id) { idx, p in
+                        DraftedProspectRow(prospect: p) {
+                            vm.cancelDraft(id: p.id, from: team.teamId)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        if idx < drafted.count - 1 { Divider() }
+                    }
+                }
+                .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
         }
     }
 
@@ -201,12 +293,59 @@ struct TeamTradeTabContent: View {
                 summaryStat("Incoming", vm.incomingSalary(to: team.teamId))
                 summaryStat("Post-Trade", vm.postTradeTotal(for: team.teamId))
             }
+            latentValueDeltaRow
         }
         .padding()
         .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12).stroke(Color.black.opacity(0.06), lineWidth: 0.5)
         )
+    }
+
+    /// Live OFF/DEF σ delta for the in-progress trade, mirroring the
+    /// post-validation rollup so the user sees the same number while still
+    /// assembling the package. Hidden until at least one moving player on
+    /// either side has Rev-2 z fields — prevents misleading 0.00 when the
+    /// trade is empty or only involves un-rated players.
+    @ViewBuilder
+    private var latentValueDeltaRow: some View {
+        let inP = vm.incomingPlayers(to: team.teamId)
+        let outP = vm.outgoingPlayers(from: team.teamId)
+        let (off, def, hasData) = sigmaDelta(incoming: inP, outgoing: outP)
+        if hasData {
+            HStack(spacing: 0) {
+                sigmaStat("OFF Δσ", off)
+                sigmaStat("DEF Δσ", def)
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func sigmaStat(_ label: String, _ value: Double) -> some View {
+        VStack(spacing: 2) {
+            Text(String(format: "%+.2f", value))
+                .font(.subheadline.bold().monospacedDigit())
+                .foregroundStyle(value > 0 ? .green : (value < 0 ? .red : .secondary))
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func sigmaDelta(
+        incoming: [Player], outgoing: [Player]
+    ) -> (off: Double, def: Double, hasData: Bool) {
+        var off = 0.0
+        var def = 0.0
+        var any = false
+        for p in incoming {
+            if let v = p.latentValue?.thetaZOff { off += v; any = true }
+            if let v = p.latentValue?.thetaZDef { def += v; any = true }
+        }
+        for p in outgoing {
+            if let v = p.latentValue?.thetaZOff { off -= v; any = true }
+            if let v = p.latentValue?.thetaZDef { def -= v; any = true }
+        }
+        return (off, def, any)
     }
 
     private func summaryStat(_ label: String, _ amount: Int) -> some View {
@@ -221,6 +360,70 @@ struct TeamTradeTabContent: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption.bold()).foregroundStyle(.secondary)
             content()
+        }
+    }
+}
+
+struct SignedFreeAgentRow: View {
+    let fa: TradeMachineViewModel.SignedFreeAgent
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "person.crop.square")
+                .foregroundStyle(.blue)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(fa.name).font(.subheadline)
+                    Text(fa.kind.shortLabel)
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Color.blue.opacity(0.18), in: Capsule())
+                }
+                Text(fa.position).font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(Money.display(fa.salary))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("\(fa.years)y").font(.caption2).foregroundStyle(.secondary)
+            }
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red.opacity(0.75))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+struct DraftedProspectRow: View {
+    let prospect: TradeMachineViewModel.DraftedProspect
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(.purple)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(prospect.name).font(.subheadline)
+                Text("\(prospect.position) · Pick #\(prospect.pickOverall) · \(prospect.pickYear)")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if prospect.rookieScaleSalary > 0 {
+                Text(Money.display(prospect.rookieScaleSalary))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red.opacity(0.75))
+            }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -245,6 +448,11 @@ struct IncomingRow: View {
                     .foregroundStyle(.secondary)
                 Text("\(player.contractYearsRemaining(from: seasonOffset))y left")
                     .font(.caption2).foregroundStyle(.secondary)
+                if let sigma = incomingRowSigma(player) {
+                    Text(sigma)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
@@ -258,6 +466,16 @@ struct IncomingRow: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    /// `OFF +x.xx · DEF +x.xx` line; nil for players without Rev-2 z fields.
+    private func incomingRowSigma(_ p: Player) -> String? {
+        guard let lv = p.latentValue,
+              (lv.thetaZOff != nil || lv.thetaZDef != nil)
+        else { return nil }
+        let o = lv.thetaZOff.map { String(format: "%+.2f", $0) } ?? "—"
+        let d = lv.thetaZDef.map { String(format: "%+.2f", $0) } ?? "—"
+        return "OFF \(o) · DEF \(d)"
     }
 }
 

@@ -3,8 +3,28 @@ import Combine
 
 @MainActor
 final class PlayersViewModel: ObservableObject {
+    enum SortMode: String, CaseIterable, Identifiable {
+        case name
+        case totalSigmaDesc
+        case offSigmaDesc
+        case defSigmaDesc
+        case salaryDesc
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .name: return "Name"
+            case .totalSigmaDesc: return "Total σ"
+            case .offSigmaDesc: return "OFF σ"
+            case .defSigmaDesc: return "DEF σ"
+            case .salaryDesc: return "Salary"
+            }
+        }
+    }
+
     @Published var players: [Player] = []
     @Published var searchText = ""
+    @Published var sortMode: SortMode = .name
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -22,7 +42,38 @@ final class PlayersViewModel: ObservableObject {
 
     var filtered: [Player] {
         let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return players }
-        return players.filter { $0.name.lowercased().contains(q) }
+        let base: [Player] = q.isEmpty
+            ? players
+            : players.filter { $0.name.lowercased().contains(q) }
+        return sorted(base)
+    }
+
+    /// Sort sentinel: pick a value missing-σ players will lose to, so they sink
+    /// to the bottom under any σ-descending sort.
+    private static let missingSigmaSentinel = -Double.infinity
+
+    private func sorted(_ list: [Player]) -> [Player] {
+        switch sortMode {
+        case .name:
+            return list.sorted { $0.name < $1.name }
+        case .totalSigmaDesc:
+            return list.sorted { lhs, rhs in
+                key(lhs, \.thetaZ) > key(rhs, \.thetaZ)
+            }
+        case .offSigmaDesc:
+            return list.sorted { lhs, rhs in
+                key(lhs, \.thetaZOff) > key(rhs, \.thetaZOff)
+            }
+        case .defSigmaDesc:
+            return list.sorted { lhs, rhs in
+                key(lhs, \.thetaZDef) > key(rhs, \.thetaZDef)
+            }
+        case .salaryDesc:
+            return list.sorted { ($0.currentSalary) > ($1.currentSalary) }
+        }
+    }
+
+    private func key(_ p: Player, _ kp: KeyPath<LatentValue, Double?>) -> Double {
+        p.latentValue?[keyPath: kp] ?? Self.missingSigmaSentinel
     }
 }
