@@ -54,34 +54,89 @@ enum TeamDepthChartBuilder {
         return (best, [], [best])
     }
 
+    /// Per-player view used by the layer-based assignment.
+    private struct Profile {
+        let slot: DepthSlot
+        let primary: String          // canonical ESPN primary (a valid column)
+        let eligible: [String]       // canonical eligible columns (incl. primary)
+        let total: Double?           // dispTotal; nil sorts last
+        var id: String { slot.player.id }
+    }
+
+    /// Layer-based two-pass assignment. Pass 1 fills each position's column
+    /// top-down with the players whose PRIMARY is that position (best total at
+    /// the top). Pass 2 backfills empty cells with adjacent-eligible players,
+    /// never placing a player twice on the same layer or twice in the same
+    /// column. `overflow` per position reflects extra PRIMARIES that didn't fit.
     static func columns(for roster: [Player], cap: Int = 4) -> [String: ColumnResult] {
-        var buckets: [String: [DepthSlot]] = [:]
+        // 1. Build profiles; skip players without a canonical primary column.
+        var profiles: [Profile] = []
         for p in roster {
-            guard let profile = roleProfile(p) else { continue }
+            guard let role = roleProfile(p) else { continue }
+            guard positions.contains(role.best) else { continue }
+            let eligible = role.columns.filter { positions.contains($0) }
             let slot = DepthSlot(
                 player: p,
-                bestPosition: profile.best,
-                secondaryPositions: profile.secondaries,
+                bestPosition: role.best,
+                secondaryPositions: role.secondaries,
                 total: p.dispTotal,
                 off: p.dispOff,
                 def: p.dispDef
             )
-            for col in profile.columns where positions.contains(col) {
-                buckets[col, default: []].append(slot)
+            profiles.append(Profile(slot: slot, primary: role.best,
+                                    eligible: eligible, total: p.dispTotal))
+        }
+
+        // Stable ordering helper: total desc (nil last), then name.
+        func better(_ a: Profile, _ b: Profile) -> Bool {
+            let av = a.total ?? -.greatestFiniteMagnitude
+            let bv = b.total ?? -.greatestFiniteMagnitude
+            if av != bv { return av > bv }
+            return a.slot.player.name < b.slot.player.name
+        }
+
+        // grid[pos][layer] = assigned Profile (nil = empty cell)
+        var grid: [String: [Profile?]] = [:]
+        for pos in positions { grid[pos] = Array(repeating: nil, count: cap) }
+        var placedOnLayer: [Set<String>] = Array(repeating: [], count: cap)
+        var placedAtPos: [String: Set<String>] = [:]
+        for pos in positions { placedAtPos[pos] = [] }
+        var primaryCount: [String: Int] = [:]
+
+        // 2. Pass 1 — primaries.
+        var byPrimary: [String: [Profile]] = [:]
+        for p in profiles { byPrimary[p.primary, default: []].append(p) }
+        for pos in positions {
+            let group = (byPrimary[pos] ?? []).sorted(by: better)
+            primaryCount[pos] = group.count
+            for (layer, prof) in group.enumerated() where layer < cap {
+                grid[pos]?[layer] = prof
+                placedOnLayer[layer].insert(prof.id)
+                placedAtPos[pos]?.insert(prof.id)
             }
         }
+
+        // 3. Pass 2 — adjacent depth fill, layer by layer.
+        let sortedProfiles = profiles.sorted(by: better)
+        for layer in 0..<cap {
+            for pos in positions where grid[pos]?[layer] == nil {
+                guard let pick = sortedProfiles.first(where: { prof in
+                    prof.eligible.contains(pos)
+                        && !placedOnLayer[layer].contains(prof.id)
+                        && !(placedAtPos[pos]?.contains(prof.id) ?? false)
+                }) else { continue }
+                grid[pos]?[layer] = pick
+                placedOnLayer[layer].insert(pick.id)
+                placedAtPos[pos]?.insert(pick.id)
+            }
+        }
+
+        // 4. Build ColumnResult per position.
         var result: [String: ColumnResult] = [:]
         for pos in positions {
-            let sorted = (buckets[pos] ?? []).sorted {
-                let a = $0.total ?? -.greatestFiniteMagnitude
-                let b = $1.total ?? -.greatestFiniteMagnitude
-                if a != b { return a > b }
-                return $0.player.name < $1.player.name
-            }
-            result[pos] = ColumnResult(
-                shown: Array(sorted.prefix(cap)),
-                overflow: max(0, sorted.count - cap)
-            )
+            let shown = (grid[pos] ?? []).compactMap { $0?.slot }
+            let overflow = max(0, (primaryCount[pos] ?? 0) - shown.count)
+            result[pos] = ColumnResult(shown: shown, overflow: overflow)
         }
         return result
     }
