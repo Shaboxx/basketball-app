@@ -21,7 +21,11 @@ struct TeamTradeTabContent: View {
                 section("Incoming to \(team.teamId)") {
                     VStack(spacing: 0) {
                         ForEach(Array(incoming.enumerated()), id: \.element.id) { idx, p in
-                            IncomingRow(player: p, seasonOffset: vm.activeYearOffset) {
+                            IncomingRow(
+                                player: p,
+                                seasonOffset: vm.activeYearOffset,
+                                receivingTricode: team.tricode
+                            ) {
                                 vm.untradePlayer(p.id)
                             }
                             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -431,13 +435,23 @@ struct DraftedProspectRow: View {
 struct IncomingRow: View {
     let player: Player
     let seasonOffset: Int
+    /// Tricode of the team RECEIVING this player — used to look up the
+    /// team-relative Trade Value tier/tags for the badges.
+    let receivingTricode: String
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
             HeadshotImage(slug: player.slug, size: 32)
             VStack(alignment: .leading, spacing: 1) {
-                Text(player.name).font(.subheadline)
+                HStack(spacing: 6) {
+                    Text(player.name).font(.subheadline)
+                    if let entry = player.tradeValue?.forTeam(receivingTricode),
+                       let tier = entry.tier {
+                        TradeTierBadge(tier: tier)
+                        EngineChips(tags: player.tradeValue?.tags ?? [])
+                    }
+                }
                 Text("from \(player.teamId) · \(player.position)")
                     .font(.caption2).foregroundStyle(.secondary)
             }

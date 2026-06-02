@@ -114,7 +114,7 @@ private struct TradeConfirmationTeamSection: View {
                     CashCard(dollars: package.cashOutgoing)
                 }
             }
-            RollupFooter(rollup: package.rollup)
+            RollupFooter(rollup: package.rollup, tradeValueNet: tradeValueNet)
         }
         .padding(12)
         .background(
@@ -130,6 +130,26 @@ private struct TradeConfirmationTeamSection: View {
             Text("receive")
                 .font(.title3.weight(.semibold))
         }
+    }
+
+    /// Net Trade Value for this team, all valued to THIS team's tricode:
+    /// (sum of incoming player value) − (sum of outgoing player value).
+    /// Nil when neither side carries any team-relative Trade Value entry.
+    private var tradeValueNet: Double? {
+        let tricode = package.team.tricode
+        var any = false
+        func sum(_ players: [Player]) -> Double {
+            players.reduce(0.0) { acc, p in
+                if let v = p.tradeValue?.forTeam(tricode)?.value {
+                    any = true
+                    return acc + v
+                }
+                return acc
+            }
+        }
+        let tvIn = sum(package.incomingPlayers)
+        let tvOut = sum(package.outgoingPlayers)
+        return any ? tvIn - tvOut : nil
     }
 }
 
@@ -263,6 +283,9 @@ private struct CashCard: View {
 
 private struct RollupFooter: View {
     let rollup: TradeConfirmation.Rollup
+    /// Net team-relative Trade Value (tvIn − tvOut), in raw dollars. Nil when
+    /// no moving player on either side carries a Trade Value entry.
+    var tradeValueNet: Double? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -279,6 +302,11 @@ private struct RollupFooter: View {
                 rollupCell(label: defCell.label,
                            value: defCell.value,
                            color: defCell.color)
+            }
+            if let net = tradeValueNet {
+                rollupCell(label: "Trade Value",
+                           value: String(format: "%+.1fM", net / 1_000_000),
+                           color: dollarColor(Int(net)))
             }
             if rollup.assetDeltaHadMissing && rollup.assetDeltaDollars != nil {
                 Text("Some players lack comp-Z — asset Δ excludes them.")

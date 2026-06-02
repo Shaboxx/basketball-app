@@ -17,7 +17,13 @@ struct PlayerSelectionRow: View {
                 HStack(spacing: 10) {
                     HeadshotImage(slug: player.slug, size: 36)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(player.name).font(.subheadline)
+                        HStack(spacing: 6) {
+                            Text(player.name).font(.subheadline)
+                            if let entry = ownTeamEntry, let tier = entry.tier {
+                                TradeTierBadge(tier: tier)
+                                EngineChips(tags: player.tradeValue?.tags ?? [])
+                            }
+                        }
                         Text(player.position).font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -62,6 +68,13 @@ struct PlayerSelectionRow: View {
     private var salaryText: String {
         if isExpired && displayedSalary == 0 { return "Re-sign needed" }
         return Money.display(displayedSalary)
+    }
+
+    /// Trade Value entry for the player's OWN team — what this roster player
+    /// is worth to the team that's about to give them up. Nil when absent.
+    private var ownTeamEntry: TradeValue.TeamEntry? {
+        let tv = player.tradeValue
+        return tv.flatMap { $0.byTeam?[$0.ownTeam ?? ""] }
     }
 
     /// Compact `OFF +x.xx · DEF +x.xx` line shown under salary; nil for
