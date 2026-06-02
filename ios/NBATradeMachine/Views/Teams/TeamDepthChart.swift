@@ -82,3 +82,93 @@ enum TeamDepthChartBuilder {
         return result
     }
 }
+
+/// Depth-chart grid for a team page. Builds columns from the roster via
+/// TeamDepthChartBuilder and renders 5 position columns, each capped, with a
+/// "Best: <pos>" + dimmed-secondaries tag per cell. Designed to live inside a
+/// List Section on TeamDetailView.
+struct TeamDepthChartView: View {
+    let roster: [Player]
+    var cap: Int = 4
+
+    private var columns: [String: ColumnResult] {
+        TeamDepthChartBuilder.columns(for: roster, cap: cap)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                ForEach(TeamDepthChartBuilder.positions, id: \.self) { pos in
+                    Text(pos)
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(Color(.secondarySystemBackground),
+                                    in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            HStack(alignment: .top, spacing: 6) {
+                ForEach(TeamDepthChartBuilder.positions, id: \.self) { pos in
+                    let col = columns[pos]
+                    VStack(spacing: 4) {
+                        if let col, !col.shown.isEmpty {
+                            ForEach(col.shown) { slot in
+                                NavigationLink(value: slot.player) {
+                                    DepthSlotCell(slot: slot, column: pos)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if col.overflow > 0 {
+                                Text("+\(col.overflow) more")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 2)
+                            }
+                        } else {
+                            Text("—").font(.caption2).foregroundStyle(.secondary)
+                                .padding(.vertical, 8)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
+                }
+            }
+            .padding(.top, 6)
+        }
+        .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+    }
+}
+
+private struct DepthSlotCell: View {
+    let slot: DepthSlot
+    let column: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(slot.player.name)
+                .font(.caption2.bold())
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            Text(sigma).font(.system(size: 9).monospacedDigit())
+                .foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                Text("Best: \(slot.bestPosition)")
+                    .font(.system(size: 8).bold())
+                ForEach(slot.secondaryPositions, id: \.self) { s in
+                    Text(s.lowercased())
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                }
+            }
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6)
+            .stroke(Color.black.opacity(0.06), lineWidth: 0.5))
+    }
+
+    private var sigma: String {
+        slot.thetaZ.map { String(format: "%+.1fσ", $0) } ?? "—"
+    }
+}
