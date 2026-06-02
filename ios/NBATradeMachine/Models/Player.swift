@@ -47,6 +47,14 @@ struct Player: Codable, Identifiable, Hashable {
     // Optional — docs without the upload decode as nil.
     let positionEligibility: PositionEligibility?
 
+    // Phase 7 v2 impact block (written by scripts/upload_theta_v2.py).
+    // Optional — docs without it decode as nil.
+    let thetaV2: ThetaV2?
+
+    // Team-relative trade value (written by scripts/upload_trade_value.py).
+    // Optional — docs without it decode as nil.
+    let tradeValue: TradeValue?
+
     // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
     // decoder) don't look for it in the document payload. Firestore populates
     // @DocumentID out-of-band from the document reference.
@@ -65,6 +73,8 @@ struct Player: Codable, Identifiable, Hashable {
         case latentValue
         case compZ
         case positionEligibility
+        case thetaV2
+        case tradeValue
     }
 
     var id: String { docId ?? slug }
@@ -133,7 +143,9 @@ extension Player {
         cbaUpdatedAt: Date? = nil,
         latentValue: LatentValue? = nil,
         compZ: CompZValuation? = nil,
-        positionEligibility: PositionEligibility? = nil
+        positionEligibility: PositionEligibility? = nil,
+        thetaV2: ThetaV2? = nil,
+        tradeValue: TradeValue? = nil
     ) -> Player {
         Player(
             slug: slug, name: name, teamId: teamId, position: position,
@@ -153,7 +165,8 @@ extension Player {
             contractFinalYearSeasonEnd: contractFinalYearSeasonEnd,
             cbaSeason: cbaSeason, cbaUpdatedAt: cbaUpdatedAt,
             latentValue: latentValue, compZ: compZ,
-            positionEligibility: positionEligibility
+            positionEligibility: positionEligibility,
+            thetaV2: thetaV2, tradeValue: tradeValue
         )
     }
 }
