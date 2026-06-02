@@ -140,98 +140,109 @@ enum TeamDepthChartBuilder {
         }
         return result
     }
-}
 
-/// Depth-chart grid for a team page. Builds columns from the roster via
-/// TeamDepthChartBuilder and renders 5 position columns, each capped, with a
-/// "Best: <pos>" + dimmed-secondaries tag per cell. Designed to live inside a
-/// List Section on TeamDetailView.
-struct TeamDepthChartView: View {
-    let roster: [Player]
-    var cap: Int = 4
+    // MARK: - League-wide per-layer statistics (Part A)
 
-    private var columns: [String: ColumnResult] {
-        TeamDepthChartBuilder.columns(for: roster, cap: cap)
+    /// Sigma band for green/red highlighting: a value is "above" when it is
+    /// more than this many population-std above the layer mean, "below" when
+    /// more than this many below, otherwise neutral.
+    static let layerHighlightSigma: Double = 0.75
+
+    /// Mean + population std for one metric across a sample.
+    struct MetricStats: Equatable {
+        let mean: Double
+        let std: Double
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                ForEach(TeamDepthChartBuilder.positions, id: \.self) { pos in
-                    Text(pos)
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(Color(.secondarySystemBackground),
-                                    in: RoundedRectangle(cornerRadius: 6))
-                }
-            }
-            HStack(alignment: .top, spacing: 6) {
-                ForEach(TeamDepthChartBuilder.positions, id: \.self) { pos in
-                    let col = columns[pos]
-                    VStack(spacing: 4) {
-                        if let col, !col.shown.isEmpty {
-                            ForEach(col.shown) { slot in
-                                NavigationLink(value: slot.player) {
-                                    DepthSlotCell(slot: slot, column: pos)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            if col.overflow > 0 {
-                                Text("+\(col.overflow) more")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 2)
-                            }
-                        } else {
-                            Text("—").font(.caption2).foregroundStyle(.secondary)
-                                .padding(.vertical, 8)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                }
-            }
-            .padding(.top, 6)
+    /// Per-layer league statistics. `playerByLayer[L]` describes the
+    /// distribution of every SHOWN player slot's TOT/OFF/DEF at layer L across
+    /// the league. `totalByLayer[L]` describes the distribution of each TEAM's
+    /// layer-L summed TOT/OFF/DEF.
+    struct LeagueLayerStats {
+        let playerByLayer: [Int: (tot: MetricStats, off: MetricStats, def: MetricStats)]
+        let totalByLayer: [Int: (tot: MetricStats, off: MetricStats, def: MetricStats)]
+    }
+
+    enum Highlight { case above, below, neutral }
+
+    /// Classify a value against a metric distribution. nil value or zero std
+    /// (degenerate / single sample) → neutral.
+    static func highlight(_ v: Double?, _ s: MetricStats,
+                          sigma: Double = layerHighlightSigma) -> Highlight {
+        guard let v, s.std > 0 else { return .neutral }
+        if v > s.mean + sigma * s.std { return .above }
+        if v < s.mean - sigma * s.std { return .below }
+        return .neutral
+    }
+
+    /// Sum the filled position cells at a given layer of one team's columns.
+    static func layerTotals(_ columns: [String: ColumnResult],
+                            layer: Int) -> (tot: Double, off: Double, def: Double) {
+        var tot = 0.0, off = 0.0, def = 0.0
+        for pos in positions {
+            guard let shown = columns[pos]?.shown, layer < shown.count else { continue }
+            let slot = shown[layer]
+            tot += slot.total ?? 0
+            off += slot.off ?? 0
+            def += slot.def ?? 0
         }
-        .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        return (tot, off, def)
     }
-}
 
-private struct DepthSlotCell: View {
-    let slot: DepthSlot
-    let column: String
+    /// Population mean + std of a sample. n < 2 → std 0 (neutral highlighting).
+    private static func meanStd(_ xs: [Double]) -> MetricStats {
+        guard !xs.isEmpty else { return MetricStats(mean: 0, std: 0) }
+        let mean = xs.reduce(0, +) / Double(xs.count)
+        guard xs.count >= 2 else { return MetricStats(mean: mean, std: 0) }
+        let variance = xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(xs.count)
+        return MetricStats(mean: mean, std: variance.squareRoot())
+    }
 
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(slot.player.name)
-                .font(.caption2.bold())
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            Text(valueLine).font(.system(size: 9).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-            HStack(spacing: 3) {
-                Text("Best: \(slot.bestPosition)")
-                    .font(.system(size: 8).bold())
-                ForEach(slot.secondaryPositions, id: \.self) { s in
-                    Text(s.lowercased())
-                        .font(.system(size: 8))
-                        .foregroundStyle(.secondary.opacity(0.6))
+    /// Build per-layer league statistics from every team's roster. For each
+    /// layer it collects (a) every shown player slot's TOT/OFF/DEF league-wide
+    /// (PLAYER stats) and (b) each team's layer-L summed TOT/OFF/DEF (TOTAL
+    /// stats). Missing TOT/OFF/DEF count as 0 in the team totals.
+    static func leagueLayerStats(rostersByTeam: [String: [Player]],
+                                 cap: Int = 4) -> LeagueLayerStats {
+        var playerTot = Array(repeating: [Double](), count: cap)
+        var playerOff = Array(repeating: [Double](), count: cap)
+        var playerDef = Array(repeating: [Double](), count: cap)
+        var teamTot = Array(repeating: [Double](), count: cap)
+        var teamOff = Array(repeating: [Double](), count: cap)
+        var teamDef = Array(repeating: [Double](), count: cap)
+
+        for (_, roster) in rostersByTeam {
+            let cols = columns(for: roster, cap: cap)
+            for layer in 0..<cap {
+                var filled = false
+                for pos in positions {
+                    guard let shown = cols[pos]?.shown, layer < shown.count else { continue }
+                    filled = true
+                    let slot = shown[layer]
+                    if let t = slot.total { playerTot[layer].append(t) }
+                    if let o = slot.off { playerOff[layer].append(o) }
+                    if let d = slot.def { playerDef[layer].append(d) }
+                }
+                // Only count a team's layer total when the layer has cells.
+                if filled {
+                    let t = layerTotals(cols, layer: layer)
+                    teamTot[layer].append(t.tot)
+                    teamOff[layer].append(t.off)
+                    teamDef[layer].append(t.def)
                 }
             }
         }
-        .padding(6)
-        .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6)
-            .stroke(Color.black.opacity(0.06), lineWidth: 0.5))
-    }
 
-    /// v2 value summary: TOT / OFF / DEF, one stat per line so it stays
-    /// legible inside the narrow column cell.
-    private var valueLine: String {
-        "TOT \(Player.fmtVal(slot.total))\nOFF \(Player.fmtVal(slot.off))\nDEF \(Player.fmtVal(slot.def))"
+        var playerByLayer: [Int: (tot: MetricStats, off: MetricStats, def: MetricStats)] = [:]
+        var totalByLayer: [Int: (tot: MetricStats, off: MetricStats, def: MetricStats)] = [:]
+        for layer in 0..<cap {
+            playerByLayer[layer] = (meanStd(playerTot[layer]),
+                                    meanStd(playerOff[layer]),
+                                    meanStd(playerDef[layer]))
+            totalByLayer[layer] = (meanStd(teamTot[layer]),
+                                   meanStd(teamOff[layer]),
+                                   meanStd(teamDef[layer]))
+        }
+        return LeagueLayerStats(playerByLayer: playerByLayer, totalByLayer: totalByLayer)
     }
 }

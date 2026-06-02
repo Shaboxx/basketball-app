@@ -1,0 +1,172 @@
+import SwiftUI
+
+/// Layer-based depth chart shared by the team page and the trade view. Rows are
+/// depth layers (Starters / 2nd / 3rd / 4th); columns are PG SG SF PF C plus a
+/// trailing "Total" column that sums each layer's filled cells (v2 TOT/OFF/DEF).
+///
+/// Every player cell's TOT/OFF/DEF and every layer-Total's TOT/OFF/DEF are
+/// colored green / red against the league distribution for THAT layer:
+/// green above mean + 0.75·std, red below mean − 0.75·std, neutral within band.
+///
+/// Tapping a player cell pushes `PlayerDetailView` via the enclosing
+/// NavigationStack's `Player` destination.
+struct DepthChartLayersView: View {
+    let columns: [String: ColumnResult]
+    let league: TeamDepthChartBuilder.LeagueLayerStats
+    var cap: Int = 4
+
+    private var positions: [String] { TeamDepthChartBuilder.positions }
+
+    /// Layers (0..<cap) that hold at least one filled position cell.
+    private var activeLayers: [Int] {
+        (0..<cap).filter { layer in
+            positions.contains { pos in
+                (columns[pos]?.shown.count ?? 0) > layer
+            }
+        }
+    }
+
+    private static let layerNames = ["Starters", "2nd", "3rd", "4th"]
+    private func layerName(_ layer: Int) -> String {
+        layer < Self.layerNames.count ? Self.layerNames[layer] : "\(layer + 1)th"
+    }
+
+    var body: some View {
+        ScrollView([.horizontal, .vertical]) {
+            VStack(alignment: .leading, spacing: 6) {
+                headerRow
+                ForEach(activeLayers, id: \.self) { layer in
+                    layerRow(layer)
+                }
+                if activeLayers.isEmpty {
+                    Text("No rated players to chart.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .padding()
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerRow: some View {
+        HStack(spacing: 4) {
+            Text("")
+                .frame(width: rowLabelWidth, alignment: .leading)
+            ForEach(positions, id: \.self) { pos in
+                headerCell(pos)
+            }
+            headerCell("Total")
+        }
+    }
+
+    private func headerCell(_ label: String) -> some View {
+        Text(label)
+            .font(.caption.bold())
+            .foregroundStyle(.secondary)
+            .frame(width: cellWidth)
+            .padding(.vertical, 4)
+            .background(Color(.secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    // MARK: - Rows
+
+    private func layerRow(_ layer: Int) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Text(layerName(layer))
+                .font(.caption2.bold())
+                .foregroundStyle(.secondary)
+                .frame(width: rowLabelWidth, alignment: .leading)
+            ForEach(positions, id: \.self) { pos in
+                playerCell(pos: pos, layer: layer)
+            }
+            totalCell(layer: layer)
+        }
+    }
+
+    @ViewBuilder
+    private func playerCell(pos: String, layer: Int) -> some View {
+        if let shown = columns[pos]?.shown, layer < shown.count {
+            let slot = shown[layer]
+            let stats = league.playerByLayer[layer]
+            NavigationLink(value: slot.player) {
+                cellBox {
+                    VStack(spacing: 2) {
+                        Text(slot.player.name)
+                            .font(.system(size: 10, weight: .bold))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .foregroundStyle(.primary)
+                        metricLine("TOT", slot.total,
+                                   TeamDepthChartBuilder.highlight(slot.total, stats?.tot ?? zero))
+                        metricLine("OFF", slot.off,
+                                   TeamDepthChartBuilder.highlight(slot.off, stats?.off ?? zero))
+                        metricLine("DEF", slot.def,
+                                   TeamDepthChartBuilder.highlight(slot.def, stats?.def ?? zero))
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            cellBox {
+                Text("—").font(.caption2).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func totalCell(layer: Int) -> some View {
+        let sums = TeamDepthChartBuilder.layerTotals(columns, layer: layer)
+        let stats = league.totalByLayer[layer]
+        return cellBox {
+            VStack(spacing: 2) {
+                Text("Total")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                metricLine("TOT", sums.tot,
+                           TeamDepthChartBuilder.highlight(sums.tot, stats?.tot ?? zero))
+                metricLine("OFF", sums.off,
+                           TeamDepthChartBuilder.highlight(sums.off, stats?.off ?? zero))
+                metricLine("DEF", sums.def,
+                           TeamDepthChartBuilder.highlight(sums.def, stats?.def ?? zero))
+            }
+        }
+    }
+
+    // MARK: - Cell helpers
+
+    private func metricLine(_ label: String, _ value: Double?,
+                            _ highlight: TeamDepthChartBuilder.Highlight) -> some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .font(.system(size: 8))
+                .foregroundStyle(.secondary)
+            Text(Player.fmtVal(value))
+                .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                .foregroundStyle(color(for: highlight))
+        }
+    }
+
+    private func color(for highlight: TeamDepthChartBuilder.Highlight) -> Color {
+        switch highlight {
+        case .above: return .green
+        case .below: return .red
+        case .neutral: return .primary
+        }
+    }
+
+    private func cellBox<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(6)
+            .frame(width: cellWidth, alignment: .top)
+            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.black.opacity(0.06), lineWidth: 0.5))
+    }
+
+    private let cellWidth: CGFloat = 66
+    private let rowLabelWidth: CGFloat = 52
+    private let zero = TeamDepthChartBuilder.MetricStats(mean: 0, std: 0)
+}

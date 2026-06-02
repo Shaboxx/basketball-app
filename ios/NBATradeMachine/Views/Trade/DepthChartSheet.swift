@@ -1,17 +1,20 @@
 import SwiftUI
 
-/// Post-trade depth chart for every team in the active trade. Each column
-/// is a position bucket (PG / SG / SF / PF / C), each row is a player
-/// sorted by latent-value theta (falling back to salary). Includes
-/// roster players that stay, incoming traded players, signed free agents,
-/// and drafted prospects so the chart matches the cap math the rest of
-/// the screen shows.
+/// Post-trade depth chart for every team in the active trade. Uses the shared
+/// `TeamDepthChartBuilder` (ESPN-primary, two-pass layer assignment, v2
+/// TOT/OFF/DEF) — the same builder the team page uses — and renders it as the
+/// layer-based `DepthChartLayersView` with per-layer Totals and league
+/// green/red highlighting.
+///
+/// The post-trade roster is `vm.roster(for:) + vm.incomingPlayers(to:)`; the vm
+/// roster already reflects outgoing players. Synthetic entries (signed free
+/// agents / drafted prospects) are NOT `Player`s and are omitted from this
+/// builder-based chart.
 struct DepthChartSheet: View {
     @ObservedObject var vm: TradeMachineViewModel
+    @EnvironmentObject var teamsVM: TeamsViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTeamId: String = ""
-
-    private static let positions: [String] = ["PG", "SG", "SF", "PF", "C"]
 
     var body: some View {
         NavigationStack {
@@ -20,22 +23,24 @@ struct DepthChartSheet: View {
                     Text("Add teams to a trade to see depth charts.")
                         .font(.caption).foregroundStyle(.secondary)
                         .padding(.top, 40)
+                    Spacer()
                 } else {
                     teamPicker
                     Divider()
                     if let team = currentTeam {
-                        ScrollView {
-                            DepthChartGrid(
-                                positions: Self.positions,
-                                entries: entries(for: team)
-                            )
-                            .padding()
-                        }
+                        DepthChartLayersView(
+                            columns: TeamDepthChartBuilder.columns(for: roster(for: team)),
+                            league: TeamDepthChartBuilder.leagueLayerStats(
+                                rostersByTeam: teamsVM.playersByTeamId)
+                        )
                     }
                 }
             }
-            .navigationTitle("Depth chart")
+            .navigationTitle("Depth Chart")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: Player.self) { p in
+                PlayerDetailView(player: p)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -77,193 +82,11 @@ struct DepthChartSheet: View {
         vm.trade.teams.first { $0.teamId == selectedTeamId } ?? vm.trade.teams.first
     }
 
-    /// Builds the post-trade entry list for a team, then buckets it by
-    /// position. Salary is the effective salary (so re-sign overrides
-    /// flow through) and FA/draft entries get synthesized rows.
-    private func entries(for team: Team) -> [String: [DepthEntry]] {
-        var entries: [DepthEntry] = []
-        for p in vm.roster(for: team.teamId) {
-            entries.append(DepthEntry(player: p, salary: vm.effectiveSalary(for: p)))
-        }
-        for p in vm.incomingPlayers(to: team.teamId) {
-            entries.append(DepthEntry(player: p, salary: vm.effectiveSalary(for: p)))
-        }
-        for fa in vm.signedFAs(for: team.teamId) {
-            entries.append(DepthEntry(
-                synthetic: .freeAgent(fa),
-                name: fa.name,
-                position: fa.position,
-                salary: fa.salary
-            ))
-        }
-        for prospect in vm.draftPicks(for: team.teamId) {
-            entries.append(DepthEntry(
-                synthetic: .prospect(prospect),
-                name: prospect.name,
-                position: prospect.position,
-                salary: prospect.rookieScaleSalary
-            ))
-        }
-        return Dictionary(grouping: entries, by: { Self.primaryPosition($0.position) })
-    }
-
-    /// Coarse normalization: take the first slash-or-dash-separated token,
-    /// uppercase, map G → PG (we don't have side info), F → SF.
-    private static func primaryPosition(_ raw: String) -> String {
-        let token = raw
-            .split(whereSeparator: { "-/ ".contains($0) })
-            .first
-            .map(String.init)?.uppercased() ?? "?"
-        switch token {
-        case "PG", "SG", "SF", "PF", "C": return token
-        case "G": return "PG"
-        case "F": return "SF"
-        case "F-C": return "PF"
-        default: return token
-        }
-    }
-}
-
-/// One depth chart row. Either a `Player` (with sigma sorting), or a
-/// synthetic entry for FA signings / drafted prospects (sorted only by
-/// salary).
-struct DepthEntry: Identifiable, Hashable {
-    enum Synthetic: Hashable {
-        case freeAgent(TradeMachineViewModel.SignedFreeAgent)
-        case prospect(TradeMachineViewModel.DraftedProspect)
-    }
-
-    let id: String
-    let player: Player?
-    let synthetic: Synthetic?
-    let name: String
-    let position: String
-    let salary: Int
-
-    init(player: Player, salary: Int) {
-        self.id = player.id
-        self.player = player
-        self.synthetic = nil
-        self.name = player.name
-        self.position = player.position
-        self.salary = salary
-    }
-
-    init(synthetic: Synthetic, name: String, position: String, salary: Int) {
-        switch synthetic {
-        case .freeAgent(let fa): self.id = "fa-\(fa.id)"
-        case .prospect(let p): self.id = "draft-\(p.id)"
-        }
-        self.player = nil
-        self.synthetic = synthetic
-        self.name = name
-        self.position = position
-        self.salary = salary
-    }
-
-    /// Sort key used by the depth chart column. Players use their v2 display
-    /// total (dispTotal); synthetic / unrated entries fall back to salary so
-    /// they land near the bottom of the column.
-    var rank: Double {
-        if let total = player?.dispTotal {
-            return total
-        }
-        return -Double(Int.max - salary) / 1_000_000  // crude tiebreaker
-    }
-}
-
-private struct DepthChartGrid: View {
-    let positions: [String]
-    let entries: [String: [DepthEntry]]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                ForEach(positions, id: \.self) { pos in
-                    Text(pos)
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 6))
-                }
-            }
-            HStack(alignment: .top, spacing: 6) {
-                ForEach(positions, id: \.self) { pos in
-                    VStack(spacing: 4) {
-                        let column = (entries[pos] ?? []).sorted { $0.rank > $1.rank }
-                        if column.isEmpty {
-                            Text("—")
-                                .font(.caption2).foregroundStyle(.secondary)
-                                .padding(.vertical, 8)
-                        } else {
-                            ForEach(column) { entry in
-                                DepthChartCell(entry: entry)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                }
-            }
-            .padding(.top, 6)
-        }
-    }
-}
-
-private struct DepthChartCell: View {
-    let entry: DepthEntry
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(entry.name)
-                .font(.caption2.bold())
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            if let valueLine {
-                Text(valueLine).font(.system(size: 9).monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            }
-            Text(Money.display(entry.salary))
-                .font(.system(size: 9).monospacedDigit())
-                .foregroundStyle(.secondary)
-            if let tag = tagLabel {
-                Text(tag)
-                    .font(.system(size: 8).bold())
-                    .padding(.horizontal, 4).padding(.vertical, 1)
-                    .background(tagColor.opacity(0.18), in: Capsule())
-                    .foregroundStyle(tagColor)
-            }
-        }
-        .padding(6)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6).stroke(Color.black.opacity(0.06), lineWidth: 0.5)
-        )
-    }
-
-    /// v2 value summary for real players: TOT / OFF / DEF, one stat per line.
-    /// Synthetic entries (FA signings / drafted prospects) have no player and
-    /// show only salary + tag.
-    private var valueLine: String? {
-        guard let player = entry.player else { return nil }
-        return "TOT \(Player.fmtVal(player.dispTotal))\nOFF \(Player.fmtVal(player.dispOff))\nDEF \(Player.fmtVal(player.dispDef))"
-    }
-
-    private var tagLabel: String? {
-        switch entry.synthetic {
-        case .freeAgent(let fa): return fa.kind.shortLabel
-        case .prospect: return "ROOK"
-        case .none: return nil
-        }
-    }
-
-    private var tagColor: Color {
-        switch entry.synthetic {
-        case .freeAgent: return .blue
-        case .prospect: return .purple
-        case .none: return .secondary
-        }
+    /// Post-trade roster for a team: players who stay plus incoming traded
+    /// players. The vm roster already excludes outgoing players. Synthetic
+    /// FA-signing / drafted-prospect entries are omitted (the builder is
+    /// Player-based).
+    private func roster(for team: Team) -> [Player] {
+        vm.roster(for: team.teamId) + vm.incomingPlayers(to: team.teamId)
     }
 }

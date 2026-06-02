@@ -4,6 +4,7 @@ struct TeamDetailView: View {
     let team: Team
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
+    @State private var showingDepthChart = false
 
     var body: some View {
         let roster = teamsVM.players(for: team.teamId)
@@ -25,10 +26,6 @@ struct TeamDetailView: View {
 
             rosterValueSection(roster: roster)
             teamLeadersSection(roster: roster)
-
-            Section("Depth Chart") {
-                TeamDepthChartView(roster: roster)
-            }
 
             Section("Roster (\(roster.count))") {
                 ForEach(roster) { p in
@@ -69,6 +66,30 @@ struct TeamDetailView: View {
         }
         .navigationTitle(team.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Depth Chart") { showingDepthChart = true }
+            }
+        }
+        .sheet(isPresented: $showingDepthChart) {
+            NavigationStack {
+                DepthChartLayersView(
+                    columns: TeamDepthChartBuilder.columns(for: roster),
+                    league: TeamDepthChartBuilder.leagueLayerStats(
+                        rostersByTeam: teamsVM.playersByTeamId)
+                )
+                .navigationTitle("Depth Chart")
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(for: Player.self) { p in
+                    PlayerDetailView(player: p)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showingDepthChart = false }
+                    }
+                }
+            }
+        }
     }
 
     /// Summary band: sum of OFF/DEF value across the roster (incoming-style

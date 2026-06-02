@@ -64,6 +64,7 @@ struct TradeMachineView: View {
         }
         .sheet(isPresented: $showingDepthChart) {
             DepthChartSheet(vm: vm)
+                .environmentObject(teamsVM)
         }
         .fullScreenCover(item: $confirmationSnapshot) { snapshot in
             TradeConfirmationView(
@@ -105,7 +106,7 @@ struct TradeMachineView: View {
                 Button {
                     showingDepthChart = true
                 } label: {
-                    Label("Depth", systemImage: "square.grid.3x3.fill")
+                    Label("Depth Chart", systemImage: "square.grid.3x3.fill")
                         .font(.caption2)
                 }
                 .buttonStyle(.bordered)
