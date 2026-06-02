@@ -31,12 +31,28 @@ struct DepthChartLayersView: View {
         layer < Self.layerNames.count ? Self.layerNames[layer] : "\(layer + 1)th"
     }
 
+    /// player.id → the FIRST (highest / lowest-index) layer they appear on.
+    /// A cell whose layer is greater than this is a repeat appearance and is
+    /// rendered grayed. Iterates layers top-down so the first hit wins.
+    private var firstAppearanceLayer: [String: Int] {
+        var first: [String: Int] = [:]
+        for layer in 0..<cap {
+            for pos in positions {
+                guard let shown = columns[pos]?.shown, layer < shown.count else { continue }
+                let id = shown[layer].player.id
+                if first[id] == nil { first[id] = layer }
+            }
+        }
+        return first
+    }
+
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
+        let firstLayer = firstAppearanceLayer
+        return ScrollView([.horizontal, .vertical]) {
             VStack(alignment: .leading, spacing: 6) {
                 headerRow
                 ForEach(activeLayers, id: \.self) { layer in
-                    layerRow(layer)
+                    layerRow(layer, firstLayer: firstLayer)
                 }
                 if activeLayers.isEmpty {
                     Text("No rated players to chart.")
@@ -57,7 +73,7 @@ struct DepthChartLayersView: View {
             ForEach(positions, id: \.self) { pos in
                 headerCell(pos)
             }
-            headerCell("Total")
+            headerCell("Lineup")
         }
     }
 
@@ -73,32 +89,39 @@ struct DepthChartLayersView: View {
 
     // MARK: - Rows
 
-    private func layerRow(_ layer: Int) -> some View {
+    private func layerRow(_ layer: Int, firstLayer: [String: Int]) -> some View {
         HStack(alignment: .top, spacing: 4) {
             Text(layerName(layer))
                 .font(.caption2.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: rowLabelWidth, alignment: .leading)
             ForEach(positions, id: \.self) { pos in
-                playerCell(pos: pos, layer: layer)
+                playerCell(pos: pos, layer: layer, firstLayer: firstLayer)
             }
             totalCell(layer: layer)
         }
     }
 
     @ViewBuilder
-    private func playerCell(pos: String, layer: Int) -> some View {
+    private func playerCell(pos: String, layer: Int,
+                            firstLayer: [String: Int]) -> some View {
         if let shown = columns[pos]?.shown, layer < shown.count {
             let slot = shown[layer]
             let stats = league.playerByLayer[layer]
+            // Repeat appearance: this player first showed on an earlier layer.
+            let isRepeat = (firstLayer[slot.player.id] ?? layer) < layer
             NavigationLink(value: slot.player) {
                 cellBox {
                     VStack(spacing: 2) {
+                        HeadshotImage(slug: slot.player.slug, size: 28)
+                            .grayscale(isRepeat ? 1 : 0)
+                            .opacity(isRepeat ? 0.4 : 1)
                         Text(slot.player.name)
                             .font(.system(size: 10, weight: .bold))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(isRepeat ? .secondary : .primary)
+                            .opacity(isRepeat ? 0.4 : 1)
                         metricLine("TOT", slot.total,
                                    TeamDepthChartBuilder.highlight(slot.total, stats?.tot ?? zero))
                         metricLine("OFF", slot.off,

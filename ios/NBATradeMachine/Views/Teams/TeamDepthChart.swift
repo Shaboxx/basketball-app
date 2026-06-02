@@ -18,6 +18,25 @@ struct ColumnResult: Hashable {
 enum TeamDepthChartBuilder {
     static let positions = ["PG", "SG", "SF", "PF", "C"]
 
+    /// Weight applied to the negative (below-average) component when ranking
+    /// players for depth. Positive off/def contribute their full L² magnitude;
+    /// negative off/def are discounted by this factor so a high-variance
+    /// specialist (strong one end, weak the other) is rewarded over a flat
+    /// neutral player with the same signed total.
+    static let DEPTH_NEG_WEIGHT = 0.5
+
+    /// Reduced-negative L² depth score. Positive off/def add their L² norm;
+    /// negative off/def subtract a `mu`-scaled L² norm. nil inputs → 0.
+    static func depthScore(off: Double?, def: Double?,
+                           mu: Double = DEPTH_NEG_WEIGHT) -> Double {
+        let o = off ?? 0, d = def ?? 0
+        func pos(_ x: Double) -> Double { max(x, 0) }
+        func neg(_ x: Double) -> Double { max(-x, 0) }
+        let positive = (pos(o) * pos(o) + pos(d) * pos(d)).squareRoot()
+        let negative = (neg(o) * neg(o) + neg(d) * neg(d)).squareRoot()
+        return positive - mu * negative
+    }
+
     static func canonical(_ raw: String) -> String? {
         let s = raw.uppercased().trimmingCharacters(in: .whitespaces)
         switch s {
@@ -59,7 +78,7 @@ enum TeamDepthChartBuilder {
         let slot: DepthSlot
         let primary: String          // canonical ESPN primary (a valid column)
         let eligible: [String]       // canonical eligible columns (incl. primary)
-        let total: Double?           // dispTotal; nil sorts last
+        let rank: Double             // depthScore(dispOff, dispDef); nil inputs → 0
         var id: String { slot.player.id }
     }
 
@@ -84,14 +103,14 @@ enum TeamDepthChartBuilder {
                 def: p.dispDef
             )
             profiles.append(Profile(slot: slot, primary: role.best,
-                                    eligible: eligible, total: p.dispTotal))
+                                    eligible: eligible,
+                                    rank: depthScore(off: p.dispOff, def: p.dispDef)))
         }
 
-        // Stable ordering helper: total desc (nil last), then name.
+        // Stable ordering helper: depthScore desc, then name. nil off/def
+        // collapse to a 0 score (sorts low) inside depthScore.
         func better(_ a: Profile, _ b: Profile) -> Bool {
-            let av = a.total ?? -.greatestFiniteMagnitude
-            let bv = b.total ?? -.greatestFiniteMagnitude
-            if av != bv { return av > bv }
+            if a.rank != b.rank { return a.rank > b.rank }
             return a.slot.player.name < b.slot.player.name
         }
 
