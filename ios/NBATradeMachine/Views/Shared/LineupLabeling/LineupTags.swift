@@ -40,26 +40,35 @@ nonisolated enum LineupTags {
     static let BALL_DOM_MIN_HHI = 0.28
     static let BALL_DOM_SECOND_CREATION_PCTL = 0.45
 
-    // Defensive
-    static let RIM_PROT_BLK_PCTL = 0.70
-    static let RIM_PROT_HEIGHT_IN = 82.0
+    // Defensive (REAL tracking features as of the Phase-1 de-proxy)
     static let SWITCH_VERSATILITY_PCTL = 0.50
     static let SWITCH_MIN_SWITCHERS = 4
-    static let POA_STL_PCTL = 0.60
-    static let POA_VERSATILITY_PCTL = 0.55
-    static let POA_RPF_PCTL = 0.55
+
+    // rim_protection: >=1 player with real rim volume AND below-expected rim FG%.
+    static let RIM_VOL_PCTL = 0.60       // rim_dfga_per36 percentile (gate on volume)
+    static let RIM_DELTA_PCTL = 0.80     // rim_def_delta percentile (defends better than expected)
+
+    // poa_d: >=2 real perimeter defenders / deflectors who don't foul.
+    static let POA_PERIM_PCTL = 0.75     // perim_def_delta percentile
+    static let POA_DEFLECT_PCTL = 0.78   // deflections_per36 percentile (OR with perim D)
+    static let POA_RPF_PCTL = 0.50       // but they don't foul a lot (low rpf)
     static let POA_MIN_DEFENDERS = 2
-    static let DISRUPTIVE_STL_PCTL = 0.62
+
+    // disruptive: high lineup-mean deflections.
+    static let DISRUPTIVE_DEFLECT_PCTL = 0.62
+
+    // drop_bound: tall interior defender who CANNOT switch (+ P&R-roll D when known).
     static let DROP_HEIGHT_IN = 82.0
-    static let DROP_BLK_PCTL = 0.60
-    static let DROP_VERSATILITY_PCTL = 0.40
+    static let DROP_RIM_DELTA_PCTL = 0.55   // real interior defense (rim_def_delta)
+    static let DROP_VERSATILITY_PCTL = 0.40 // ...and NOT switchable (low versatility)
+    static let DROP_PNR_PCTL = 0.55         // Synergy P&R-roll defense (null -> not required)
 
     // Possession / physical
     static let GLASS_PCTL = 0.58
     static let FOUL_DRAW_FTR_PCTL = 0.60
     static let YOUTH_AGE_MAX = 24.0
     static let VETERAN_AGE_MIN = 31.0
-    static let UP_TEMPO_AGE_MAX = 25.5
+    static let UP_TEMPO_PACE_PCTL = 0.62    // lineup-mean pace percentile clearly above league
 
     // Liability
     static let HACK_FT_PCT = 65.0
@@ -141,10 +150,14 @@ nonisolated enum LineupTags {
 
     // MARK: - Defensive tags
 
+    /// >=1 player with REAL rim volume AND below-expected opponent rim FG%:
+    /// a high rim-defense FGA rate (not a tiny-sample fluke) AND a strong
+    /// rim_def_delta (normal − allowed, positive = defends the rim better than
+    /// expected). Mirrors tags.rim_protection.
     static func rimProtection(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         for p in players {
-            if ge(N.feat(p, "height_in"), RIM_PROT_HEIGHT_IN)
-                && ge(N.pctl(p, "blk_pct", norms), RIM_PROT_BLK_PCTL) {
+            if ge(N.pctl(p, "rim_dfga_per36", norms), RIM_VOL_PCTL)
+                && ge(N.pctl(p, "rim_def_delta", norms), RIM_DELTA_PCTL) {
                 return true
             }
         }
@@ -155,28 +168,40 @@ nonisolated enum LineupTags {
         N.countAbove(players, "versatility", SWITCH_VERSATILITY_PCTL, norms) >= SWITCH_MIN_SWITCHERS
     }
 
+    /// >=2 REAL point-of-attack defenders: contain on the perimeter OR get a lot
+    /// of deflections, AND don't foul a lot (low reaching-foul rate). Mirrors
+    /// tags.poa_d.
     static func poaD(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         var n = 0
         for p in players {
-            let stl = N.pctl(p, "stl_pct", norms)
-            let ver = N.pctl(p, "versatility", norms)
+            let perim = N.pctl(p, "perim_def_delta", norms)
+            let deflect = N.pctl(p, "deflections_per36", norms)
             let rpf = N.pctl(p, "rpf", norms)
-            let disrupt = ge(stl, POA_STL_PCTL) || ge(ver, POA_VERSATILITY_PCTL)
+            let disrupt = ge(perim, POA_PERIM_PCTL) || ge(deflect, POA_DEFLECT_PCTL)
             let clean = rpf == nil || rpf! <= POA_RPF_PCTL
             if disrupt && clean { n += 1 }
         }
         return n >= POA_MIN_DEFENDERS
     }
 
+    /// High lineup-mean DEFLECTION rate (real ball pressure / forced turnovers).
+    /// Mirrors tags.disruptive.
     static func disruptive(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
-        ge(N.meanPctl(players, "stl_pct", norms), DISRUPTIVE_STL_PCTL)
+        ge(N.meanPctl(players, "deflections_per36", norms), DISRUPTIVE_DEFLECT_PCTL)
     }
 
+    /// >=1 tall interior defender who CANNOT switch (low versatility): real
+    /// interior defense (rim_def_delta) + height + low switchability, plus
+    /// Synergy P&R-roll defense when available (null -> not required). Mirrors
+    /// tags.drop_bound.
     static func dropBound(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         for p in players {
+            let pnr = N.feat(p, "pnr_roll_def_pctl")
+            let pnrOk = pnr == nil || pnr! >= DROP_PNR_PCTL
             if ge(N.feat(p, "height_in"), DROP_HEIGHT_IN)
-                && ge(N.pctl(p, "blk_pct", norms), DROP_BLK_PCTL)
-                && le(N.pctl(p, "versatility", norms), DROP_VERSATILITY_PCTL) {
+                && ge(N.pctl(p, "rim_def_delta", norms), DROP_RIM_DELTA_PCTL)
+                && le(N.pctl(p, "versatility", norms), DROP_VERSATILITY_PCTL)
+                && pnrOk {
                 return true
             }
         }
@@ -193,9 +218,10 @@ nonisolated enum LineupTags {
         return (vals.reduce(0, +) / Double(vals.count)) >= GLASS_PCTL
     }
 
+    /// Fast lineup: lineup-mean PACE percentile clearly above the league.
+    /// Mirrors tags.up_tempo.
     static func upTempo(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
-        guard let age = N.avgAge(players) else { return false }
-        return age < UP_TEMPO_AGE_MAX
+        ge(N.meanPctl(players, "pace", norms), UP_TEMPO_PACE_PCTL)
     }
 
     static func foulDrawing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
@@ -241,10 +267,11 @@ nonisolated enum LineupTags {
         let strains: [String]
     }
 
-    /// Tags whose triggers are PROXIES for an unavailable measurement.
-    static let proxyTags: Set<String> = [
-        "up_tempo", "disruptive", "rim_protection", "poa_d", "drop_bound",
-    ]
+    /// Tags whose triggers are PROXIES for an unavailable measurement. All five
+    /// defense/pace tags now read REAL tracking features, so this set is empty;
+    /// the symbol is kept so the breakdown UI's proxy `?` glyph mechanism still
+    /// exists for any future tag that has to fall back to a proxy.
+    static let proxyTags: Set<String> = []
 
     /// Registry key -> metadata. Insertion order is the stable registry order
     /// (mirrors tags.REGISTRY exactly: offense, defense, possession, liability).
@@ -304,7 +331,7 @@ nonisolated enum LineupTags {
             strains: ["ball movement", "off-ball rhythm"]),
         "rim_protection": TagMeta(
             fn: rimProtection, category: "defense",
-            label: "Rim Protection (proxy)",
+            label: "Rim Protection",
             enables: ["paint deterrence", "shot contests at the rim"],
             strains: []),
         "switchable": TagMeta(
@@ -314,17 +341,17 @@ nonisolated enum LineupTags {
             strains: []),
         "poa_d": TagMeta(
             fn: poaD, category: "defense",
-            label: "Point-of-Attack Defense (proxy)",
+            label: "Point-of-Attack Defense",
             enables: ["on-ball containment", "pressure full court"],
             strains: []),
         "disruptive": TagMeta(
             fn: disruptive, category: "defense",
-            label: "Disruptive / Forced Turnovers (proxy)",
+            label: "Disruptive / Forced Turnovers",
             enables: ["forced turnovers", "transition off defense"],
             strains: []),
         "drop_bound": TagMeta(
             fn: dropBound, category: "defense",
-            label: "Drop-Coverage Bound (proxy)",
+            label: "Drop-Coverage Bound",
             enables: ["paint protection in drop"],
             strains: ["switch coverage", "perimeter coverage on the big"]),
         "glass": TagMeta(
@@ -334,7 +361,7 @@ nonisolated enum LineupTags {
             strains: []),
         "up_tempo": TagMeta(
             fn: upTempo, category: "possession",
-            label: "Up-Tempo (proxy only — no pace input)",
+            label: "Up-Tempo",
             enables: ["transition offense"],
             strains: []),
         "foul_drawing": TagMeta(

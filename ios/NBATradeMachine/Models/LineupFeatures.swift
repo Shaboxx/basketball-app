@@ -45,6 +45,18 @@ struct LineupFeatures: Codable, Equatable, Hashable {
     let rpf: Double?
     let portability: Double?
 
+    // Real tracking defense / pace (Phase-1 de-proxy). Percentile features
+    // unless noted; pnr_roll_def_pctl is read RAW as an already-0..1 percentile.
+    let pace: Double?
+    let deflections_per36: Double?
+    let contested_per36: Double?
+    let rim_dfga_per36: Double?
+    let rim_opp_fg_pct: Double?
+    let rim_def_delta: Double?
+    let perim_opp_fg3_pct: Double?
+    let perim_def_delta: Double?
+    let pnr_roll_def_pctl: Double?
+
     // Free-throw / turnover.
     let ftr: Double?
     let ft_pct: Double?
@@ -92,6 +104,15 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         case "stl_pct": return stl_pct
         case "rpf": return rpf
         case "portability": return portability
+        case "pace": return pace
+        case "deflections_per36": return deflections_per36
+        case "contested_per36": return contested_per36
+        case "rim_dfga_per36": return rim_dfga_per36
+        case "rim_opp_fg_pct": return rim_opp_fg_pct
+        case "rim_def_delta": return rim_def_delta
+        case "perim_opp_fg3_pct": return perim_opp_fg3_pct
+        case "perim_def_delta": return perim_def_delta
+        case "pnr_roll_def_pctl": return pnr_roll_def_pctl
         case "ftr": return ftr
         case "ft_pct": return ft_pct
         case "tov_pct": return tov_pct
