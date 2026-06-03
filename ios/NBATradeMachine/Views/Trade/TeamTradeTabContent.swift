@@ -3,7 +3,6 @@ import SwiftUI
 struct TeamTradeTabContent: View {
     let team: Team
     @ObservedObject var vm: TradeMachineViewModel
-    @State private var pendingPlayer: Player?
     @State private var resignTarget: Player?
     @State private var showingSignFA = false
     @State private var showingDraft = false
@@ -53,6 +52,7 @@ struct TeamTradeTabContent: View {
 
             section("\(team.teamId) Roster") {
                 let roster = vm.roster(for: team.teamId)
+                let released = vm.waivedPlayers(for: team.teamId) + vm.dismissedPlayers(for: team.teamId)
                 if roster.isEmpty {
                     Text("No remaining players.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -60,24 +60,27 @@ struct TeamTradeTabContent: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(roster.enumerated()), id: \.element.id) { idx, p in
-                            let expired = vm.isExpired(p)
-                            PlayerSelectionRow(
-                                player: p,
-                                seasonOffset: vm.activeYearOffset,
-                                displayedSalary: vm.effectiveSalary(for: p),
-                                isExpired: expired
-                            ) {
-                                if expired {
-                                    resignTarget = p
-                                } else {
-                                    pendingPlayer = p
-                                }
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            rosterRow(p)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
                             if idx < roster.count - 1 { Divider() }
                         }
                     }
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                }
+
+                if !released.isEmpty {
+                    Text("Waived / Released")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                    VStack(spacing: 0) {
+                        ForEach(Array(released.enumerated()), id: \.element.id) { idx, p in
+                            releasedRow(p)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                            if idx < released.count - 1 { Divider() }
+                        }
+                    }
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
 
@@ -107,23 +110,6 @@ struct TeamTradeTabContent: View {
         }
         .padding(.horizontal)
         .padding(.top, 12)
-        .confirmationDialog(
-            pendingPlayer.map { "Trade \($0.name)?" } ?? "Trade",
-            isPresented: Binding(
-                get: { pendingPlayer != nil },
-                set: { if !$0 { pendingPlayer = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: pendingPlayer
-        ) { player in
-            ForEach(otherTeams) { other in
-                Button("Send to \(other.fullName)") {
-                    vm.tradePlayer(player.id, from: team.teamId, to: other.teamId)
-                    pendingPlayer = nil
-                }
-            }
-            Button("Cancel", role: .cancel) { pendingPlayer = nil }
-        }
         .sheet(isPresented: $showingAddPick) {
             AddPickSheet(fromTeam: team, vm: vm)
         }
@@ -135,6 +121,86 @@ struct TeamTradeTabContent: View {
         }
         .sheet(isPresented: $showingDraft) {
             DraftPlayerSheet(team: team, vm: vm)
+        }
+    }
+
+    /// One active-roster row: the tappable player content is wrapped in a
+    /// `Menu` (anchors its dropdown directly to the row — fixes the prior
+    /// `confirmationDialog` anchoring bug) with a trailing chevron link.
+    @ViewBuilder
+    private func rosterRow(_ p: Player) -> some View {
+        let expired = vm.isExpired(p)
+        HStack(spacing: 8) {
+            Menu {
+                if expired {
+                    Button { resignTarget = p } label: {
+                        Label("Re-sign…", systemImage: "signature")
+                    }
+                    Button(role: .destructive) { vm.dismissPlayer(p, from: team.teamId) } label: {
+                        Label("Dismiss Player", systemImage: "person.fill.xmark")
+                    }
+                } else {
+                    ForEach(otherTeams) { other in
+                        Button("Send to \(other.fullName)") {
+                            vm.tradePlayer(p.id, from: team.teamId, to: other.teamId)
+                        }
+                    }
+                    Divider()
+                    Button(role: .destructive) { vm.waivePlayer(p, from: team.teamId) } label: {
+                        Label("Waive Player", systemImage: "person.fill.xmark")
+                    }
+                }
+            } label: {
+                PlayerSelectionRow(
+                    player: p,
+                    seasonOffset: vm.activeYearOffset,
+                    displayedSalary: vm.effectiveSalary(for: p),
+                    isExpired: expired
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: p) {
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// One waived/dismissed row, grayed, with a single undo action.
+    @ViewBuilder
+    private func releasedRow(_ p: Player) -> some View {
+        let waived = vm.isWaived(p.id)
+        HStack(spacing: 8) {
+            Menu {
+                if waived {
+                    Button { vm.unwaivePlayer(p.id) } label: {
+                        Label("Undo Waive", systemImage: "arrow.uturn.backward")
+                    }
+                } else {
+                    Button { vm.undismissPlayer(p.id) } label: {
+                        Label("Restore Player", systemImage: "arrow.uturn.backward")
+                    }
+                }
+            } label: {
+                PlayerSelectionRow(
+                    player: p,
+                    seasonOffset: vm.activeYearOffset,
+                    displayedSalary: vm.effectiveSalary(for: p),
+                    isExpired: vm.isExpired(p),
+                    isReleased: true
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: p) {
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
         }
     }
 

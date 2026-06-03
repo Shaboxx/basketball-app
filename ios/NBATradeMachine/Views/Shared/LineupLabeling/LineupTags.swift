@@ -1,7 +1,7 @@
 import Foundation
 
 /// A descriptive tag that fired for a lineup, with display metadata.
-struct LineupTag: Equatable, Hashable, Identifiable {
+nonisolated struct LineupTag: Equatable, Hashable, Identifiable {
     let key: String          // registry key, e.g. "spread_high_spacing"
     let category: String     // "offense" | "defense" | "possession" | "liability"
     let label: String        // human-readable label
@@ -14,7 +14,7 @@ struct LineupTag: Equatable, Hashable, Identifiable {
 /// feature records and the league norms. Thresholds are the SAME tunable
 /// constants as tags.py. The registry carries each tag's category, label,
 /// enables and strains; the engine consumes both predicates and registry.
-enum LineupTags {
+nonisolated enum LineupTags {
 
     // MARK: - Tunable thresholds (mirror tags.py)
 
@@ -233,7 +233,7 @@ enum LineupTags {
     /// Category ordering used for stable output ordering in the engine.
     static let categoryOrder = ["offense", "defense", "possession", "liability"]
 
-    struct TagMeta {
+    nonisolated struct TagMeta {
         let fn: ([LineupFeatures?], LeagueNorms) -> Bool
         let category: String
         let label: String

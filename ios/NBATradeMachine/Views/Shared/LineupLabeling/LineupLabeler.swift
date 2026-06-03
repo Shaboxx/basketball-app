@@ -2,7 +2,7 @@ import Foundation
 
 /// The fused descriptive verdict for a five-man lineup — the Swift analogue of
 /// the dict returned by scripts/lineup_labeling/engine.py `label_lineup`.
-struct LineupLabel: Equatable {
+nonisolated struct LineupLabel: Equatable {
     let archetype: String          // resolved single identity key
     let tags: [LineupTag]          // firing tags, category-ordered
     let enables: [String]          // union of firing tags' enables, minus nullified
@@ -27,7 +27,7 @@ struct LineupLabel: Equatable {
 /// scripts/lineup_labeling/engine.py. Pure and deterministic: tags come out in
 /// category order, and every derived list is de-duplicated while preserving
 /// first-seen order, so the same input always yields identical output.
-enum LineupLabeler {
+nonisolated enum LineupLabeler {
 
     /// Order-preserving de-duplication.
     private static func dedup(_ seq: [String]) -> [String] {

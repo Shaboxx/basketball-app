@@ -9,60 +9,51 @@ struct PlayerSelectionRow: View {
     /// number so the user sees their pending commitment.
     let displayedSalary: Int
     let isExpired: Bool
-    let onTap: () -> Void
+    /// Grays the row + dims it for waived/dismissed players shown in the
+    /// "Waived / Released" strip. Purely visual.
+    var isReleased: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
-            Button(action: onTap) {
-                HStack(spacing: 10) {
-                    HeadshotImage(slug: player.slug, size: 36)
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 6) {
-                            Text(player.name).font(.subheadline)
-                            if let entry = ownTeamEntry, let tier = entry.tier {
-                                TradeTierBadge(tier: tier)
-                                EngineChips(tags: player.tradeValue?.tags ?? [])
-                            }
-                        }
-                        Text(player.position).font(.caption2).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(salaryText)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(isExpired && displayedSalary == 0 ? .orange : .secondary)
-                        if let sigma = sigmaLine {
-                            Text(sigma)
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        if isExpired {
-                            PlayerChip(
-                                label: displayedSalary > 0 ? "Re-signed" : "Expired",
-                                background: displayedSalary > 0 ? .green.opacity(0.8) : .expiryChip,
-                                foreground: .black
-                            )
-                        } else if let short = player.contractExpirySeasonShort {
-                            PlayerChip(
-                                label: "Expires \(short)",
-                                background: .expiryChip,
-                                foreground: .black
-                            )
-                        }
+            HeadshotImage(slug: player.slug, size: 36)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(player.name).font(.subheadline)
+                    if let entry = ownTeamEntry, let tier = entry.tier {
+                        TradeTierBadge(tier: tier)
+                        EngineChips(tags: player.tradeValue?.tags ?? [])
                     }
                 }
-                .contentShape(Rectangle())
+                Text(player.position).font(.caption2).foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-
-            NavigationLink(value: player) {
-                Image(systemName: "chevron.right")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 4)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(salaryText)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(isExpired && displayedSalary == 0 ? .orange : .secondary)
+                if let sigma = sigmaLine {
+                    Text(sigma)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                if isExpired {
+                    PlayerChip(
+                        label: displayedSalary > 0 ? "Re-signed" : "Expired",
+                        background: displayedSalary > 0 ? .green.opacity(0.8) : .expiryChip,
+                        foreground: .black
+                    )
+                } else if let short = player.contractExpirySeasonShort {
+                    PlayerChip(
+                        label: "Expires \(short)",
+                        background: .expiryChip,
+                        foreground: .black
+                    )
+                }
             }
-            .buttonStyle(.plain)
         }
+        .contentShape(Rectangle())
+        .grayscale(isReleased ? 1 : 0)
+        .opacity(isReleased ? 0.55 : 1)
     }
 
     private var salaryText: String {

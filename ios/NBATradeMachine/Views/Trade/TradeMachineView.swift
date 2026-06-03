@@ -224,14 +224,25 @@ struct TradeMachineView: View {
             }
             .buttonStyle(.borderedProminent)
 
-            Button {
-                vm.undo()
+            if vm.canRemoveTeam {
+                Button(role: .destructive) {
+                    vm.removeTeam(effectiveSelection)
+                    selectedTeamId = ""
+                } label: {
+                    Label("Remove Team", systemImage: "minus.circle")
+                        .frame(maxWidth: .infinity).padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Button(role: .destructive) {
+                vm.reset()
+                selectedTeamId = ""
             } label: {
-                Label("Undo", systemImage: "arrow.uturn.backward")
-                    .padding(.vertical, 6).padding(.horizontal, 4)
+                Label("Cancel", systemImage: "xmark.circle")
+                    .frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.bordered)
-            .disabled(!vm.canUndo)
             .contextMenu {
                 Button {
                     showingHistory = true
@@ -240,15 +251,6 @@ struct TradeMachineView: View {
                 }
                 .disabled(vm.history.isEmpty)
             }
-
-            Button(role: .destructive) {
-                vm.reset()
-                selectedTeamId = ""
-            } label: {
-                Label("Reset", systemImage: "arrow.counterclockwise")
-                    .frame(maxWidth: .infinity).padding(.vertical, 6)
-            }
-            .buttonStyle(.bordered)
         }
     }
 

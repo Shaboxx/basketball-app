@@ -158,6 +158,121 @@ final class TradeMachineViewModel: ObservableObject {
         alertMessage = nil
     }
 
+    // MARK: - Waive / Dismiss
+
+    /// Waive an active player. Their guaranteed salary stays on the cap as
+    /// dead money (`teamTotalSalary` is unchanged because it sums over the
+    /// full team list), but they leave the tradeable `roster(for:)`.
+    func waivePlayer(_ player: Player, from teamId: String) {
+        recordHistory("Waive \(player.name)")
+        // A waived player can't also be in flight.
+        trade.movements.removeAll { $0.playerId == player.id }
+        trade.waived.removeAll { $0.playerId == player.id }
+        trade.waived.append(WaivedContract(
+            playerId: player.id,
+            teamId: teamId,
+            salary: effectiveSalary(for: player),
+            yearsRemaining: max(0, player.contractYearsRemaining(from: activeYearOffset))
+        ))
+        validation = nil
+        alertMessage = nil
+    }
+
+    func unwaivePlayer(_ playerId: String) {
+        let name = playerName(playerId, hint: nil)
+        recordHistory("Un-waive \(name)")
+        trade.waived.removeAll { $0.playerId == playerId }
+        validation = nil
+        alertMessage = nil
+    }
+
+    /// Dismiss an expired (offseason) player — they leave the roster entirely
+    /// and carry NO dead money (their contract already lapsed). Also tears
+    /// down any in-flight re-sign override for them.
+    func dismissPlayer(_ player: Player, from teamId: String) {
+        recordHistory("Dismiss \(player.name)")
+        trade.movements.removeAll { $0.playerId == player.id }
+        signedContracts.removeValue(forKey: player.id)
+        trade.dismissed.removeAll { $0.playerId == player.id }
+        trade.dismissed.append(DismissedPlayer(playerId: player.id, teamId: teamId))
+        validation = nil
+        alertMessage = nil
+    }
+
+    func undismissPlayer(_ playerId: String) {
+        let name = playerName(playerId, hint: nil)
+        recordHistory("Restore \(name)")
+        trade.dismissed.removeAll { $0.playerId == playerId }
+        validation = nil
+        alertMessage = nil
+    }
+
+    func isWaived(_ id: String) -> Bool {
+        trade.waived.contains { $0.playerId == id }
+    }
+
+    func isDismissed(_ id: String) -> Bool {
+        trade.dismissed.contains { $0.playerId == id }
+    }
+
+    /// Waived players for a team, resolved against the loaded roster and in
+    /// waive order.
+    func waivedPlayers(for teamId: String) -> [Player] {
+        let all = teamsVM?.players(for: teamId) ?? []
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        return trade.waived
+            .filter { $0.teamId == teamId }
+            .compactMap { byId[$0.playerId] }
+    }
+
+    /// Dismissed players for a team, resolved against the loaded roster and in
+    /// dismiss order.
+    func dismissedPlayers(for teamId: String) -> [Player] {
+        let all = teamsVM?.players(for: teamId) ?? []
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        return trade.dismissed
+            .filter { $0.teamId == teamId }
+            .compactMap { byId[$0.playerId] }
+    }
+
+    /// Total dead money charged to a team from waived players.
+    func deadMoney(for teamId: String) -> Int {
+        trade.waived
+            .filter { $0.teamId == teamId }
+            .reduce(0) { $0 + deadMoneyHit($1) }
+    }
+
+    /// The single place a future stretch calc will branch.
+    private func deadMoneyHit(_ w: WaivedContract) -> Int {
+        // TODO: stretch — when w.stretch, spread w.salary over (2*w.yearsRemaining)+1.
+        w.salary
+    }
+
+    // MARK: - Team removal
+
+    var canRemoveTeam: Bool { trade.teams.count > 2 }
+
+    /// Remove a team from the trade (only allowed with >2 teams). Drops the
+    /// team plus every selection tied to it. Undo restores the snapshot.
+    func removeTeam(_ teamId: String) {
+        guard trade.teams.count > 2, trade.teamIds.contains(teamId) else { return }
+        let name = trade.teams.first { $0.teamId == teamId }?.fullName ?? teamId
+        recordHistory("Remove \(name)")
+        let rosterIds = Set((teamsVM?.players(for: teamId) ?? []).map(\.id))
+        trade.teams.removeAll { $0.teamId == teamId }
+        trade.movements.removeAll { $0.fromTeamId == teamId || $0.toTeamId == teamId }
+        trade.pickMovements.removeAll { $0.fromTeamId == teamId || $0.toTeamId == teamId }
+        trade.cashSent.removeValue(forKey: teamId)
+        trade.waived.removeAll { $0.teamId == teamId }
+        trade.dismissed.removeAll { $0.teamId == teamId }
+        signedFreeAgents.removeValue(forKey: teamId)
+        draftedProspects.removeValue(forKey: teamId)
+        signedContracts = signedContracts.filter { !rosterIds.contains($0.key) }
+        validation = nil
+        fitWarnings = []
+        alertMessage = nil
+    }
+
     func addPickMovement(_ pick: Pick, from fromTeamId: String, to toTeamId: String) {
         guard fromTeamId != toTeamId,
               trade.teamIds.contains(fromTeamId),
@@ -193,9 +308,14 @@ final class TradeMachineViewModel: ObservableObject {
 
     func roster(for teamId: String) -> [Player] {
         let outgoing = Set(trade.outgoingPlayerIds(from: teamId))
+        let released = Set(
+            trade.waived.filter { $0.teamId == teamId }.map(\.playerId)
+            + trade.dismissed.filter { $0.teamId == teamId }.map(\.playerId)
+        )
         let all = teamsVM?.players(for: teamId) ?? []
         return all.filter { p in
             guard !outgoing.contains(p.id) else { return false }
+            guard !released.contains(p.id) else { return false }
             // Offseason: keep contracts that expired between Y1 and Y2 so
             // the user can re-sign them. Active mode: only Y1 contracts.
             if isOffseason {
@@ -528,7 +648,7 @@ final class TradeMachineViewModel: ObservableObject {
     }
 
     func reset() {
-        recordHistory("Reset trade")
+        recordHistory("Cancel trade")
         trade.reset()
         signedContracts.removeAll()
         signedFreeAgents.removeAll()

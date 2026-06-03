@@ -8,7 +8,7 @@ import Foundation
 /// feature may be nil; helpers skip missing players (the "abstain" rule) rather
 /// than guessing. The two primitives (`percentile`, `zscore`) live on
 /// `LeagueNorms`; these helpers build the lineup-level aggregates on top.
-enum LineupNorms {
+nonisolated enum LineupNorms {
 
     // MARK: - Single-player lookups (mirror norms.feat / pctl / z)
 

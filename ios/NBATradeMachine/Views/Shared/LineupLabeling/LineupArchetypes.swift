@@ -11,7 +11,7 @@ import Foundation
 ///   3. positionless -> run_and_gun
 ///   4. bench_mob (reserve tiers only, above the reserve impact baseline)
 ///   5. balanced (fallback)
-enum LineupArchetypes {
+nonisolated enum LineupArchetypes {
 
     // MARK: - Tunable thresholds (mirror archetypes.py)
 
