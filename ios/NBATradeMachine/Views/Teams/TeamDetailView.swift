@@ -78,7 +78,8 @@ struct TeamDetailView: View {
                     columns: TeamDepthChartBuilder.columns(for: roster, cap: 5),
                     league: TeamDepthChartBuilder.leagueLayerStats(
                         rostersByTeam: teamsVM.playersByTeamId),
-                    norms: normsVM.norms
+                    norms: normsVM.norms,
+                    roster: roster
                 )
                 .navigationTitle("Depth Chart")
                 .navigationBarTitleDisplayMode(.inline)

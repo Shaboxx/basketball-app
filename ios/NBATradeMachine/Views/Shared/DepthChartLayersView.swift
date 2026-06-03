@@ -19,6 +19,9 @@ struct DepthChartLayersView: View {
     /// League norms for the lineup-breakdown sheet. nil → the breakdown shows
     /// "unavailable" rather than crashing.
     var norms: LeagueNorms? = nil
+    /// Roster backing the bottom "Create Lineups" button (the Lineup Maker).
+    /// Empty → the button is hidden.
+    var roster: [Player] = []
 
     private var positions: [String] { TeamDepthChartBuilder.positions }
 
@@ -82,21 +85,37 @@ struct DepthChartLayersView: View {
         let firstLayer = firstAppearanceLayer
         // Outer vertical scroll top-anchors the chart (a combined-axis ScrollView
         // vertically centers short content); inner horizontal scroll handles the
-        // wide row of position columns + the Lineup column.
-        return ScrollView(.vertical) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 6) {
-                    headerRow
-                    ForEach(activeLayers, id: \.self) { layer in
-                        layerRow(layer, firstLayer: firstLayer)
+        // wide row of position columns + the Lineup column. A pinned bottom
+        // "Create Lineups" button opens the interactive Lineup Maker.
+        return VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        headerRow
+                        ForEach(activeLayers, id: \.self) { layer in
+                            layerRow(layer, firstLayer: firstLayer)
+                        }
+                        if activeLayers.isEmpty {
+                            Text("No rated players to chart.")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .padding()
+                        }
                     }
-                    if activeLayers.isEmpty {
-                        Text("No rated players to chart.")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .padding()
-                    }
+                    .padding(12)
                 }
-                .padding(12)
+            }
+            if !roster.isEmpty {
+                Divider()
+                NavigationLink {
+                    LineupMakerView(roster: roster, league: league, norms: norms)
+                } label: {
+                    Text("Create Lineups")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
             }
         }
         .sheet(item: $breakdownLayer) { item in

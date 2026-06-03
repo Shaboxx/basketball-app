@@ -33,7 +33,8 @@ struct DepthChartSheet: View {
                             columns: TeamDepthChartBuilder.columns(for: roster(for: team), cap: 5),
                             league: TeamDepthChartBuilder.leagueLayerStats(
                                 rostersByTeam: teamsVM.playersByTeamId),
-                            norms: normsVM.norms
+                            norms: normsVM.norms,
+                            roster: roster(for: team)
                         )
                     }
                 }
