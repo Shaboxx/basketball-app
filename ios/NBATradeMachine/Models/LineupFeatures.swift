@@ -76,7 +76,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
     /// (mirroring the Python `feat(player, name)`), so a single dispatch keeps
     /// it in lock-step with the norms map. Returns nil for any unknown or
     /// missing feature.
-    func value(_ name: String) -> Double? {
+    nonisolated func value(_ name: String) -> Double? {
         switch name {
         case "z_ra": return z_ra
         case "z_paint": return z_paint
@@ -126,7 +126,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
 
     /// Position string used by archetype role tests: primary_pos, falling back
     /// to position, uppercased (mirrors archetypes._pos).
-    var pos: String {
+    nonisolated var pos: String {
         (primary_pos ?? position ?? "").uppercased()
     }
 }

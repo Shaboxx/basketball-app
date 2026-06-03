@@ -27,7 +27,7 @@ struct LeagueNorms: Equatable {
     /// the mid-rank (Hazen) convention: (#below + 0.5 * #equal) / n. Median of a
     /// symmetric odd-length vector is exactly 0.5; strictly above all → 1.0;
     /// strictly below all → 0.0. nil for a nil value or empty distribution.
-    static func percentile(_ value: Double?, _ sortedValues: [Double]?) -> Double? {
+    nonisolated static func percentile(_ value: Double?, _ sortedValues: [Double]?) -> Double? {
         guard let value, let sortedValues, !sortedValues.isEmpty else { return nil }
         let n = Double(sortedValues.count)
         var below = 0.0
@@ -40,7 +40,7 @@ struct LeagueNorms: Equatable {
     }
 
     /// (value - mean) / std. nil for a nil value or non-positive std.
-    static func zscore(_ value: Double?, _ mean: Double?, _ std: Double?) -> Double? {
+    nonisolated static func zscore(_ value: Double?, _ mean: Double?, _ std: Double?) -> Double? {
         guard let value, let std, std > 0 else { return nil }
         return (value - (mean ?? 0)) / std
     }
@@ -49,7 +49,7 @@ struct LeagueNorms: Equatable {
 
     /// League percentile (0..1) of a raw feature `value`. nil when there is no
     /// distribution for the feature or the value is nil.
-    func percentile(_ value: Double?, feature: String) -> Double? {
+    nonisolated func percentile(_ value: Double?, feature: String) -> Double? {
         guard let value else { return nil }
         guard let fnorm = byFeature[feature] else { return nil }
         return Self.percentile(value, fnorm.sorted)
@@ -57,7 +57,7 @@ struct LeagueNorms: Equatable {
 
     /// League z-score of a raw feature `value`. nil when there is no
     /// distribution for the feature or the value is nil.
-    func zscore(_ value: Double?, feature: String) -> Double? {
+    nonisolated func zscore(_ value: Double?, feature: String) -> Double? {
         guard let value else { return nil }
         guard let fnorm = byFeature[feature] else { return nil }
         return Self.zscore(value, fnorm.mean, fnorm.std)

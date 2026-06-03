@@ -15,71 +15,71 @@ nonisolated enum LineupArchetypes {
 
     // MARK: - Tunable thresholds (mirror archetypes.py)
 
-    static let BIG_HEIGHT_IN = 82.0
-    static let SMALL_BALL_MAX_HEIGHT_IN = 82.0
-    static let TEAM_CENTER_TALL_IN = 83.0
-    static let POSITIONLESS_MIN_IN = 75.0
-    static let POSITIONLESS_MAX_IN = 82.0
+    nonisolated static let BIG_HEIGHT_IN = 82.0
+    nonisolated static let SMALL_BALL_MAX_HEIGHT_IN = 82.0
+    nonisolated static let TEAM_CENTER_TALL_IN = 83.0
+    nonisolated static let POSITIONLESS_MIN_IN = 75.0
+    nonisolated static let POSITIONLESS_MAX_IN = 82.0
 
-    static let FRONTCOURT_POS: Set<String> = ["PF", "C", "F", "F-C", "C-F", "PF-C"]
-    static let CENTER_POS: Set<String> = ["C", "C-F", "F-C", "PF-C"]
-    static let WING_POS: Set<String> = ["SF", "SG", "G-F", "F-G", "F", "SF-SG", "SG-SF", "SF-PF"]
-    static let GUARD_POS: Set<String> = ["PG", "SG", "G", "PG-SG", "SG-PG", "G-F"]
-    static let PRIMARY_HANDLER_POS: Set<String> = ["PG", "G", "PG-SG", "SG-PG"]
+    nonisolated static let FRONTCOURT_POS: Set<String> = ["PF", "C", "F", "F-C", "C-F", "PF-C"]
+    nonisolated static let CENTER_POS: Set<String> = ["C", "C-F", "F-C", "PF-C"]
+    nonisolated static let WING_POS: Set<String> = ["SF", "SG", "G-F", "F-G", "F", "SF-SG", "SG-SF", "SF-PF"]
+    nonisolated static let GUARD_POS: Set<String> = ["PG", "SG", "G", "PG-SG", "SG-PG", "G-F"]
+    nonisolated static let PRIMARY_HANDLER_POS: Set<String> = ["PG", "G", "PG-SG", "SG-PG"]
 
-    static let SHOOTER_THREEPAR_PCTL = 0.55
-    static let SHOOTER_FG3_PCTL = 0.45
-    static let NON_SHOOTER_THREEPAR_PCTL = 0.20
+    nonisolated static let SHOOTER_THREEPAR_PCTL = 0.55
+    nonisolated static let SHOOTER_FG3_PCTL = 0.45
+    nonisolated static let NON_SHOOTER_THREEPAR_PCTL = 0.20
 
-    static let BULLY_ORB_PCTL = 0.60
-    static let BULLY_WEIGHT_PCTL = 0.60
+    nonisolated static let BULLY_ORB_PCTL = 0.60
+    nonisolated static let BULLY_WEIGHT_PCTL = 0.60
 
-    static let HELIO_LOAD_PCTL = 0.90
-    static let HELIO_CREATION_PCTL = 0.75
-    static let HELIO_OTHERS_LOAD_PCTL = 0.60
-    static let ISO_LOAD_PCTL = 0.80
-    static let ISO_TEAM_CREATION_PCTL = 0.45
-    static let ISO_MAX_SECONDARY_CREATORS = 1
-    static let SECONDARY_CREATOR_PCTL = 0.60
-    static let TWO_PG_MIN_HANDLERS = 2
-    static let HANDLER_LOAD_PCTL = 0.60
+    nonisolated static let HELIO_LOAD_PCTL = 0.90
+    nonisolated static let HELIO_CREATION_PCTL = 0.75
+    nonisolated static let HELIO_OTHERS_LOAD_PCTL = 0.60
+    nonisolated static let ISO_LOAD_PCTL = 0.80
+    nonisolated static let ISO_TEAM_CREATION_PCTL = 0.45
+    nonisolated static let ISO_MAX_SECONDARY_CREATORS = 1
+    nonisolated static let SECONDARY_CREATOR_PCTL = 0.60
+    nonisolated static let TWO_PG_MIN_HANDLERS = 2
+    nonisolated static let HANDLER_LOAD_PCTL = 0.60
 
-    static let POSITIONLESS_MIN_WINGS = 3
-    static let POSITIONLESS_VERSATILITY_PCTL = 0.55
-    static let RUN_GUN_AGE_MAX = 25.5
+    nonisolated static let POSITIONLESS_MIN_WINGS = 3
+    nonisolated static let POSITIONLESS_VERSATILITY_PCTL = 0.55
+    nonisolated static let RUN_GUN_AGE_MAX = 25.5
 
-    static let DEATH_MIN_IMPACT = 0.0
-    static let BENCH_RESERVE_BASELINE = -1.5
+    nonisolated static let DEATH_MIN_IMPACT = 0.0
+    nonisolated static let BENCH_RESERVE_BASELINE = -1.5
 
     private typealias N = LineupNorms
 
     // MARK: - Small role/feature helpers
 
-    private static func pos(_ player: LineupFeatures?) -> String {
+    private nonisolated static func pos(_ player: LineupFeatures?) -> String {
         player?.pos ?? ""
     }
 
-    private static func isIn(_ p: String, _ group: Set<String>) -> Bool {
+    private nonisolated static func isIn(_ p: String, _ group: Set<String>) -> Bool {
         group.contains(p)
     }
 
-    private static func heights(_ players: [LineupFeatures?]) -> [Double] {
+    private nonisolated static func heights(_ players: [LineupFeatures?]) -> [Double] {
         players.compactMap { N.feat($0, "height_in") }
     }
 
-    private static func isShooter(_ player: LineupFeatures?, _ norms: LeagueNorms) -> Bool {
+    private nonisolated static func isShooter(_ player: LineupFeatures?, _ norms: LeagueNorms) -> Bool {
         let tp = N.pctl(player, "three_par", norms)
         let acc = N.pctl(player, "fg3_pct", norms)
         return (tp != nil && tp! >= SHOOTER_THREEPAR_PCTL)
             && (acc == nil || acc! >= SHOOTER_FG3_PCTL)
     }
 
-    private static func isNonShooter(_ player: LineupFeatures?, _ norms: LeagueNorms) -> Bool {
+    private nonisolated static func isNonShooter(_ player: LineupFeatures?, _ norms: LeagueNorms) -> Bool {
         let tp = N.pctl(player, "three_par", norms)
         return tp != nil && tp! <= NON_SHOOTER_THREEPAR_PCTL
     }
 
-    private static func secondaryCreators(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    private nonisolated static func secondaryCreators(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                                           excludeIdx: Int? = nil) -> Int {
         var n = 0
         for (i, p) in players.enumerated() {
@@ -89,7 +89,7 @@ nonisolated enum LineupArchetypes {
         return n
     }
 
-    private static func primaryHandlers(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Int {
+    private nonisolated static func primaryHandlers(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Int {
         var n = 0
         for p in players {
             let position = pos(p)
@@ -106,7 +106,7 @@ nonisolated enum LineupArchetypes {
 
     /// Tallest player record (mirrors max(players, key=height_in or 0)). Ties
     /// resolve to the first occurrence, matching Python's `max`.
-    private static func tallest(_ players: [LineupFeatures?]) -> LineupFeatures? {
+    private nonisolated static func tallest(_ players: [LineupFeatures?]) -> LineupFeatures? {
         var best: LineupFeatures?
         var bestH = -Double.infinity
         for p in players {
@@ -121,7 +121,7 @@ nonisolated enum LineupArchetypes {
 
     // MARK: - Group 1: size + spacing
 
-    static func deathLineup(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func deathLineup(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                             _ tags: [String], _ impacts: [Double?]?) -> Bool {
         guard let impacts, impacts.count == players.count, !players.isEmpty else { return false }
         if impacts.contains(where: { $0 == nil }) { return false }
@@ -138,7 +138,7 @@ nonisolated enum LineupArchetypes {
         return isForwardFive && (ver ?? 0) >= POSITIONLESS_VERSATILITY_PCTL
     }
 
-    static func smallBall(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func smallBall(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                           _ tags: [String], _ impacts: [Double?]?) -> Bool {
         let hs = heights(players)
         guard !hs.isEmpty else { return false }
@@ -150,7 +150,7 @@ nonisolated enum LineupArchetypes {
         return tags.contains("spread_high_spacing") || tags.contains("movement_shooting")
     }
 
-    static func twinTowers(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func twinTowers(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                            _ tags: [String], _ impacts: [Double?]?) -> Bool {
         var bigs = 0
         for p in players {
@@ -161,14 +161,14 @@ nonisolated enum LineupArchetypes {
         return bigs >= 2
     }
 
-    static func fiveOut(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func fiveOut(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                         _ tags: [String], _ impacts: [Double?]?) -> Bool {
         guard !players.isEmpty else { return false }
         if players.contains(where: { isNonShooter($0, norms) }) { return false }
         return players.allSatisfy { isShooter($0, norms) }
     }
 
-    static func bullyBall(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func bullyBall(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                           _ tags: [String], _ impacts: [Double?]?) -> Bool {
         guard let weight = N.meanPctl(players, "weight_lb", norms), weight >= BULLY_WEIGHT_PCTL
         else { return false }
@@ -180,7 +180,7 @@ nonisolated enum LineupArchetypes {
 
     // MARK: - Group 2: ball-handling
 
-    static func heliocentric(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func heliocentric(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                              _ tags: [String], _ impacts: [Double?]?) -> Bool {
         let loads: [(Int, Double?)] = players.enumerated().map { ($0.offset, N.pctl($0.element, "load", norms)) }
         let present: [(Int, Double)] = loads.compactMap { idx, v in v.map { (idx, $0) } }
@@ -196,7 +196,7 @@ nonisolated enum LineupArchetypes {
         return others.allSatisfy { $0 < HELIO_OTHERS_LOAD_PCTL }
     }
 
-    static func isoHero(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func isoHero(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                         _ tags: [String], _ impacts: [Double?]?) -> Bool {
         guard let top = N.maxPctl(players, "load", norms), top >= ISO_LOAD_PCTL else { return false }
         guard let teamCreation = N.meanPctl(players, "box_creation", norms),
@@ -204,14 +204,14 @@ nonisolated enum LineupArchetypes {
         return secondaryCreators(players, norms) <= ISO_MAX_SECONDARY_CREATORS
     }
 
-    static func twoPG(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func twoPG(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                       _ tags: [String], _ impacts: [Double?]?) -> Bool {
         primaryHandlers(players, norms) >= TWO_PG_MIN_HANDLERS
     }
 
     // MARK: - Group 3: defense / tempo
 
-    static func positionless(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func positionless(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                              _ tags: [String], _ impacts: [Double?]?) -> Bool {
         let hs = heights(players)
         if hs.count < players.count || hs.isEmpty { return false }
@@ -224,7 +224,7 @@ nonisolated enum LineupArchetypes {
         return ver >= POSITIONLESS_VERSATILITY_PCTL
     }
 
-    static func runAndGun(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func runAndGun(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                           _ tags: [String], _ impacts: [Double?]?) -> Bool {
         guard let age = N.avgAge(players), age < RUN_GUN_AGE_MAX else { return false }
         return primaryHandlers(players, norms) >= 2
@@ -232,7 +232,7 @@ nonisolated enum LineupArchetypes {
 
     // MARK: - Group 4: bench
 
-    static func benchMob(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func benchMob(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                          _ tags: [String], _ impacts: [Double?]?, _ tier: String) -> Bool {
         if tier != "bench" { return false }
         guard let impacts, !impacts.isEmpty else { return false }
@@ -244,7 +244,7 @@ nonisolated enum LineupArchetypes {
     // MARK: - Resolver (Part-3 priority)
 
     /// Strains attached to each archetype identity (independent of tags).
-    static let archetypeStrains: [String: [String]] = [
+    nonisolated static let archetypeStrains: [String: [String]] = [
         "death_lineup": ["interior rebounding vs. size"],
         "small_ball": ["interior rebounding vs. size", "rim protection vs. size"],
         "twin_towers": ["floor spacing", "perimeter switchability"],
@@ -259,7 +259,7 @@ nonisolated enum LineupArchetypes {
         "balanced": [],
     ]
 
-    static let archetypeLabels: [String: String] = [
+    nonisolated static let archetypeLabels: [String: String] = [
         "death_lineup": "Death Lineup",
         "small_ball": "Small Ball",
         "twin_towers": "Twin Towers",
@@ -274,11 +274,11 @@ nonisolated enum LineupArchetypes {
         "balanced": "Balanced",
     ]
 
-    private typealias Predicate = ([LineupFeatures?], LeagueNorms, [String], [Double?]?) -> Bool
+    private typealias Predicate = @Sendable ([LineupFeatures?], LeagueNorms, [String], [Double?]?) -> Bool
 
     /// (name, predicate) in strict priority order. bench_mob is handled
     /// separately because it needs the tier argument.
-    private static let priority: [(String, Predicate)] = [
+    private nonisolated static let priority: [(String, Predicate)] = [
         ("death_lineup", deathLineup),
         ("small_ball", smallBall),
         ("twin_towers", twinTowers),
@@ -292,7 +292,7 @@ nonisolated enum LineupArchetypes {
     ]
 
     /// Return the single archetype name (first passing predicate, by priority).
-    static func resolve(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+    nonisolated static func resolve(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                         tags: [String], impacts: [Double?]? = nil,
                         tier: String = "starters") -> String {
         for (name, fn) in priority {

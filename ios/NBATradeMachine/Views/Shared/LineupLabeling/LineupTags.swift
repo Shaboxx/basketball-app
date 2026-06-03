@@ -19,71 +19,71 @@ nonisolated enum LineupTags {
     // MARK: - Tunable thresholds (mirror tags.py)
 
     // Offensive
-    static let SPACING_CORNER_PCTL = 0.50
-    static let SPACING_MIN_SPACERS = 4
-    static let SPACING_SHOOTQ_PCTL = 0.40
-    static let CLOG_THREEPAR_PCTL = 0.20
-    static let CLOG_MIN_CLOGGERS = 2
-    static let CLOG_SQ_PCTL = 0.45
-    static let MOVEMENT_ATB3_PCTL = 0.60
-    static let MOVEMENT_FG3_PCTL = 0.50
-    static let RIM_PRESSURE_PCTL = 0.60
-    static let INTERIOR_POST_PCTL = 0.60
-    static let INTERIOR_TS_PCTL = 0.50
-    static let MIDRANGE_PCTL = 0.62
-    static let MIDRANGE_SQ_MIN = 0.30
-    static let MIDRANGE_SQ_MAX = 0.70
-    static let PLAYMAKING_CREATION_PCTL = 0.58
-    static let PLAYMAKING_PASSER_PCTL = 0.55
-    static let PLAYMAKING_MAX_HHI = 0.30
-    static let BALL_DOM_LOAD_PCTL = 0.85
-    static let BALL_DOM_MIN_HHI = 0.28
-    static let BALL_DOM_SECOND_CREATION_PCTL = 0.45
+    nonisolated static let SPACING_CORNER_PCTL = 0.50
+    nonisolated static let SPACING_MIN_SPACERS = 4
+    nonisolated static let SPACING_SHOOTQ_PCTL = 0.40
+    nonisolated static let CLOG_THREEPAR_PCTL = 0.20
+    nonisolated static let CLOG_MIN_CLOGGERS = 2
+    nonisolated static let CLOG_SQ_PCTL = 0.45
+    nonisolated static let MOVEMENT_ATB3_PCTL = 0.60
+    nonisolated static let MOVEMENT_FG3_PCTL = 0.50
+    nonisolated static let RIM_PRESSURE_PCTL = 0.60
+    nonisolated static let INTERIOR_POST_PCTL = 0.60
+    nonisolated static let INTERIOR_TS_PCTL = 0.50
+    nonisolated static let MIDRANGE_PCTL = 0.62
+    nonisolated static let MIDRANGE_SQ_MIN = 0.30
+    nonisolated static let MIDRANGE_SQ_MAX = 0.70
+    nonisolated static let PLAYMAKING_CREATION_PCTL = 0.58
+    nonisolated static let PLAYMAKING_PASSER_PCTL = 0.55
+    nonisolated static let PLAYMAKING_MAX_HHI = 0.30
+    nonisolated static let BALL_DOM_LOAD_PCTL = 0.85
+    nonisolated static let BALL_DOM_MIN_HHI = 0.28
+    nonisolated static let BALL_DOM_SECOND_CREATION_PCTL = 0.45
 
     // Defensive (REAL tracking features as of the Phase-1 de-proxy)
-    static let SWITCH_VERSATILITY_PCTL = 0.50
-    static let SWITCH_MIN_SWITCHERS = 4
+    nonisolated static let SWITCH_VERSATILITY_PCTL = 0.50
+    nonisolated static let SWITCH_MIN_SWITCHERS = 4
 
     // rim_protection: >=1 player with real rim volume AND below-expected rim FG%.
-    static let RIM_VOL_PCTL = 0.60       // rim_dfga_per36 percentile (gate on volume)
-    static let RIM_DELTA_PCTL = 0.80     // rim_def_delta percentile (defends better than expected)
+    nonisolated static let RIM_VOL_PCTL = 0.60       // rim_dfga_per36 percentile (gate on volume)
+    nonisolated static let RIM_DELTA_PCTL = 0.80     // rim_def_delta percentile (defends better than expected)
 
     // poa_d: >=2 real perimeter defenders / deflectors who don't foul.
-    static let POA_PERIM_PCTL = 0.75     // perim_def_delta percentile
-    static let POA_DEFLECT_PCTL = 0.78   // deflections_per36 percentile (OR with perim D)
-    static let POA_RPF_PCTL = 0.50       // but they don't foul a lot (low rpf)
-    static let POA_MIN_DEFENDERS = 2
+    nonisolated static let POA_PERIM_PCTL = 0.75     // perim_def_delta percentile
+    nonisolated static let POA_DEFLECT_PCTL = 0.78   // deflections_per36 percentile (OR with perim D)
+    nonisolated static let POA_RPF_PCTL = 0.50       // but they don't foul a lot (low rpf)
+    nonisolated static let POA_MIN_DEFENDERS = 2
 
     // disruptive: high lineup-mean deflections.
-    static let DISRUPTIVE_DEFLECT_PCTL = 0.62
+    nonisolated static let DISRUPTIVE_DEFLECT_PCTL = 0.62
 
     // drop_bound: tall interior defender who CANNOT switch (+ P&R-roll D when known).
-    static let DROP_HEIGHT_IN = 82.0
-    static let DROP_RIM_DELTA_PCTL = 0.55   // real interior defense (rim_def_delta)
-    static let DROP_VERSATILITY_PCTL = 0.40 // ...and NOT switchable (low versatility)
-    static let DROP_PNR_PCTL = 0.55         // Synergy P&R-roll defense (null -> not required)
+    nonisolated static let DROP_HEIGHT_IN = 82.0
+    nonisolated static let DROP_RIM_DELTA_PCTL = 0.55   // real interior defense (rim_def_delta)
+    nonisolated static let DROP_VERSATILITY_PCTL = 0.40 // ...and NOT switchable (low versatility)
+    nonisolated static let DROP_PNR_PCTL = 0.55         // Synergy P&R-roll defense (null -> not required)
 
     // Possession / physical
-    static let GLASS_PCTL = 0.58
-    static let FOUL_DRAW_FTR_PCTL = 0.60
-    static let YOUTH_AGE_MAX = 24.0
-    static let VETERAN_AGE_MIN = 31.0
-    static let UP_TEMPO_PACE_PCTL = 0.62    // lineup-mean pace percentile clearly above league
+    nonisolated static let GLASS_PCTL = 0.58
+    nonisolated static let FOUL_DRAW_FTR_PCTL = 0.60
+    nonisolated static let YOUTH_AGE_MAX = 24.0
+    nonisolated static let VETERAN_AGE_MIN = 31.0
+    nonisolated static let UP_TEMPO_PACE_PCTL = 0.62    // lineup-mean pace percentile clearly above league
 
     // Liability
-    static let HACK_FT_PCT = 65.0
-    static let HACK_MIN_HACKERS = 2
-    static let TURNOVER_TOV_PCTL = 0.60
-    static let TURNOVER_CTOV_PCTL = 0.55
-    static let FOUL_PRONE_RPF_PCTL = 0.62
+    nonisolated static let HACK_FT_PCT = 65.0
+    nonisolated static let HACK_MIN_HACKERS = 2
+    nonisolated static let TURNOVER_TOV_PCTL = 0.60
+    nonisolated static let TURNOVER_CTOV_PCTL = 0.55
+    nonisolated static let FOUL_PRONE_RPF_PCTL = 0.62
 
     // MARK: - Helpers (mirror tags._ge / _le)
 
-    private static func ge(_ value: Double?, _ threshold: Double) -> Bool {
+    private nonisolated static func ge(_ value: Double?, _ threshold: Double) -> Bool {
         value != nil && value! >= threshold
     }
 
-    private static func le(_ value: Double?, _ threshold: Double) -> Bool {
+    private nonisolated static func le(_ value: Double?, _ threshold: Double) -> Bool {
         value != nil && value! <= threshold
     }
 
@@ -91,47 +91,47 @@ nonisolated enum LineupTags {
 
     // MARK: - Offensive tags
 
-    static func spreadHighSpacing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func spreadHighSpacing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let spacers = N.countAbove(players, "z_corner3", SPACING_CORNER_PCTL, norms)
         let shootOk = ge(N.meanPctl(players, "fg3_pct", norms), SPACING_SHOOTQ_PCTL)
             || ge(N.meanPctl(players, "sq", norms), SPACING_SHOOTQ_PCTL)
         return spacers >= SPACING_MIN_SPACERS && shootOk
     }
 
-    static func cloggedLowSpacing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func cloggedLowSpacing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let cloggers = N.countBelow(players, "three_par", CLOG_THREEPAR_PCTL, norms)
         let lowSq = le(N.meanPctl(players, "sq", norms), CLOG_SQ_PCTL)
         return cloggers >= CLOG_MIN_CLOGGERS && lowSq
     }
 
-    static func movementShooting(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func movementShooting(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let atb = ge(N.meanPctl(players, "z_atb3", norms), MOVEMENT_ATB3_PCTL)
         let acc = ge(N.meanPctl(players, "fg3_pct", norms), MOVEMENT_FG3_PCTL)
             || ge(N.meanPctl(players, "ts", norms), MOVEMENT_FG3_PCTL)
         return atb && acc
     }
 
-    static func rimPressure(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func rimPressure(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let ra = ge(N.meanPctl(players, "z_ra", norms), RIM_PRESSURE_PCTL)
         let ftr = ge(N.meanPctl(players, "ftr", norms), RIM_PRESSURE_PCTL)
         let load = ge(N.meanPctl(players, "load", norms), RIM_PRESSURE_PCTL)
         return ra && (ftr || load)
     }
 
-    static func interiorPost(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func interiorPost(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let paint = ge(N.meanPctl(players, "z_paint", norms), INTERIOR_POST_PCTL)
         let ts = ge(N.meanPctl(players, "ts", norms), INTERIOR_TS_PCTL)
         return paint && ts
     }
 
-    static func midrangeTough(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func midrangeTough(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let mid = ge(N.meanPctl(players, "z_mid", norms), MIDRANGE_PCTL)
         let sq = N.meanPctl(players, "sq", norms)
         let moderate = sq != nil && sq! >= MIDRANGE_SQ_MIN && sq! <= MIDRANGE_SQ_MAX
         return mid && moderate
     }
 
-    static func playmakingHub(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func playmakingHub(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let creation = ge(N.meanPctl(players, "box_creation", norms), PLAYMAKING_CREATION_PCTL)
         let passing = ge(N.meanPctl(players, "passer_rtg", norms), PLAYMAKING_PASSER_PCTL)
         let hhi = N.loadHHI(players.map { N.feat($0, "load") })
@@ -139,7 +139,7 @@ nonisolated enum LineupTags {
         return creation && passing && spread
     }
 
-    static func ballDominant(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func ballDominant(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let topLoad = ge(N.maxPctl(players, "load", norms), BALL_DOM_LOAD_PCTL)
         let hhi = N.loadHHI(players.map { N.feat($0, "load") })
         let concentrated = hhi != nil && hhi! >= BALL_DOM_MIN_HHI
@@ -154,7 +154,7 @@ nonisolated enum LineupTags {
     /// a high rim-defense FGA rate (not a tiny-sample fluke) AND a strong
     /// rim_def_delta (normal − allowed, positive = defends the rim better than
     /// expected). Mirrors tags.rim_protection.
-    static func rimProtection(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func rimProtection(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         for p in players {
             if ge(N.pctl(p, "rim_dfga_per36", norms), RIM_VOL_PCTL)
                 && ge(N.pctl(p, "rim_def_delta", norms), RIM_DELTA_PCTL) {
@@ -164,14 +164,14 @@ nonisolated enum LineupTags {
         return false
     }
 
-    static func switchable(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func switchable(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         N.countAbove(players, "versatility", SWITCH_VERSATILITY_PCTL, norms) >= SWITCH_MIN_SWITCHERS
     }
 
     /// >=2 REAL point-of-attack defenders: contain on the perimeter OR get a lot
     /// of deflections, AND don't foul a lot (low reaching-foul rate). Mirrors
     /// tags.poa_d.
-    static func poaD(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func poaD(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         var n = 0
         for p in players {
             let perim = N.pctl(p, "perim_def_delta", norms)
@@ -186,7 +186,7 @@ nonisolated enum LineupTags {
 
     /// High lineup-mean DEFLECTION rate (real ball pressure / forced turnovers).
     /// Mirrors tags.disruptive.
-    static func disruptive(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func disruptive(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         ge(N.meanPctl(players, "deflections_per36", norms), DISRUPTIVE_DEFLECT_PCTL)
     }
 
@@ -194,7 +194,7 @@ nonisolated enum LineupTags {
     /// interior defense (rim_def_delta) + height + low switchability, plus
     /// Synergy P&R-roll defense when available (null -> not required). Mirrors
     /// tags.drop_bound.
-    static func dropBound(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func dropBound(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         for p in players {
             let pnr = N.feat(p, "pnr_roll_def_pctl")
             let pnrOk = pnr == nil || pnr! >= DROP_PNR_PCTL
@@ -210,7 +210,7 @@ nonisolated enum LineupTags {
 
     // MARK: - Possession / physical tags
 
-    static func glass(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func glass(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let orb = N.meanPctl(players, "orb_pct", norms)
         let drb = N.meanPctl(players, "drb_pct", norms)
         let vals = [orb, drb].compactMap { $0 }
@@ -220,47 +220,47 @@ nonisolated enum LineupTags {
 
     /// Fast lineup: lineup-mean PACE percentile clearly above the league.
     /// Mirrors tags.up_tempo.
-    static func upTempo(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func upTempo(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         ge(N.meanPctl(players, "pace", norms), UP_TEMPO_PACE_PCTL)
     }
 
-    static func foulDrawing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func foulDrawing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         ge(N.meanPctl(players, "ftr", norms), FOUL_DRAW_FTR_PCTL)
     }
 
-    static func youth(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func youth(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         guard let age = N.avgAge(players) else { return false }
         return age < YOUTH_AGE_MAX
     }
 
-    static func veteran(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func veteran(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         guard let age = N.avgAge(players) else { return false }
         return age > VETERAN_AGE_MIN
     }
 
     // MARK: - Liability tags
 
-    static func hackRisk(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func hackRisk(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         N.countRawBelow(players, "ft_pct", HACK_FT_PCT) >= HACK_MIN_HACKERS
     }
 
-    static func turnoverProne(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func turnoverProne(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         let tov = ge(N.meanPctl(players, "tov_pct", norms), TURNOVER_TOV_PCTL)
         let ctov = ge(N.meanPctl(players, "ctov_pct", norms), TURNOVER_CTOV_PCTL)
         return tov && ctov
     }
 
-    static func foulProne(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+    nonisolated static func foulProne(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
         ge(N.meanPctl(players, "rpf", norms), FOUL_PRONE_RPF_PCTL)
     }
 
     // MARK: - Registry
 
     /// Category ordering used for stable output ordering in the engine.
-    static let categoryOrder = ["offense", "defense", "possession", "liability"]
+    nonisolated static let categoryOrder = ["offense", "defense", "possession", "liability"]
 
     nonisolated struct TagMeta {
-        let fn: ([LineupFeatures?], LeagueNorms) -> Bool
+        let fn: @Sendable ([LineupFeatures?], LeagueNorms) -> Bool
         let category: String
         let label: String
         let enables: [String]
@@ -271,11 +271,11 @@ nonisolated enum LineupTags {
     /// defense/pace tags now read REAL tracking features, so this set is empty;
     /// the symbol is kept so the breakdown UI's proxy `?` glyph mechanism still
     /// exists for any future tag that has to fall back to a proxy.
-    static let proxyTags: Set<String> = []
+    nonisolated static let proxyTags: Set<String> = []
 
     /// Registry key -> metadata. Insertion order is the stable registry order
     /// (mirrors tags.REGISTRY exactly: offense, defense, possession, liability).
-    static let registryKeys: [String] = [
+    nonisolated static let registryKeys: [String] = [
         // Offensive
         "spread_high_spacing", "clogged_low_spacing", "movement_shooting",
         "rim_pressure", "interior_post", "midrange_tough", "playmaking_hub",
@@ -288,7 +288,7 @@ nonisolated enum LineupTags {
         "hack_risk", "turnover_prone", "foul_prone",
     ]
 
-    static let registry: [String: TagMeta] = [
+    nonisolated static let registry: [String: TagMeta] = [
         "spread_high_spacing": TagMeta(
             fn: spreadHighSpacing, category: "offense",
             label: "High Spacing (5-Out Spread)",
@@ -397,7 +397,7 @@ nonisolated enum LineupTags {
     ]
 
     /// Tag keys that fire, in registry (category) order.
-    static func fireTags(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> [String] {
+    nonisolated static func fireTags(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> [String] {
         registryKeys.filter { key in
             registry[key]?.fn(players, norms) ?? false
         }
