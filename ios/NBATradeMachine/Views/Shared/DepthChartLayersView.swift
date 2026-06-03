@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Layer-based depth chart shared by the team page and the trade view. Rows are
 /// depth layers (Starters / 2nd / 3rd / 4th / 5th); columns are PG SG SF PF C
-/// plus a trailing Lineup column whose per-row cell is titled with the layer
-/// name (Starters / 2nd / …) — there is no separate left label column — and sums
-/// that layer's filled cells (v2 TOT/OFF/DEF).
+/// plus a LEADING Lineup column (leftmost) whose per-row cell is titled with the
+/// layer name (Starters / 2nd / …) — it doubles as the row label — and sums that
+/// layer's filled cells (v2 TOT/OFF/DEF).
 ///
 /// Every player cell's TOT/OFF/DEF and every layer-Lineup's TOT/OFF/DEF are
 /// colored green / red against the league distribution for THAT layer:
@@ -119,10 +119,10 @@ struct DepthChartLayersView: View {
 
     private var headerRow: some View {
         HStack(spacing: 4) {
+            headerCell("Lineup")
             ForEach(positions, id: \.self) { pos in
                 headerCell(pos)
             }
-            headerCell("Lineup")
         }
     }
 
@@ -140,10 +140,10 @@ struct DepthChartLayersView: View {
 
     private func layerRow(_ layer: Int, firstLayer: [String: Int]) -> some View {
         HStack(alignment: .top, spacing: 4) {
+            totalCell(layer: layer)
             ForEach(positions, id: \.self) { pos in
                 playerCell(pos: pos, layer: layer, firstLayer: firstLayer)
             }
-            totalCell(layer: layer)
         }
     }
 
