@@ -52,12 +52,24 @@ enum TeamDepthChartBuilder {
         x <= knee ? x : knee + (x - knee) * slope
     }
 
-    /// Offense-weighted, diminishing-returns reduced-negative L² depth score.
-    /// Each axis magnitude is first soft-knee `saturate`d (so extreme single-axis
-    /// values count for less), then the positive parts add a weighted L² norm
-    /// (offense weight `a`, defense `1−a`) and the negative parts subtract a
-    /// `mu`-scaled weighted L² norm. nil inputs → 0. Used ONLY to order players
-    /// within a depth slot — never displayed.
+    /// Above-average-offense ("OFF in the green") bonus in the depth ORDERING.
+    /// Offense above the league median (v2 off is league-centered near 0, so
+    /// `max(0, off)`) earns an extra linear reward, so an offensive star
+    /// (e.g. Brunson off +4 / def −3) is ranked over a balanced role player
+    /// (e.g. McBride off +2.1 / def +1.2) the way real rotations start them.
+    /// Calibrated vs ESPN order: lifts starter-match 61.3%→64.7% at 0.30. (A
+    /// per-player "don't reward offense when DEF is red" guardrail was tested
+    /// and HURT the match — the stars ESPN starts are themselves defensive
+    /// minuses — so it is intentionally omitted.) Ordering only.
+    static let DEPTH_OFF_GREEN_WEIGHT = 0.30
+
+    /// Offense-weighted, diminishing-returns reduced-negative L² depth score,
+    /// plus an above-average-offense bonus. Each axis magnitude is first
+    /// soft-knee `saturate`d (extreme single-axis values count for less); the
+    /// positive parts add a weighted L² norm (offense weight `a`, defense
+    /// `1−a`), the negative parts subtract a `mu`-scaled weighted L² norm, and
+    /// `greenBonus`·max(0, off) rewards above-median offense. nil inputs → 0.
+    /// Used ONLY to order players within a depth slot — never displayed.
     static func depthScore(off: Double?, def: Double?,
                            mu: Double = DEPTH_NEG_WEIGHT,
                            a: Double = DEPTH_OFF_WEIGHT) -> Double {
@@ -66,7 +78,7 @@ enum TeamDepthChartBuilder {
         func neg(_ x: Double) -> Double { saturate(max(-x, 0)) }
         let positive = (a * pos(o) * pos(o) + (1 - a) * pos(d) * pos(d)).squareRoot()
         let negative = (a * neg(o) * neg(o) + (1 - a) * neg(d) * neg(d)).squareRoot()
-        return positive - mu * negative
+        return positive - mu * negative + DEPTH_OFF_GREEN_WEIGHT * max(o, 0)
     }
 
     static func canonical(_ raw: String) -> String? {
