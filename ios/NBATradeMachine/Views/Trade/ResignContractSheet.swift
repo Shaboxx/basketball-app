@@ -140,8 +140,8 @@ struct ResignContractSheet: View {
                             detailRow("Model range",
                                       "\(Money.display(lo)) – \(Money.display(hi))")
                         }
-                        if let verdict = cz.verdict, !verdict.isEmpty {
-                            detailRow("Verdict", verdict)
+                        if let conclusion = player.contractConclusion {
+                            detailRow("Conclusion", conclusion)
                         }
                     }
                 }

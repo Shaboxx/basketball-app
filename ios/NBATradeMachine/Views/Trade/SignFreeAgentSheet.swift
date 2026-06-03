@@ -281,8 +281,8 @@ struct SignFreeAgentDetail: View {
                             modelRow("Model range",
                                      "\(Money.display(lo)) – \(Money.display(hi))")
                         }
-                        if let verdict = cz.verdict, !verdict.isEmpty {
-                            modelRow("Verdict", verdict)
+                        if let conclusion = matchedPlayer?.contractConclusion {
+                            modelRow("Conclusion", conclusion)
                         }
                     }
                 }
