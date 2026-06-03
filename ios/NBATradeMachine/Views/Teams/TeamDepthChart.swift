@@ -35,16 +35,35 @@ enum TeamDepthChartBuilder {
     /// green/red highlighting still use the honest two-way l2_signed.
     static let DEPTH_OFF_WEIGHT = 0.65
 
-    /// Offense-weighted reduced-negative L² depth score. Positive off/def add a
-    /// weighted L² norm (offense weight `a`, defense `1−a`); negative off/def
-    /// subtract a `mu`-scaled weighted L² norm. nil inputs → 0. Used ONLY to
-    /// order players within a depth slot — never displayed.
+    /// Diminishing-returns knee for a single axis in the depth ORDERING. An axis
+    /// magnitude counts linearly up to `DEPTH_SAT_KNEE`; the part beyond the knee
+    /// is credited at `DEPTH_SAT_SLOPE`. This makes a redundant extreme value
+    /// (e.g. a fifth elite defender on a defense-stacked roster) worth less at
+    /// the margin, so a balanced or offense-contributing player rises when one
+    /// axis is already very high — and vice versa. Ordering only.
+    static let DEPTH_SAT_KNEE = 2.5
+    static let DEPTH_SAT_SLOPE = 0.5
+
+    /// Concave soft-knee saturation of a non-negative axis magnitude: linear up
+    /// to `knee`, then shallower (`slope`) above it.
+    static func saturate(_ x: Double,
+                         knee: Double = DEPTH_SAT_KNEE,
+                         slope: Double = DEPTH_SAT_SLOPE) -> Double {
+        x <= knee ? x : knee + (x - knee) * slope
+    }
+
+    /// Offense-weighted, diminishing-returns reduced-negative L² depth score.
+    /// Each axis magnitude is first soft-knee `saturate`d (so extreme single-axis
+    /// values count for less), then the positive parts add a weighted L² norm
+    /// (offense weight `a`, defense `1−a`) and the negative parts subtract a
+    /// `mu`-scaled weighted L² norm. nil inputs → 0. Used ONLY to order players
+    /// within a depth slot — never displayed.
     static func depthScore(off: Double?, def: Double?,
                            mu: Double = DEPTH_NEG_WEIGHT,
                            a: Double = DEPTH_OFF_WEIGHT) -> Double {
         let o = off ?? 0, d = def ?? 0
-        func pos(_ x: Double) -> Double { max(x, 0) }
-        func neg(_ x: Double) -> Double { max(-x, 0) }
+        func pos(_ x: Double) -> Double { saturate(max(x, 0)) }
+        func neg(_ x: Double) -> Double { saturate(max(-x, 0)) }
         let positive = (a * pos(o) * pos(o) + (1 - a) * pos(d) * pos(d)).squareRoot()
         let negative = (a * neg(o) * neg(o) + (1 - a) * neg(d) * neg(d)).squareRoot()
         return positive - mu * negative
