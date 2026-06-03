@@ -4,7 +4,14 @@ struct TradeMachineView: View {
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
     @EnvironmentObject var picksVM: PicksViewModel
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = TradeMachineViewModel()
+
+    /// Pre-selected teams the machine should open with (from the Teams-grid
+    /// selection mode). When non-empty, `setTeams` runs on appear so the view
+    /// lands straight on `activeTradeView` instead of the picker.
+    var initialTeams: [Team] = []
+
     @State private var selectedTeamId: String = ""
     @State private var showingAddTeam = false
     @State private var showingHistory = false
@@ -41,6 +48,9 @@ struct TradeMachineView: View {
         }
         .onAppear {
             vm.configure(teamsVM: teamsVM, rulesVM: rulesVM, picksVM: picksVM)
+            if !initialTeams.isEmpty && vm.trade.teams.isEmpty {
+                vm.setTeams(initialTeams)
+            }
         }
         .alert(
             "Trade Warning",
@@ -100,6 +110,15 @@ struct TradeMachineView: View {
     private var activeTradeView: some View {
         VStack(spacing: 0) {
             HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Done", systemImage: "chevron.left")
+                        .font(.caption2)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
                 Toggle("Offseason mode (next season)", isOn: $vm.isOffseason)
                     .font(.caption)
                 Spacer()

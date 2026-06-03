@@ -134,6 +134,18 @@ final class TradeMachineViewModel: ObservableObject {
         alertMessage = nil
     }
 
+    /// Seed the machine with a pre-selected set of teams (from the Teams-grid
+    /// selection mode) so it opens straight into `activeTradeView`. Resets all
+    /// prior state, then installs up to `maxTeams` teams and clears validation,
+    /// fit warnings, and any pending alert.
+    func setTeams(_ teams: [Team]) {
+        reset()
+        trade.teams = Array(teams.prefix(Self.maxTeams))
+        validation = nil
+        fitWarnings = []
+        alertMessage = nil
+    }
+
     func addTeam(_ team: Team) {
         guard trade.teams.count < Self.maxTeams,
               !trade.teamIds.contains(team.teamId) else { return }

@@ -19,12 +19,23 @@ struct TeamsListView: View {
     }
 
     @EnvironmentObject var teamsVM: TeamsViewModel
+
+    /// Selection mode shared with `ContentView`. When `selection.isSelecting`
+    /// tiles toggle membership instead of navigating to a team's detail.
+    @ObservedObject var selection: TradeSelectionState
+    /// Navigation path owned by `ContentView` so it can detect "at root"
+    /// (`path.isEmpty`) and pop back to the grid.
+    @Binding var path: NavigationPath
+    /// Surfaces a `.rejectedMax` toggle so `ContentView` can show the
+    /// "6 or less teams" alert.
+    var onMaxTeamsReached: () -> Void = {}
+
     @State private var sortMode: SortMode = .name
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 if let err = teamsVM.errorMessage {
                     VStack(spacing: 8) {
@@ -40,10 +51,21 @@ struct TeamsListView: View {
                 } else {
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(sortedTeams) { team in
-                            NavigationLink(value: team) {
-                                teamTile(team)
+                            if selection.isSelecting {
+                                Button {
+                                    if selection.toggle(team.teamId) == .rejectedMax {
+                                        onMaxTeamsReached()
+                                    }
+                                } label: {
+                                    teamTile(team)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                NavigationLink(value: team) {
+                                    teamTile(team)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding()
@@ -75,6 +97,7 @@ struct TeamsListView: View {
     @ViewBuilder
     private func teamTile(_ team: Team) -> some View {
         let rollup = teamsVM.latentValueRollup(for: team.teamId)
+        let isSelected = selection.isSelecting && selection.isSelected(team.teamId)
         VStack(spacing: 6) {
             TeamLogoMark(teamId: team.teamId, size: 56, aliasFont: .caption2)
             Text(team.name)
@@ -96,6 +119,18 @@ struct TeamsListView: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.accentColor, lineWidth: isSelected ? 3 : 0)
+        )
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.white, .green)
+                    .padding(4)
+            }
+        }
     }
 
     /// Apply the chosen sort. Un-rated teams (no roster has Rev-2 z fields)
