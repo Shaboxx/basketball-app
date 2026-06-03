@@ -22,8 +22,11 @@ struct TeamTradeTabContent: View {
                         ForEach(Array(incoming.enumerated()), id: \.element.id) { idx, p in
                             IncomingRow(
                                 player: p,
-                                seasonOffset: vm.activeYearOffset,
-                                receivingTricode: team.tricode
+                                receivingTricode: team.tricode,
+                                displayedSalary: vm.effectiveSalary(for: p),
+                                yearsLeft: vm.resignedContract(for: p.id)?.years
+                                    ?? p.contractYearsRemaining(from: vm.activeYearOffset),
+                                isResigned: vm.resignedContract(for: p.id) != nil
                             ) {
                                 vm.untradePlayer(p.id)
                             }
@@ -500,10 +503,16 @@ struct DraftedProspectRow: View {
 
 struct IncomingRow: View {
     let player: Player
-    let seasonOffset: Int
     /// Tricode of the team RECEIVING this player — used to look up the
     /// team-relative Trade Value tier/tags for the badges.
     let receivingTricode: String
+    /// Effective salary for the active year — honors an offseason re-sign
+    /// override so a re-signed expired player shows their NEW salary, not $0.
+    let displayedSalary: Int
+    /// Contract years left for the active year (re-sign years when re-signed).
+    let yearsLeft: Int
+    /// True when this player carries an in-flight offseason re-sign.
+    var isResigned: Bool = false
     let onRemove: () -> Void
 
     var body: some View {
@@ -512,6 +521,10 @@ struct IncomingRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(player.name).font(.subheadline)
+                    if isResigned {
+                        PlayerChip(label: "Re-signed",
+                                   background: .green.opacity(0.8), foreground: .black)
+                    }
                     if let entry = player.tradeValue?.forTeam(receivingTricode),
                        let tier = entry.tier {
                         TradeTierBadge(tier: tier)
@@ -523,10 +536,10 @@ struct IncomingRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {
-                Text(Money.display(player.salary(forSeasonOffset: seasonOffset)))
+                Text(Money.display(displayedSalary))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                Text("\(player.contractYearsRemaining(from: seasonOffset))y left")
+                Text("\(yearsLeft)y left")
                     .font(.caption2).foregroundStyle(.secondary)
                 if let sigma = incomingRowSigma(player) {
                     Text(sigma)
