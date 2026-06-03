@@ -25,15 +25,28 @@ enum TeamDepthChartBuilder {
     /// neutral player with the same signed total.
     static let DEPTH_NEG_WEIGHT = 0.5
 
-    /// Reduced-negative L² depth score. Positive off/def add their L² norm;
-    /// negative off/def subtract a `mu`-scaled L² norm. nil inputs → 0.
+    /// Offensive axis weight in the depth ORDERING. Offense and defense split a
+    /// unit budget (`a` to offense, `1−a` to defense) inside the L², so the
+    /// depth chart favors offense the way real rotations do. At a=0.65 an
+    /// equal-magnitude scorer earns ~1.36× an equal-magnitude defender, while
+    /// defense still carries 35% weight (not sidelined). Calibrated against ESPN
+    /// rotation order: depth-order agreement rises sharply from a=0.50 and
+    /// flattens past ~0.65. Ordering only — displayed TOT/OFF/DEF and the
+    /// green/red highlighting still use the honest two-way l2_signed.
+    static let DEPTH_OFF_WEIGHT = 0.65
+
+    /// Offense-weighted reduced-negative L² depth score. Positive off/def add a
+    /// weighted L² norm (offense weight `a`, defense `1−a`); negative off/def
+    /// subtract a `mu`-scaled weighted L² norm. nil inputs → 0. Used ONLY to
+    /// order players within a depth slot — never displayed.
     static func depthScore(off: Double?, def: Double?,
-                           mu: Double = DEPTH_NEG_WEIGHT) -> Double {
+                           mu: Double = DEPTH_NEG_WEIGHT,
+                           a: Double = DEPTH_OFF_WEIGHT) -> Double {
         let o = off ?? 0, d = def ?? 0
         func pos(_ x: Double) -> Double { max(x, 0) }
         func neg(_ x: Double) -> Double { max(-x, 0) }
-        let positive = (pos(o) * pos(o) + pos(d) * pos(d)).squareRoot()
-        let negative = (neg(o) * neg(o) + neg(d) * neg(d)).squareRoot()
+        let positive = (a * pos(o) * pos(o) + (1 - a) * pos(d) * pos(d)).squareRoot()
+        let negative = (a * neg(o) * neg(o) + (1 - a) * neg(d) * neg(d)).squareRoot()
         return positive - mu * negative
     }
 
