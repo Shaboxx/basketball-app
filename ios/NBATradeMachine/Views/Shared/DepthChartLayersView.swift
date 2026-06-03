@@ -1,19 +1,21 @@
 import SwiftUI
 
 /// Layer-based depth chart shared by the team page and the trade view. Rows are
-/// depth layers (Starters / 2nd / 3rd / 4th); columns are PG SG SF PF C plus a
-/// trailing "Total" column that sums each layer's filled cells (v2 TOT/OFF/DEF).
+/// depth layers (Starters / 2nd / 3rd / 4th / 5th); columns are PG SG SF PF C
+/// plus a trailing Lineup column whose per-row cell is titled with the layer
+/// name (Starters / 2nd / …) — there is no separate left label column — and sums
+/// that layer's filled cells (v2 TOT/OFF/DEF).
 ///
-/// Every player cell's TOT/OFF/DEF and every layer-Total's TOT/OFF/DEF are
+/// Every player cell's TOT/OFF/DEF and every layer-Lineup's TOT/OFF/DEF are
 /// colored green / red against the league distribution for THAT layer:
 /// green above mean + 0.75·std, red below mean − 0.75·std, neutral within band.
 ///
-/// Tapping a player cell pushes `PlayerDetailView` via the enclosing
-/// NavigationStack's `Player` destination.
+/// Tapping a player cell pushes `PlayerDetailView`; tapping a Lineup cell opens
+/// the generated `LineupBreakdownView` for that layer's five players.
 struct DepthChartLayersView: View {
     let columns: [String: ColumnResult]
     let league: TeamDepthChartBuilder.LeagueLayerStats
-    var cap: Int = 4
+    var cap: Int = 5
     /// League norms for the lineup-breakdown sheet. nil → the breakdown shows
     /// "unavailable" rather than crashing.
     var norms: LeagueNorms? = nil
@@ -56,7 +58,7 @@ struct DepthChartLayersView: View {
         }
     }
 
-    private static let layerNames = ["Starters", "2nd", "3rd", "4th"]
+    private static let layerNames = ["Starters", "2nd", "3rd", "4th", "5th"]
     private func layerName(_ layer: Int) -> String {
         layer < Self.layerNames.count ? Self.layerNames[layer] : "\(layer + 1)th"
     }
@@ -78,19 +80,24 @@ struct DepthChartLayersView: View {
 
     var body: some View {
         let firstLayer = firstAppearanceLayer
-        return ScrollView([.horizontal, .vertical]) {
-            VStack(alignment: .leading, spacing: 6) {
-                headerRow
-                ForEach(activeLayers, id: \.self) { layer in
-                    layerRow(layer, firstLayer: firstLayer)
+        // Outer vertical scroll top-anchors the chart (a combined-axis ScrollView
+        // vertically centers short content); inner horizontal scroll handles the
+        // wide row of position columns + the Lineup column.
+        return ScrollView(.vertical) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 6) {
+                    headerRow
+                    ForEach(activeLayers, id: \.self) { layer in
+                        layerRow(layer, firstLayer: firstLayer)
+                    }
+                    if activeLayers.isEmpty {
+                        Text("No rated players to chart.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .padding()
+                    }
                 }
-                if activeLayers.isEmpty {
-                    Text("No rated players to chart.")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .padding()
-                }
+                .padding(12)
             }
-            .padding(12)
         }
         .sheet(item: $breakdownLayer) { item in
             let layer = item.id
@@ -112,8 +119,6 @@ struct DepthChartLayersView: View {
 
     private var headerRow: some View {
         HStack(spacing: 4) {
-            Text("")
-                .frame(width: rowLabelWidth, alignment: .leading)
             ForEach(positions, id: \.self) { pos in
                 headerCell(pos)
             }
@@ -135,10 +140,6 @@ struct DepthChartLayersView: View {
 
     private func layerRow(_ layer: Int, firstLayer: [String: Int]) -> some View {
         HStack(alignment: .top, spacing: 4) {
-            Text(layerName(layer))
-                .font(.caption2.bold())
-                .foregroundStyle(.secondary)
-                .frame(width: rowLabelWidth, alignment: .leading)
             ForEach(positions, id: \.self) { pos in
                 playerCell(pos: pos, layer: layer, firstLayer: firstLayer)
             }
@@ -184,8 +185,9 @@ struct DepthChartLayersView: View {
         }
     }
 
-    /// The trailing layer-Total cell. Tapping it opens the generated
-    /// `LineupBreakdownView` for that layer's five filled players.
+    /// The trailing per-layer Lineup cell, titled with the layer name (Starters /
+    /// 2nd / …). Tapping it opens the generated `LineupBreakdownView` for that
+    /// layer's five filled players.
     private func totalCell(layer: Int) -> some View {
         let sums = TeamDepthChartBuilder.layerTotals(columns, layer: layer)
         let stats = league.totalByLayer[layer]
@@ -194,7 +196,7 @@ struct DepthChartLayersView: View {
         } label: {
             cellBox {
                 VStack(spacing: 2) {
-                    Text("Lineup")
+                    Text(layerName(layer))
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Color.accentColor)
                     metricLine("TOT", sums.tot,
@@ -244,6 +246,5 @@ struct DepthChartLayersView: View {
     }
 
     private let cellWidth: CGFloat = 66
-    private let rowLabelWidth: CGFloat = 52
     private let zero = TeamDepthChartBuilder.MetricStats(mean: 0, std: 0)
 }

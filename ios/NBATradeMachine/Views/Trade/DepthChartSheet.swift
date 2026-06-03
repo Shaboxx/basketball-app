@@ -30,7 +30,7 @@ struct DepthChartSheet: View {
                     Divider()
                     if let team = currentTeam {
                         DepthChartLayersView(
-                            columns: TeamDepthChartBuilder.columns(for: roster(for: team)),
+                            columns: TeamDepthChartBuilder.columns(for: roster(for: team), cap: 5),
                             league: TeamDepthChartBuilder.leagueLayerStats(
                                 rostersByTeam: teamsVM.playersByTeamId),
                             norms: normsVM.norms

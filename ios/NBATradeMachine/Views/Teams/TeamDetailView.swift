@@ -75,7 +75,7 @@ struct TeamDetailView: View {
         .sheet(isPresented: $showingDepthChart) {
             NavigationStack {
                 DepthChartLayersView(
-                    columns: TeamDepthChartBuilder.columns(for: roster),
+                    columns: TeamDepthChartBuilder.columns(for: roster, cap: 5),
                     league: TeamDepthChartBuilder.leagueLayerStats(
                         rostersByTeam: teamsVM.playersByTeamId),
                     norms: normsVM.norms
