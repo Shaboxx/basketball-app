@@ -209,9 +209,14 @@ private struct IncomingPlayerCard: View {
             // Asset prefers Phase 7e comp-Z dollarsPoint; falls back to
             // raw current-year salary so the contract still surfaces.
             if let asset = player.compZ?.asset?.dollarsPoint {
-                metric(label: "Asset",
-                       value: formatSignedDollars(asset),
-                       color: asset >= 0 ? .green : .red)
+                HStack(spacing: 6) {
+                    metric(label: "Asset",
+                           value: formatSignedDollars(asset),
+                           color: asset >= 0 ? .green : .red)
+                    if let tier = player.compZ?.asset?.tier {
+                        AssetTierBadge(tier: tier)
+                    }
+                }
             } else if let salary = player.salaryY1 {
                 metric(label: "Salary",
                        value: formatDollars(salary),

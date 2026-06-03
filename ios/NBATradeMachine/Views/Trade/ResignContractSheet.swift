@@ -132,6 +132,17 @@ struct ResignContractSheet: View {
 
                 if let cz = player.compZ {
                     Section("Model valuation") {
+                        // What the player is WORTH (value cone), shown above
+                        // what they should be PAID (cost cone) so the section
+                        // reads worth-vs-cost.
+                        if let worth = cz.value?.pointDollars {
+                            detailRow("Worth (model value)", Money.display(worth))
+                        }
+                        if let lo = cz.value?.floorDollars,
+                           let hi = cz.value?.ceilingDollars {
+                            detailRow("Value range",
+                                      "\(Money.display(lo)) – \(Money.display(hi))")
+                        }
                         if let point = cz.cost?.pointDollars {
                             detailRow("Suggested (model)", Money.display(point))
                         }
@@ -139,6 +150,17 @@ struct ResignContractSheet: View {
                            let hi = cz.cost?.ceilingDollars {
                             detailRow("Model range",
                                       "\(Money.display(lo)) – \(Money.display(hi))")
+                        }
+                        if let asset = cz.asset {
+                            HStack {
+                                Text("Asset").font(.caption).foregroundStyle(.secondary)
+                                Spacer()
+                                if let tier = asset.tier {
+                                    AssetTierBadge(tier: tier)
+                                }
+                                Text(Money.display(asset.dollarsPoint))
+                                    .font(.caption.monospacedDigit())
+                            }
                         }
                         if let conclusion = player.contractConclusion {
                             detailRow("Conclusion", conclusion)
