@@ -12,10 +12,16 @@ struct TradeMachineView: View {
     /// lands straight on `activeTradeView` instead of the picker.
     var initialTeams: [Team] = []
 
+    /// A complete proposal (from the Trade Advisor) to seed the machine with.
+    /// When provided, it takes precedence over `initialTeams` — the applier
+    /// seats the teams itself and applies the moves.
+    var initialProposal: AdvisorProposal? = nil
+
     @State private var selectedTeamId: String = ""
     @State private var showingAddTeam = false
     @State private var showingHistory = false
     @State private var showingDepthChart = false
+    @State private var showAdvisor = false
     @State private var confirmationSnapshot: ConfirmationSnapshot?
 
     /// Snapshot captured at validation time so the confirmation sheet shows
@@ -48,7 +54,9 @@ struct TradeMachineView: View {
         }
         .onAppear {
             vm.configure(teamsVM: teamsVM, rulesVM: rulesVM, picksVM: picksVM)
-            if !initialTeams.isEmpty && vm.trade.teams.isEmpty {
+            if let initialProposal, vm.trade.movements.isEmpty {
+                _ = TradeProposalApplier.apply(initialProposal, to: vm, using: teamsVM)
+            } else if !initialTeams.isEmpty && vm.trade.teams.isEmpty {
                 vm.setTeams(initialTeams)
             }
         }
@@ -75,6 +83,17 @@ struct TradeMachineView: View {
         .sheet(isPresented: $showingDepthChart) {
             DepthChartSheet(vm: vm)
                 .environmentObject(teamsVM)
+        }
+        .sheet(isPresented: $showAdvisor) {
+            if let tricode = advisorTeamTricode {
+                TradeAdvisorSheet(
+                    viewModel: TradeAdvisorViewModel(team: tricode, service: FirebaseAdvisorService()),
+                    onApply: { proposal in
+                        _ = TradeProposalApplier.apply(proposal, to: vm, using: teamsVM)
+                        showAdvisor = false
+                    })
+                .environmentObject(teamsVM)
+            }
         }
         .fullScreenCover(item: $confirmationSnapshot) { snapshot in
             TradeConfirmationView(
@@ -122,6 +141,16 @@ struct TradeMachineView: View {
                 Toggle("Offseason mode (next season)", isOn: $vm.isOffseason)
                     .font(.caption)
                 Spacer()
+                Button {
+                    showAdvisor = true
+                } label: {
+                    Label("Ask Advisor", systemImage: "sparkles")
+                        .font(.caption2)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(advisorTeamTricode == nil)
+
                 Button {
                     showingDepthChart = true
                 } label: {
@@ -271,6 +300,12 @@ struct TradeMachineView: View {
                 .disabled(vm.history.isEmpty)
             }
         }
+    }
+
+    /// Tricode to seed the Trade Advisor with: the first team currently in the
+    /// trade, falling back to the first team in the league roster.
+    private var advisorTeamTricode: String? {
+        vm.trade.teams.first?.tricode ?? teamsVM.teams.first?.tricode
     }
 
     private var effectiveSelection: String {
