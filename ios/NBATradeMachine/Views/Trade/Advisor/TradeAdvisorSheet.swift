@@ -57,7 +57,7 @@ struct TradeAdvisorSheet: View {
                     if !resp.summary.isEmpty {
                         Text(resp.summary).font(.callout)
                     }
-                    ForEach(resp.proposals) { proposal in
+                    ForEach(Array(resp.proposals.enumerated()), id: \.offset) { _, proposal in
                         AdvisorProposalCard(
                             proposal: proposal,
                             displayName: { slug in displayName(for: slug) },

@@ -33,7 +33,6 @@ enum TradeProposalApplier {
             seatedIds.insert(team.teamId)
             seated.append(team)
         }
-        vm.reset()
         vm.setTeams(seated)
 
         for move in proposal.moves {

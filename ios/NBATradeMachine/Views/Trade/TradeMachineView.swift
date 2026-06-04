@@ -22,6 +22,8 @@ struct TradeMachineView: View {
     @State private var showingHistory = false
     @State private var showingDepthChart = false
     @State private var showAdvisor = false
+    @State private var pendingProposal: AdvisorProposal?
+    @State private var showReplaceConfirm = false
     @State private var confirmationSnapshot: ConfirmationSnapshot?
 
     /// Snapshot captured at validation time so the confirmation sheet shows
@@ -84,16 +86,34 @@ struct TradeMachineView: View {
             DepthChartSheet(vm: vm)
                 .environmentObject(teamsVM)
         }
-        .sheet(isPresented: $showAdvisor) {
+        .sheet(isPresented: $showAdvisor, onDismiss: {
+            if pendingProposal != nil { showReplaceConfirm = true }
+        }) {
             if let tricode = advisorTeamTricode {
                 TradeAdvisorSheet(
                     viewModel: TradeAdvisorViewModel(team: tricode, service: FirebaseAdvisorService()),
                     onApply: { proposal in
-                        _ = TradeProposalApplier.apply(proposal, to: vm, using: teamsVM)
-                        showAdvisor = false
+                        if vm.hasUncommittedWork {
+                            pendingProposal = proposal      // onDismiss -> confirm
+                            showAdvisor = false
+                        } else {
+                            _ = TradeProposalApplier.apply(proposal, to: vm, using: teamsVM)
+                            showAdvisor = false
+                        }
                     })
                 .environmentObject(teamsVM)
             }
+        }
+        .confirmationDialog("Replace your current trade?",
+                            isPresented: $showReplaceConfirm,
+                            presenting: pendingProposal) { proposal in
+            Button("Replace Trade", role: .destructive) {
+                _ = TradeProposalApplier.apply(proposal, to: vm, using: teamsVM)
+                pendingProposal = nil
+            }
+            Button("Cancel", role: .cancel) { pendingProposal = nil }
+        } message: { _ in
+            Text("This clears the trade you've started and loads the Advisor's proposal.")
         }
         .fullScreenCover(item: $confirmationSnapshot) { snapshot in
             TradeConfirmationView(

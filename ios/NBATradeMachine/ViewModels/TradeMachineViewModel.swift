@@ -119,6 +119,13 @@ final class TradeMachineViewModel: ObservableObject {
 
     var allTeams: [Team] { teamsVM?.teams ?? [] }
 
+    /// True when the machine holds user work that applying an Advisor proposal
+    /// would overwrite (in-flight moves, waives, or offseason signings/draftees).
+    var hasUncommittedWork: Bool {
+        !trade.movements.isEmpty || !trade.waived.isEmpty
+            || !signedContracts.isEmpty || !signedFreeAgents.isEmpty || !draftedProspects.isEmpty
+    }
+
     var availableTeamsToAdd: [Team] {
         let used = trade.teamIds
         return allTeams.filter { !used.contains($0.teamId) }
