@@ -161,15 +161,17 @@ struct TradeMachineView: View {
                 Toggle("Offseason mode (next season)", isOn: $vm.isOffseason)
                     .font(.caption)
                 Spacer()
-                Button {
-                    showAdvisor = true
-                } label: {
-                    Label("Ask Advisor", systemImage: "sparkles")
-                        .font(.caption2)
+                if AppConfig.aiAdvisorEnabled {
+                    Button {
+                        showAdvisor = true
+                    } label: {
+                        Label("Ask Advisor", systemImage: "sparkles")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(advisorTeamTricode == nil)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(advisorTeamTricode == nil)
 
                 Button {
                     showingDepthChart = true

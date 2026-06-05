@@ -74,11 +74,13 @@ struct TeamDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Depth Chart") { showingDepthChart = true }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAdvisor = true
-                } label: {
-                    Label("Trade Advisor", systemImage: "sparkles")
+            if AppConfig.aiAdvisorEnabled {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showAdvisor = true
+                    } label: {
+                        Label("Trade Advisor", systemImage: "sparkles")
+                    }
                 }
             }
         }
