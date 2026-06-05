@@ -24,6 +24,25 @@ nonisolated struct AdvisorProposal: Codable, Equatable, Identifiable {
         case label, moves, legal, rationale, tradeoffs
         case salaryBreakdown = "salary_breakdown"
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        moves = try c.decode([AdvisorMove].self, forKey: .moves)
+        label = try c.decodeIfPresent(String.self, forKey: .label) ?? "Proposal"
+        rationale = try c.decodeIfPresent(String.self, forKey: .rationale) ?? ""
+        tradeoffs = try c.decodeIfPresent(String.self, forKey: .tradeoffs) ?? ""
+        legal = try c.decodeIfPresent(Bool.self, forKey: .legal) ?? false
+        salaryBreakdown = try c.decodeIfPresent([String: ProposalTeamBreakdown].self, forKey: .salaryBreakdown)
+    }
+
+    init(label: String, moves: [AdvisorMove], legal: Bool, rationale: String, tradeoffs: String, salaryBreakdown: [String: ProposalTeamBreakdown]?) {
+        self.label = label
+        self.moves = moves
+        self.legal = legal
+        self.rationale = rationale
+        self.tradeoffs = tradeoffs
+        self.salaryBreakdown = salaryBreakdown
+    }
 }
 
 nonisolated struct AdvisorMove: Codable, Equatable, Identifiable {
