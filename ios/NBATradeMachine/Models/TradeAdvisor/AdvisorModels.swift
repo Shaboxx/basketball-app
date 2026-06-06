@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decoded from the `runTradeAdvisor` callable payload `{summary, proposals}`.
+/// Decoded from the `runTradeAdvisor` callable payload `{summary, proposals, cached}`.
 /// The server-side legality backstop has already set `legal`/`salary_breakdown`;
 /// the client only displays them and never decides CBA legality itself.
 ///
