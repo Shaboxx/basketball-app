@@ -17,15 +17,18 @@ final class TradeAdvisorViewModel: ObservableObject {
     /// shared test instance can swap it per case. `any` existential is required
     /// in Swift 6.
     var service: any AdvisorService
+    /// Tricodes the advisor may trade among (set by the entry point). >=2 constrains partners.
+    var teamSet: [String]
 
     @Published var goal: String = ""
     @Published var untouchables: [String] = []
     @Published var constraints: String? = nil
     @Published private(set) var phase: Phase = .idle
 
-    init(team: String, service: any AdvisorService) {
+    init(team: String, service: any AdvisorService, teamSet: [String] = []) {
         self.team = team
         self.service = service
+        self.teamSet = teamSet
     }
 
     var canAsk: Bool {
@@ -33,13 +36,17 @@ final class TradeAdvisorViewModel: ObservableObject {
         return !goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    func ask() async {
+    func ask() async { await run(forceRefresh: false) }
+    func refresh() async { await run(forceRefresh: true) }
+
+    private func run(forceRefresh: Bool) async {
         let trimmed = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         phase = .loading
         do {
             let resp = try await service.requestAdvice(
-                team: team, goal: trimmed, untouchables: untouchables, constraints: constraints)
+                team: team, goal: trimmed, untouchables: untouchables,
+                constraints: constraints, teamSet: teamSet, forceRefresh: forceRefresh)
             phase = .loaded(resp)
         } catch let error as AdvisorError {
             phase = .failed(Self.message(for: error))

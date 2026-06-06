@@ -91,7 +91,8 @@ struct TradeMachineView: View {
         }) {
             if let tricode = advisorTeamTricode {
                 TradeAdvisorSheet(
-                    viewModel: TradeAdvisorViewModel(team: tricode, service: FirebaseAdvisorService()),
+                    viewModel: TradeAdvisorViewModel(team: tricode, service: FirebaseAdvisorService(),
+                                                     teamSet: advisorTeamSet),
                     onApply: { proposal in
                         if vm.hasUncommittedWork {
                             pendingProposal = proposal      // onDismiss -> confirm
@@ -329,6 +330,10 @@ struct TradeMachineView: View {
     private var advisorTeamTricode: String? {
         vm.trade.teams.first?.tricode ?? teamsVM.teams.first?.tricode
     }
+
+    /// The teams currently in the trade — the advisor's allowed set (constrains when 2+).
+    /// Snapshotted into the sheet's view model at open; the @StateObject is recreated per presentation.
+    private var advisorTeamSet: [String] { vm.trade.teams.map { $0.tricode } }
 
     private var effectiveSelection: String {
         if vm.trade.teamIds.contains(selectedTeamId) { return selectedTeamId }

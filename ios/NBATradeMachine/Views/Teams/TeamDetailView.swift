@@ -107,7 +107,9 @@ struct TeamDetailView: View {
         }
         .sheet(isPresented: $showAdvisor) {
             TradeAdvisorSheet(
-                viewModel: TradeAdvisorViewModel(team: team.tricode, service: FirebaseAdvisorService()),
+                // Single-team entry: a 1-element set is treated as "open" (no partner constraint).
+                viewModel: TradeAdvisorViewModel(team: team.tricode, service: FirebaseAdvisorService(),
+                                                 teamSet: [team.tricode]),
                 onApply: { proposal in
                     showAdvisor = false
                     proposalToOpen = proposal

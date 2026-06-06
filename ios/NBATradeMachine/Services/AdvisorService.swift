@@ -11,8 +11,9 @@ nonisolated enum AdvisorError: Error, Equatable {
 
 /// The seam the front end depends on. Live = FirebaseAdvisorService; tests/previews = MockAdvisorService.
 protocol AdvisorService: Sendable {
-    nonisolated func requestAdvice(team: String, goal: String,
-                                   untouchables: [String], constraints: String?) async throws -> AdvisorResponse
+    nonisolated func requestAdvice(team: String, goal: String, untouchables: [String],
+                                   constraints: String?, teamSet: [String],
+                                   forceRefresh: Bool) async throws -> AdvisorResponse
 }
 
 /// Canned backend for previews + unit tests. No Firebase.
@@ -23,8 +24,9 @@ nonisolated struct MockAdvisorService: AdvisorService {
         self.result = result
     }
 
-    nonisolated func requestAdvice(team: String, goal: String,
-                                   untouchables: [String], constraints: String?) async throws -> AdvisorResponse {
+    nonisolated func requestAdvice(team: String, goal: String, untouchables: [String],
+                                   constraints: String?, teamSet: [String],
+                                   forceRefresh: Bool) async throws -> AdvisorResponse {
         switch result {
         case .success(let r): return r
         case .failure(let e): throw e

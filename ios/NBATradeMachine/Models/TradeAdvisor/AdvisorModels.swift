@@ -9,6 +9,22 @@ import Foundation
 nonisolated struct AdvisorResponse: Codable, Equatable {
     let summary: String
     let proposals: [AdvisorProposal]
+    let cached: Bool
+
+    enum CodingKeys: String, CodingKey { case summary, proposals, cached }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        summary = try c.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        proposals = try c.decodeIfPresent([AdvisorProposal].self, forKey: .proposals) ?? []
+        cached = try c.decodeIfPresent(Bool.self, forKey: .cached) ?? false
+    }
+
+    init(summary: String, proposals: [AdvisorProposal], cached: Bool = false) {
+        self.summary = summary
+        self.proposals = proposals
+        self.cached = cached
+    }
 }
 
 nonisolated struct AdvisorProposal: Codable, Equatable, Identifiable {
