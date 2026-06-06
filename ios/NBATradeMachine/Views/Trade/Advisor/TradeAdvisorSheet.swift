@@ -54,6 +54,20 @@ struct TradeAdvisorSheet: View {
         case .loaded(let resp):
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    if resp.cached {
+                        HStack(spacing: 8) {
+                            Label("Cached", systemImage: "clock.arrow.circlepath")
+                                .font(.caption)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(.thinMaterial, in: Capsule())
+                                .accessibilityLabel("Cached response")
+                            Spacer()
+                            Button("Refresh") { Task { await viewModel.refresh() } }
+                                .font(.caption)
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                        }
+                    }
                     if !resp.summary.isEmpty {
                         Text(resp.summary).font(.callout)
                     }
