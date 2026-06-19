@@ -10,6 +10,13 @@ nonisolated struct LineupLabel: Equatable {
     let strengths: [String]        // readable phrasing of the dominant enables
     let weaknesses: [String]       // readable phrasing of the dominant strains
 
+    // SP-C: live capability magnitudes + formation viability + o/d quality
+    // (ported from scripts/lineup_value/{synergy,formations,score}.py).
+    let capabilityMagnitudes: [String: Double]   // spacing/pnr_fit/switchable/rim_protection/creation_redundancy
+    let formationsViable: [String: Bool]         // five_out/switch_everything/two_big_drop/pnr_heavy
+    let oQuality: Double
+    let dQuality: Double
+
     /// Human-readable archetype name (e.g. "Five-Out"). Falls back to the raw
     /// key when unknown.
     var archetypeLabel: String {
@@ -101,13 +108,30 @@ nonisolated enum LineupLabeler {
                              isProxy: LineupTags.proxyTags.contains(key))
         }
 
+        // SP-C: capability magnitudes + formation viability + o/d quality (mirrors score.py).
+        let feats: [LineupFeatures] = features.compactMap { $0 }
+        let mags = LineupSynergy.magnitudes(feats)
+        let ranked = impacts.compactMap { $0 }.sorted(by: >)
+        let base = ranked.enumerated().reduce(0.0) { $0 + $1.element * pow(0.85, Double($1.offset)) }  // ror=0.85
+        let off = ["spacing": 1.0, "pnr_fit": 0.1, "creation_redundancy": -1.0]   // _OFF_CAP × DEFAULT_COEFFS
+        let def = ["switchable": 1.0, "rim_protection": 1.0]                       // _DEF_CAP × DEFAULT_COEFFS
+        let oQuality = base + off.reduce(0.0) { $0 + $1.value * (mags[$1.key] ?? 0) }
+        let dQuality = base + def.reduce(0.0) { $0 + $1.value * (mags[$1.key] ?? 0) }
+        let nNonshooters = feats.filter { !LineupSynergy.isShooter($0) }.count
+        let hasDropAnchor = feats.contains { ($0.value("rim_dfga_per36") ?? 0) >= 6.0 && ($0.value("versatility") ?? 0) < 0 }
+        let formationsViable = LineupFormations.viable(mags, nNonshooters: nNonshooters, hasDropAnchor: hasDropAnchor)
+
         return LineupLabel(
             archetype: archetype,
             tags: tagObjs,
             enables: enables,
             strains: strains,
             strengths: phraseStrengths(enables),
-            weaknesses: phraseWeaknesses(strains)
+            weaknesses: phraseWeaknesses(strains),
+            capabilityMagnitudes: mags,
+            formationsViable: formationsViable,
+            oQuality: oQuality,
+            dQuality: dQuality
         )
     }
 }
