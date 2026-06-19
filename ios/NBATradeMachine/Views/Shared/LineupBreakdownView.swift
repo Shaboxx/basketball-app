@@ -27,6 +27,8 @@ struct LineupBreakdownView: View {
                     archetypeHeader(label)
                     rosterStrip
                     tagsSection(label)
+                    formationsSection(label)
+                    capabilitiesSection(label)
                     strengthsSection(label)
                     weaknessesSection(label)
                 } else {
@@ -60,12 +62,77 @@ struct LineupBreakdownView: View {
                         HeadshotImage(slug: p.slug, size: 28)
                         Text(p.name).font(.subheadline)
                         Spacer()
+                        valueBadge(p)
                         Text(p.position).font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    // MARK: - SP-C: marginal value, formation viability, capability magnitudes
+
+    /// All roster players share a team; the marginal-value badge is the player's value to it.
+    private var teamId: String? { players.first?.teamId }
+
+    @ViewBuilder private func valueBadge(_ p: Player) -> some View {
+        if let tri = teamId, let v = p.rosterValue?.value(for: tri) {
+            Text(String(format: "%+.1f", v))
+                .font(.caption2.weight(.bold))
+                .padding(.horizontal, 5).padding(.vertical, 2)
+                .background((v >= 0 ? Color.green : Color.red).opacity(0.18), in: Capsule())
+                .foregroundStyle(v >= 0 ? Color.green : Color.red)
+        }
+    }
+
+    private func formationsSection(_ label: LineupLabel) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Formations").font(.headline)
+            let order = LineupFormations.formations
+            chipRow(order.filter { label.formationsViable[$0] == true }, enabled: true)
+            chipRow(order.filter { label.formationsViable[$0] != true }, enabled: false)
+        }
+    }
+
+    private func chipRow(_ keys: [String], enabled: Bool) -> some View {
+        HStack(spacing: 8) {
+            ForEach(keys, id: \.self) { key in
+                Text(formationLabel(key))
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(enabled ? Color.accentColor.opacity(0.18) : Color.gray.opacity(0.12), in: Capsule())
+                    .foregroundStyle(enabled ? Color.accentColor : .secondary)
+            }
+        }
+    }
+
+    private func capabilitiesSection(_ label: LineupLabel) -> some View {
+        let order: [(String, Bool)] = [("spacing", true), ("pnr_fit", true), ("creation_redundancy", true),
+                                       ("switchable", false), ("rim_protection", false)]
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Capabilities").font(.headline)
+            ForEach(order, id: \.0) { key, isOffense in
+                let v = label.capabilityMagnitudes[key] ?? 0
+                HStack {
+                    Text(capabilityLabel(key)).font(.caption).frame(width: 120, alignment: .leading)
+                    GeometryReader { geo in
+                        Capsule().fill(isOffense ? Color.orange.opacity(0.6) : Color.blue.opacity(0.6))
+                            .frame(width: min(geo.size.width, max(2, abs(v) / 10.0 * geo.size.width)), height: 8)
+                    }.frame(height: 8)
+                    Text(String(format: "%.1f", v)).font(.caption2).foregroundStyle(.secondary).frame(width: 36)
+                }
+            }
+        }
+    }
+
+    private func formationLabel(_ k: String) -> String {
+        ["five_out": "5-Out", "switch_everything": "Switch", "two_big_drop": "Two-Big Drop",
+         "pnr_heavy": "PnR-Heavy"][k] ?? k
+    }
+    private func capabilityLabel(_ k: String) -> String {
+        ["spacing": "Spacing", "pnr_fit": "PnR Fit", "creation_redundancy": "Creation Overlap",
+         "switchable": "Switchability", "rim_protection": "Rim Protection"][k] ?? k
     }
 
     // MARK: - Tags grouped by category
