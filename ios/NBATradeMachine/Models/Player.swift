@@ -60,6 +60,11 @@ struct Player: Codable, Identifiable, Hashable {
     // nil and the lineup labeler abstains for that player.
     let lineupFeatures: LineupFeatures?
 
+    // SP-A per-player marginal roster value (written by scripts/upload_roster_value.py).
+    // Optional — docs without it decode as nil. (No `= nil` default: a `let` with a default is
+    // excluded from the synthesized Decodable, which would force it to always be nil.)
+    let rosterValue: RosterValue?
+
     // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
     // decoder) don't look for it in the document payload. Firestore populates
     // @DocumentID out-of-band from the document reference.
@@ -81,6 +86,7 @@ struct Player: Codable, Identifiable, Hashable {
         case thetaV2
         case tradeValue
         case lineupFeatures
+        case rosterValue
     }
 
     var id: String { docId ?? slug }
@@ -152,7 +158,8 @@ extension Player {
         positionEligibility: PositionEligibility? = nil,
         thetaV2: ThetaV2? = nil,
         tradeValue: TradeValue? = nil,
-        lineupFeatures: LineupFeatures? = nil
+        lineupFeatures: LineupFeatures? = nil,
+        rosterValue: RosterValue? = nil
     ) -> Player {
         Player(
             slug: slug, name: name, teamId: teamId, position: position,
@@ -174,7 +181,8 @@ extension Player {
             latentValue: latentValue, compZ: compZ,
             positionEligibility: positionEligibility,
             thetaV2: thetaV2, tradeValue: tradeValue,
-            lineupFeatures: lineupFeatures
+            lineupFeatures: lineupFeatures,
+            rosterValue: rosterValue
         )
     }
 }
