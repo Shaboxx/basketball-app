@@ -78,11 +78,11 @@ struct LineupBreakdownView: View {
 
     @ViewBuilder private func valueBadge(_ p: Player) -> some View {
         if let tri = teamId, let v = p.rosterValue?.value(for: tri) {
-            Text(String(format: "%+.1f", v))
+            Text("$\(v / 1_000_000, specifier: "%.1f")M")
                 .font(.caption2.weight(.bold))
                 .padding(.horizontal, 5).padding(.vertical, 2)
-                .background((v >= 0 ? Color.green : Color.red).opacity(0.18), in: Capsule())
-                .foregroundStyle(v >= 0 ? Color.green : Color.red)
+                .background(Color.green.opacity(0.18), in: Capsule())
+                .foregroundStyle(Color.green)
         }
     }
 

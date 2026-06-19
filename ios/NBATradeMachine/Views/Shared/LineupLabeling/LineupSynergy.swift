@@ -1,22 +1,31 @@
 import Foundation
 
 /// Swift port of scripts/lineup_value/synergy.py — the 5 pairwise capability magnitudes over a
-/// lineup's RAW LineupFeatures (z-scores, fractions, inches). Kept in lock-step with the Python
-/// (parity asserted in LineupSynergyTests). Pure.
+/// lineup's LineupFeatures, STANDARDIZED to league z-scores via LeagueNorms before any formula
+/// (kept in lock-step with the Python; parity asserted in LineupSynergyTests). Pure.
 nonisolated enum LineupSynergy {
+    // Thresholds in z-UNITS (mirror synergy.py).
     static let switchVersatilityMin = 0.25
     static let switchHeightBand = 6.0
-    static let shooterFg3Min = 0.34
+    static let shooterFg3Min = 0.0
     static let shooterZoneMin = 0.0
+    static let paintRaZ = 1.0
 
-    private static func g(_ f: LineupFeatures, _ k: String, _ dflt: Double = 0) -> Double {
+    /// Raw value, None-safe — for absolute fields (height) and rank selection (rim volume).
+    private static func raw(_ f: LineupFeatures, _ k: String, _ dflt: Double = 0) -> Double {
         f.value(k) ?? dflt
     }
-    static func isShooter(_ f: LineupFeatures) -> Bool {
-        g(f, "fg3_pct") >= shooterFg3Min && max(g(f, "z_corner3"), g(f, "z_atb3")) >= shooterZoneMin
+    /// League z-score via norms; nil (missing value / missing norm / std<=0) -> 0.0.
+    private static func z(_ f: LineupFeatures, _ k: String, _ norms: LeagueNorms) -> Double {
+        norms.zscore(f.value(k), feature: k) ?? 0.0
     }
-    private static func isPaintBound(_ f: LineupFeatures) -> Bool {
-        g(f, "z_ra") > 0.5 && !isShooter(f)
+    static func isShooter(_ f: LineupFeatures, _ norms: LeagueNorms) -> Bool {
+        f.value("fg3_pct") != nil
+            && z(f, "fg3_pct", norms) >= shooterFg3Min
+            && max(z(f, "z_corner3", norms), z(f, "z_atb3", norms)) >= shooterZoneMin
+    }
+    private static func isPaintBound(_ f: LineupFeatures, _ norms: LeagueNorms) -> Bool {
+        z(f, "z_ra", norms) > paintRaZ && !isShooter(f, norms)
     }
     private static func pairs(_ l: [LineupFeatures]) -> [(LineupFeatures, LineupFeatures)] {
         var out: [(LineupFeatures, LineupFeatures)] = []
@@ -24,58 +33,61 @@ nonisolated enum LineupSynergy {
         return out
     }
 
-    static func spacing(_ lineup: [LineupFeatures]) -> Double {
+    static func spacing(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> Double {
         var bonus = 0.0
         for (a, b) in pairs(lineup) {
-            if isShooter(a) && isShooter(b) {
-                let comp = abs(g(a, "z_corner3") - g(b, "z_corner3")) + abs(g(a, "z_atb3") - g(b, "z_atb3"))
-                bonus += (g(a, "fg3_pct") + g(b, "fg3_pct")) * (1.0 + 0.25 * comp)
+            if isShooter(a, norms) && isShooter(b, norms) {
+                let comp = abs(z(a, "z_corner3", norms) - z(b, "z_corner3", norms))
+                         + abs(z(a, "z_atb3", norms) - z(b, "z_atb3", norms))
+                bonus += (z(a, "fg3_pct", norms) + z(b, "fg3_pct", norms)) * (1.0 + 0.25 * comp)
             }
-            if isPaintBound(a) && isPaintBound(b) { bonus -= (g(a, "z_ra") + g(b, "z_ra")) }
+            if isPaintBound(a, norms) && isPaintBound(b, norms) {
+                bonus -= (z(a, "z_ra", norms) + z(b, "z_ra", norms))
+            }
         }
         return bonus
     }
 
-    static func pnrFit(_ lineup: [LineupFeatures]) -> Double {
+    static func pnrFit(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> Double {
         var best = 0.0
         for (a, b) in pairs(lineup) {
             for (creator, other) in [(a, b), (b, a)] {
-                let create = max(g(creator, "box_creation"), 0.0) * (1.0 + max(g(creator, "passer_rtg"), 0.0) / 10.0)
-                let roll = max(g(other, "z_ra"), 0.0) + max(g(other, "orb_pct") * 10.0, 0.0)
-                let space = isShooter(other) ? 1.0 : 0.0
+                let create = max(z(creator, "box_creation", norms), 0.0) * (1.0 + max(z(creator, "passer_rtg", norms), 0.0))
+                let roll = max(z(other, "z_ra", norms), 0.0) + max(z(other, "orb_pct", norms), 0.0)
+                let space = isShooter(other, norms) ? 1.0 : 0.0
                 best = max(best, create * (roll + 0.5 * space))
             }
         }
         return best
     }
 
-    static func switchable(_ lineup: [LineupFeatures]) -> Double {
+    static func switchable(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> Double {
         var n = 0
         for (a, b) in pairs(lineup) {
-            if g(a, "versatility") >= switchVersatilityMin, g(b, "versatility") >= switchVersatilityMin,
-               abs(g(a, "height_in", 78) - g(b, "height_in", 78)) <= switchHeightBand { n += 1 }
+            if z(a, "versatility", norms) >= switchVersatilityMin, z(b, "versatility", norms) >= switchVersatilityMin,
+               abs(raw(a, "height_in", 78) - raw(b, "height_in", 78)) <= switchHeightBand { n += 1 }
         }
         return Double(n)
     }
 
-    static func rimProtection(_ lineup: [LineupFeatures]) -> Double {
-        guard let anchorIdx = lineup.indices.max(by: { g(lineup[$0], "rim_dfga_per36") < g(lineup[$1], "rim_dfga_per36") })
+    static func rimProtection(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> Double {
+        guard let anchorIdx = lineup.indices.max(by: { raw(lineup[$0], "rim_dfga_per36") < raw(lineup[$1], "rim_dfga_per36") })
         else { return 0 }
         let anchor = lineup[anchorIdx]
-        let anchorStop = g(anchor, "rim_dfga_per36") * max(-g(anchor, "rim_def_delta"), 0.0)
+        let anchorStop = max(z(anchor, "rim_dfga_per36", norms), 0.0) * max(-z(anchor, "rim_def_delta", norms), 0.0)
         let others = lineup.indices.filter { $0 != anchorIdx }.map { lineup[$0] }
-        let funnelSum = others.reduce(0.0) { $0 + max(-g($1, "perim_def_delta"), 0.0) + g($1, "deflections_per36") / 10.0 }
+        let funnelSum = others.reduce(0.0) { $0 + max(-z($1, "perim_def_delta", norms), 0.0) + max(z($1, "deflections_per36", norms), 0.0) }
         let funnel = funnelSum / Double(max(others.count, 1))
         return anchorStop * (0.5 + funnel)
     }
 
-    static func creationRedundancy(_ lineup: [LineupFeatures]) -> Double {
-        let loads = lineup.map { max(g($0, "load"), 0.0) }.sorted(by: >)
+    static func creationRedundancy(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> Double {
+        let loads = lineup.map { max(z($0, "load", norms), 0.0) }.sorted(by: >)
         return loads.dropFirst().prefix(2).reduce(0, +)   // surplus load beyond the primary hub
     }
 
-    static func magnitudes(_ lineup: [LineupFeatures]) -> [String: Double] {
-        ["spacing": spacing(lineup), "pnr_fit": pnrFit(lineup), "switchable": switchable(lineup),
-         "rim_protection": rimProtection(lineup), "creation_redundancy": creationRedundancy(lineup)]
+    static func magnitudes(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> [String: Double] {
+        ["spacing": spacing(lineup, norms), "pnr_fit": pnrFit(lineup, norms), "switchable": switchable(lineup, norms),
+         "rim_protection": rimProtection(lineup, norms), "creation_redundancy": creationRedundancy(lineup, norms)]
     }
 }

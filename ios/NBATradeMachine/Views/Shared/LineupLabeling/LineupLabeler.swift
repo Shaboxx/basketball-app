@@ -110,15 +110,19 @@ nonisolated enum LineupLabeler {
 
         // SP-C: capability magnitudes + formation viability + o/d quality (mirrors score.py).
         let feats: [LineupFeatures] = features.compactMap { $0 }
-        let mags = LineupSynergy.magnitudes(feats)
+        let mags = LineupSynergy.magnitudes(feats, norms)
         let ranked = impacts.compactMap { $0 }.sorted(by: >)
         let base = ranked.enumerated().reduce(0.0) { $0 + $1.element * pow(0.85, Double($1.offset)) }  // ror=0.85
         let off = ["spacing": 1.0, "pnr_fit": 0.1, "creation_redundancy": -1.0]   // _OFF_CAP × DEFAULT_COEFFS
         let def = ["switchable": 1.0, "rim_protection": 1.0]                       // _DEF_CAP × DEFAULT_COEFFS
         let oQuality = base + off.reduce(0.0) { $0 + $1.value * (mags[$1.key] ?? 0) }
         let dQuality = base + def.reduce(0.0) { $0 + $1.value * (mags[$1.key] ?? 0) }
-        let nNonshooters = feats.filter { !LineupSynergy.isShooter($0) }.count
-        let hasDropAnchor = feats.contains { ($0.value("rim_dfga_per36") ?? 0) >= 6.0 && ($0.value("versatility") ?? 0) < 0 }
+        let nNonshooters = feats.filter { !LineupSynergy.isShooter($0, norms) }.count
+        // drop anchor (z-form, mirrors score.py): above-average rim volume + below-median versatility
+        let hasDropAnchor = feats.contains {
+            (norms.zscore($0.value("rim_dfga_per36"), feature: "rim_dfga_per36") ?? 0) >= 0.2
+            && (norms.zscore($0.value("versatility"), feature: "versatility") ?? 0) < 0.0
+        }
         let formationsViable = LineupFormations.viable(mags, nNonshooters: nNonshooters, hasDropAnchor: hasDropAnchor)
 
         return LineupLabel(
