@@ -4,6 +4,7 @@ struct TradeMachineView: View {
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
     @EnvironmentObject var picksVM: PicksViewModel
+    @EnvironmentObject var appSettings: AppSettings
     @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = TradeMachineViewModel()
 
@@ -56,6 +57,8 @@ struct TradeMachineView: View {
         }
         .onAppear {
             vm.configure(teamsVM: teamsVM, rulesVM: rulesVM, picksVM: picksVM)
+            // Season mode is global now (settings gear); sync the VM at open.
+            vm.isOffseason = appSettings.isOffseasonEffective
             if let initialProposal, vm.trade.movements.isEmpty {
                 _ = TradeProposalApplier.apply(initialProposal, to: vm, using: teamsVM)
             } else if !initialTeams.isEmpty && vm.trade.teams.isEmpty {
@@ -159,8 +162,6 @@ struct TradeMachineView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
 
-                Toggle("Offseason mode (next season)", isOn: $vm.isOffseason)
-                    .font(.caption)
                 Spacer()
                 if AppConfig.aiAdvisorEnabled {
                     Button {

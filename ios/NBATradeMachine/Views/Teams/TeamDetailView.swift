@@ -4,11 +4,8 @@ struct TeamDetailView: View {
     let team: Team
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
-    @EnvironmentObject var picksVM: PicksViewModel
     @EnvironmentObject var normsVM: LeagueNormsViewModel
     @State private var showingDepthChart = false
-    @State private var showAdvisor = false
-    @State private var proposalToOpen: AdvisorProposal?
 
     var body: some View {
         let roster = teamsVM.players(for: team.teamId)
@@ -74,15 +71,6 @@ struct TeamDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Depth Chart") { showingDepthChart = true }
             }
-            if AppConfig.aiAdvisorEnabled {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showAdvisor = true
-                    } label: {
-                        Label("Trade Advisor", systemImage: "sparkles")
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showingDepthChart) {
             NavigationStack {
@@ -104,24 +92,6 @@ struct TeamDetailView: View {
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showAdvisor) {
-            TradeAdvisorSheet(
-                // Single-team entry: a 1-element set is treated as "open" (no partner constraint).
-                viewModel: TradeAdvisorViewModel(team: team.tricode, service: FirebaseAdvisorService(),
-                                                 teamSet: [team.tricode]),
-                onApply: { proposal in
-                    showAdvisor = false
-                    proposalToOpen = proposal
-                })
-            .environmentObject(teamsVM)
-        }
-        .fullScreenCover(item: $proposalToOpen) { proposal in
-            TradeMachineView(initialProposal: proposal)
-                .environmentObject(teamsVM)
-                .environmentObject(rulesVM)
-                .environmentObject(picksVM)
-                .environmentObject(normsVM)
         }
     }
 

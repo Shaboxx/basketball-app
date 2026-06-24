@@ -8,10 +8,6 @@ struct InitialTeamSelectionView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                Toggle("Offseason mode (next season)", isOn: $vm.isOffseason)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-
                 Text("Choose two teams to start a trade")
                     .font(.headline)
                     .frame(maxWidth: .infinity, alignment: .leading)
