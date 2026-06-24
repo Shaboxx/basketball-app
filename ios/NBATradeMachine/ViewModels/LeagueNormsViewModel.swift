@@ -9,8 +9,8 @@ import Combine
 final class LeagueNormsViewModel: ObservableObject {
     @Published var norms: LeagueNorms?
 
-    func load() async {
+    func load(season: String = FirestoreService.fallbackSeason) async {
         guard norms == nil else { return }
-        norms = try? await FirestoreService.shared.fetchLeagueNorms()
+        norms = try? await FirestoreService.shared.fetchLeagueNorms(season: season)
     }
 }
