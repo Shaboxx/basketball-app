@@ -47,6 +47,9 @@ struct NewsListView: View {
             Text("Couldn't load news").font(.headline)
             Text(message).font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            Button("Try Again") { Task { await vm.reload() } }
+                .buttonStyle(.bordered)
+                .padding(.top, 4)
         }
         .padding()
     }
