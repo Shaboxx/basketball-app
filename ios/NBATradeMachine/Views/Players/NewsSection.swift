@@ -12,7 +12,7 @@ struct NewsSection: View {
         Group {
             if !vm.items.isEmpty {
                 DisclosureGroup(isExpanded: $isExpanded) {
-                    ForEach(vm.items) { row($0) }
+                    ForEach(vm.items) { NewsRow(item: $0) }
                 } label: {
                     Text("News").font(.headline)
                 }
@@ -25,42 +25,5 @@ struct NewsSection: View {
         }
         // id: player.slug so a reused NewsSection reloads if the player changes.
         .task(id: player.slug) { await vm.load(for: player.slug) }
-    }
-
-    @ViewBuilder
-    private func row(_ item: NewsItem) -> some View {
-        if let url = item.articleURL {
-            Link(destination: url) { rowContent(item) }
-                .buttonStyle(.plain)
-        } else {
-            rowContent(item)
-        }
-    }
-
-    private func rowContent(_ item: NewsItem) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(item.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-            HStack(spacing: 6) {
-                if !item.source.isEmpty {
-                    Text(item.source)
-                    Text("·")
-                }
-                Text(item.relativeDate)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            if !item.summary.isEmpty {
-                Text(item.summary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 8)
     }
 }
