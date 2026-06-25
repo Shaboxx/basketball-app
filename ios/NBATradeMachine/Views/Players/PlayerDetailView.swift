@@ -27,6 +27,7 @@ struct PlayerDetailView: View {
                 }
 
                 RolesSection(player: player)
+                NewsSection(player: player)
                 LatentValueSection(player: player)
                 SalarySection(player: player)
                 ProjectedContractSection(player: player)
