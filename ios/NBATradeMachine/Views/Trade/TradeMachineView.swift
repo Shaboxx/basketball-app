@@ -26,6 +26,12 @@ struct TradeMachineView: View {
     @State private var pendingProposal: AdvisorProposal?
     @State private var showReplaceConfirm = false
     @State private var confirmationSnapshot: ConfirmationSnapshot?
+    @State private var balancePresentation: BalancePresentation?
+
+    private struct BalancePresentation: Identifiable {
+        let id = UUID()
+        let result: TradeBalancer.BalanceResult
+    }
 
     /// Snapshot captured at validation time so the confirmation sheet shows
     /// the trade as it was when the user tapped Validate, not whatever the
@@ -88,6 +94,12 @@ struct TradeMachineView: View {
         .sheet(isPresented: $showingDepthChart) {
             DepthChartSheet(vm: vm)
                 .environmentObject(teamsVM)
+        }
+        .sheet(item: $balancePresentation) { pres in
+            BalanceProposalSheet(vm: vm, initial: pres.result, includePicks: true) { applied in
+                vm.applyBalance(applied)
+                balancePresentation = nil
+            }
         }
         .sheet(isPresented: $showAdvisor, onDismiss: {
             if pendingProposal != nil { showReplaceConfirm = true }
@@ -295,6 +307,18 @@ struct TradeMachineView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
+
+            if vm.canBalance {
+                Button {
+                    if let r = vm.balanceTrade(includePicks: true) {
+                        balancePresentation = BalancePresentation(result: r)
+                    }
+                } label: {
+                    Label("Balance", systemImage: "scalemass")
+                        .frame(maxWidth: .infinity).padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
+            }
 
             if vm.canRemoveTeam {
                 Button(role: .destructive) {
