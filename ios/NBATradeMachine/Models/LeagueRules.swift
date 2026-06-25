@@ -37,3 +37,21 @@ struct LeagueRules: Codable {
         return .underCap
     }
 }
+
+#if DEBUG
+extension LeagueRules {
+    /// Tiny cap so all modest test salaries — even a star-dumping team's
+    /// post-trade total — stay in the over-cap tier, exercising the 125%/200%
+    /// salary-matching band rather than the under-cap room path. Built via the
+    /// memberwise init with a nil @DocumentID (a plain JSONDecoder can't satisfy
+    /// the out-of-band docId key).
+    static func testFixture(season: String = "2025-26",
+                            salaryCap: Int = 1_000_000,
+                            taxLevel: Int = 200_000_000,
+                            firstApron: Int = 300_000_000,
+                            secondApron: Int = 400_000_000) -> LeagueRules {
+        LeagueRules(docId: nil, season: season, salaryCap: salaryCap,
+                    taxLevel: taxLevel, firstApron: firstApron, secondApron: secondApron)
+    }
+}
+#endif

@@ -325,7 +325,9 @@ final class TradeMachineViewModel: ObservableObject {
         alertMessage = nil
     }
 
-    func roster(for teamId: String) -> [Player] {
+    func roster(for teamId: String) -> [Player] { roster(for: teamId, in: trade) }
+
+    func roster(for teamId: String, in trade: Trade) -> [Player] {
         let outgoing = Set(trade.outgoingPlayerIds(from: teamId))
         let released = Set(
             trade.waived.filter { $0.teamId == teamId }.map(\.playerId)
@@ -466,7 +468,9 @@ final class TradeMachineViewModel: ObservableObject {
         Set(draftedProspects.values.flatMap { $0 }.map(\.id))
     }
 
-    func incomingPlayers(to teamId: String) -> [Player] {
+    func incomingPlayers(to teamId: String) -> [Player] { incomingPlayers(to: teamId, in: trade) }
+
+    func incomingPlayers(to teamId: String, in trade: Trade) -> [Player] {
         var result: [Player] = []
         for movement in trade.movements where movement.toTeamId == teamId {
             if let player = teamsVM?.players(for: movement.fromTeamId).first(where: { $0.id == movement.playerId }) {
@@ -476,7 +480,9 @@ final class TradeMachineViewModel: ObservableObject {
         return result
     }
 
-    func outgoingPlayers(from teamId: String) -> [Player] {
+    func outgoingPlayers(from teamId: String) -> [Player] { outgoingPlayers(from: teamId, in: trade) }
+
+    func outgoingPlayers(from teamId: String, in trade: Trade) -> [Player] {
         let ids = Set(trade.outgoingPlayerIds(from: teamId))
         let all = teamsVM?.players(for: teamId) ?? []
         return all.filter { ids.contains($0.id) }
@@ -491,21 +497,139 @@ final class TradeMachineViewModel: ObservableObject {
         return base + faSum + draftSum
     }
 
-    func outgoingSalary(from teamId: String) -> Int {
-        outgoingPlayers(from: teamId).reduce(0) { $0 + effectiveSalary(for: $1) }
+    func outgoingSalary(from teamId: String) -> Int { outgoingSalary(from: teamId, in: trade) }
+    func outgoingSalary(from teamId: String, in trade: Trade) -> Int {
+        outgoingPlayers(from: teamId, in: trade).reduce(0) { $0 + effectiveSalary(for: $1) }
     }
 
-    func incomingSalary(to teamId: String) -> Int {
-        incomingPlayers(to: teamId).reduce(0) { $0 + effectiveSalary(for: $1) }
+    func incomingSalary(to teamId: String) -> Int { incomingSalary(to: teamId, in: trade) }
+    func incomingSalary(to teamId: String, in trade: Trade) -> Int {
+        incomingPlayers(to: teamId, in: trade).reduce(0) { $0 + effectiveSalary(for: $1) }
     }
 
-    func postTradeTotal(for teamId: String) -> Int {
-        teamTotalSalary(for: teamId) - outgoingSalary(from: teamId) + incomingSalary(to: teamId)
+    func postTradeTotal(for teamId: String) -> Int { postTradeTotal(for: teamId, in: trade) }
+    func postTradeTotal(for teamId: String, in trade: Trade) -> Int {
+        teamTotalSalary(for: teamId) - outgoingSalary(from: teamId, in: trade) + incomingSalary(to: teamId, in: trade)
     }
 
-    func capTier(for teamId: String) -> LeagueRules.CapTier? {
+    func capTier(for teamId: String) -> LeagueRules.CapTier? { capTier(for: teamId, in: trade) }
+    func capTier(for teamId: String, in trade: Trade) -> LeagueRules.CapTier? {
         guard let rules = rulesVM?.rules else { return nil }
-        return rules.tier(for: postTradeTotal(for: teamId))
+        return rules.tier(for: postTradeTotal(for: teamId, in: trade))
+    }
+
+    // MARK: - Balance (Tier 2)
+
+    /// True when a 2-team trade with at least one player in flight can be balanced.
+    var canBalance: Bool {
+        trade.teams.count == 2 && !trade.movements.isEmpty
+    }
+
+    /// Run the deterministic balancer over the current 2-team trade. Pure read —
+    /// does not mutate `trade`. Returns nil when not exactly 2 teams are seated.
+    func balanceTrade(includePicks: Bool) -> TradeBalancer.BalanceResult? {
+        guard trade.teams.count == 2 else { return nil }
+        let a = trade.teams[0], b = trade.teams[1]
+        let aTri = a.tricode, bTri = b.tricode
+        let year = Calendar.current.component(.year, from: Date())
+
+        func playerCandidates(owner: Team, otherTri: String) -> [TradeBalancer.BalanceCandidate] {
+            roster(for: owner.teamId).map { p in
+                .init(kind: .player(id: p.id), ownerTeamId: owner.teamId,
+                      salary: effectiveSalary(for: p),
+                      valueToOtherTeam: p.tradeValue?.forTeam(otherTri)?.value ?? 0,
+                      label: p.name)
+            }
+        }
+        func pickCandidates(owner: Team) -> [TradeBalancer.BalanceCandidate] {
+            guard includePicks else { return [] }
+            let moving = Set(trade.pickMovements.map { $0.pick.id })
+            return (picksVM?.picks(for: owner.teamId) ?? [])
+                .filter { !moving.contains($0.id) }
+                .map { pick in
+                    .init(kind: .pick(id: pick.id.uuidString), ownerTeamId: owner.teamId,
+                          salary: 0,
+                          valueToOtherTeam: PickValuator.value(for: pick, currentYear: year) * 1_000_000,
+                          label: pick.shortLabel)
+                }
+        }
+
+        let candA = playerCandidates(owner: a, otherTri: bTri) + pickCandidates(owner: a)
+        let candB = playerCandidates(owner: b, otherTri: aTri) + pickCandidates(owner: b)
+
+        var baseline: [String: Double] = [a.teamId: 0, b.teamId: 0]
+        for p in incomingPlayers(to: a.teamId) { baseline[a.teamId, default: 0] += p.tradeValue?.forTeam(aTri)?.value ?? 0 }
+        for p in incomingPlayers(to: b.teamId) { baseline[b.teamId, default: 0] += p.tradeValue?.forTeam(bTri)?.value ?? 0 }
+        for pm in trade.picksIncoming(to: a.teamId) { baseline[a.teamId, default: 0] += PickValuator.value(for: pm.pick, currentYear: year) * 1_000_000 }
+        for pm in trade.picksIncoming(to: b.teamId) { baseline[b.teamId, default: 0] += PickValuator.value(for: pm.pick, currentYear: year) * 1_000_000 }
+
+        var options = TradeBalancer.BalanceOptions()
+        options.includePicks = includePicks
+        let input = TradeBalancer.BalanceInput(
+            teamAId: a.teamId, teamBId: b.teamId,
+            baselineHaul: baseline, candidatesA: candA, candidatesB: candB,
+            options: options)
+
+        return TradeBalancer.balance(input) { [weak self] moves in
+            self?.legalitySnapshot(forAdditional: moves)
+                ?? .init(blockingIssues: [], perTeam: [:])
+        }
+    }
+
+    /// Build a `LegalitySnapshot` for the current trade plus `moves`, using the
+    /// REAL `TradeCompliance.evaluate` for blocks and `allowedIncoming` for the
+    /// salary targeting numbers. Never mutates `self.trade`.
+    private func legalitySnapshot(forAdditional moves: [TradeBalancer.BalanceMove])
+        -> TradeBalancer.LegalitySnapshot {
+        var hyp = trade
+        for m in moves {
+            switch m.candidate.kind {
+            case .player(let id):
+                hyp.movements.append(PlayerMovement(playerId: id,
+                                                    fromTeamId: m.candidate.ownerTeamId,
+                                                    toTeamId: m.toTeamId))
+            case .pick(let id):
+                if let pick = (picksVM?.picks(for: m.candidate.ownerTeamId) ?? [])
+                    .first(where: { $0.id.uuidString == id }) {
+                    hyp.pickMovements.append(PickMovement(pick: pick,
+                                                          fromTeamId: m.candidate.ownerTeamId,
+                                                          toTeamId: m.toTeamId))
+                }
+            }
+        }
+        let blocks = complianceIssues(in: hyp).filter { $0.severity == .block }.map(\.message)
+        var perTeam: [String: TradeBalancer.LegalitySnapshot.TeamSalary] = [:]
+        for team in hyp.teams {
+            let id = team.teamId
+            let outSum = outgoingSalary(from: id, in: hyp)
+            let inSum = incomingSalary(to: id, in: hyp)
+            let tier = capTier(for: id, in: hyp) ?? .underCap
+            let capRoom = (tier == .underCap)
+                ? max(0, TradeCompliance.salaryCapFallback - teamTotalSalary(for: id)) : 0
+            let allowed = TradeCompliance.allowedIncoming(tier: tier, outgoing: outSum, capRoom: capRoom)
+            perTeam[id] = .init(allowedIncoming: allowed, actualIncoming: inSum,
+                                actualOutgoing: outSum, rosterCount: postTradeRosterCount(for: id, in: hyp))
+        }
+        return .init(blockingIssues: blocks, perTeam: perTeam)
+    }
+
+    /// Replay the balancer's suggested additions onto the live trade using the
+    /// existing move methods (so each is recorded in history / undoable), then
+    /// re-validate.
+    func applyBalance(_ result: TradeBalancer.BalanceResult) {
+        for add in result.additions {
+            let c = add.move.candidate
+            switch c.kind {
+            case .player(let id):
+                tradePlayer(id, from: c.ownerTeamId, to: add.move.toTeamId)
+            case .pick(let id):
+                if let pick = (picksVM?.picks(for: c.ownerTeamId) ?? [])
+                    .first(where: { $0.id.uuidString == id }) {
+                    addPickMovement(pick, from: c.ownerTeamId, to: add.move.toTeamId)
+                }
+            }
+        }
+        validate()
     }
 
     func validate() {
@@ -546,9 +670,10 @@ final class TradeMachineViewModel: ObservableObject {
     }
 
     /// Run the CBA compliance engine for every team in the trade.
-    private func complianceIssues() -> [ComplianceIssue] {
+    private func complianceIssues() -> [ComplianceIssue] { complianceIssues(in: trade) }
+    private func complianceIssues(in trade: Trade) -> [ComplianceIssue] {
         guard rulesVM?.rules != nil else { return [] }
-        let contexts = trade.teams.map { teamContext(for: $0) }
+        let contexts = trade.teams.map { teamContext(for: $0, in: trade) }
         return TradeCompliance.evaluate(teams: contexts)
     }
 
@@ -566,25 +691,26 @@ final class TradeMachineViewModel: ObservableObject {
         return hardCapped ? rules.firstApron : nil
     }
 
-    private func teamContext(for team: Team) -> TeamContext {
+    private func teamContext(for team: Team) -> TeamContext { teamContext(for: team, in: trade) }
+    private func teamContext(for team: Team, in trade: Trade) -> TeamContext {
         let id = team.teamId
-        let incoming = incomingPlayers(to: id).map(contractLite)
-        let outgoing = outgoingPlayers(from: id).map(contractLite)
-        let postCount = postTradeRosterCount(for: id)
-        let tier = capTier(for: id) ?? .underCap
+        let incoming = incomingPlayers(to: id, in: trade).map(contractLite)
+        let outgoing = outgoingPlayers(from: id, in: trade).map(contractLite)
+        let postCount = postTradeRosterCount(for: id, in: trade)
+        let tier = capTier(for: id, in: trade) ?? .underCap
         let horizon = draftYearHorizon()
         return TeamContext(
             teamId: id,
             teamName: team.fullName,
             preTradeSalary: teamTotalSalary(for: id),
-            postTradeSalary: postTradeTotal(for: id),
+            postTradeSalary: postTradeTotal(for: id, in: trade),
             postTradeTier: tier,
             incoming: incoming,
             outgoing: outgoing,
             cashSent: trade.cash(from: id),
             postTradeRosterCount: postCount,
             isOffseason: isOffseason,
-            ownedFirstRoundYears: ownedFirstRoundYears(for: id),
+            ownedFirstRoundYears: ownedFirstRoundYears(for: id, in: trade),
             draftYearHorizon: horizon,
             hardCapLimit: hardCapLimit(for: id),
             acquiringViaSignAndTrade: acquiringViaSignAndTrade(for: id)
@@ -598,14 +724,20 @@ final class TradeMachineViewModel: ObservableObject {
 
     /// kept roster + incoming + signed FAs + drafted prospects.
     private func postTradeRosterCount(for teamId: String) -> Int {
-        roster(for: teamId).count
-            + incomingPlayers(to: teamId).count
+        postTradeRosterCount(for: teamId, in: trade)
+    }
+    private func postTradeRosterCount(for teamId: String, in trade: Trade) -> Int {
+        roster(for: teamId, in: trade).count
+            + incomingPlayers(to: teamId, in: trade).count
             + signedFAs(for: teamId).count
             + draftPicks(for: teamId).count
     }
 
     /// Future draft years with >=1 owned first-round pick AFTER the trade.
     private func ownedFirstRoundYears(for teamId: String) -> Set<Int> {
+        ownedFirstRoundYears(for: teamId, in: trade)
+    }
+    private func ownedFirstRoundYears(for teamId: String, in trade: Trade) -> Set<Int> {
         var countByYear: [Int: Int] = [:]
         for pick in (picksVM?.picks(for: teamId) ?? []) where pick.round == 1 {
             countByYear[pick.year, default: 0] += 1
