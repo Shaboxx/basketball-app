@@ -9,6 +9,10 @@ final class LeagueCalendarViewModel: ObservableObject {
 
     func load() async {
         guard calendar == nil else { return }
+        await reload()
+    }
+
+    func reload() async {
         calendar = try? await FirestoreService.shared.fetchLeagueCalendar()
     }
 }

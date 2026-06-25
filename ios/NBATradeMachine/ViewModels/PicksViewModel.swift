@@ -9,6 +9,10 @@ final class PicksViewModel: ObservableObject {
 
     func load() async {
         guard picksByTeamId.isEmpty else { return }
+        await reload()
+    }
+
+    func reload() async {
         isLoading = true
         defer { isLoading = false }
         do {

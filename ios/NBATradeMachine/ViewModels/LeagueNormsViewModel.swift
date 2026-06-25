@@ -11,6 +11,10 @@ final class LeagueNormsViewModel: ObservableObject {
 
     func load(season: String = FirestoreService.fallbackSeason) async {
         guard norms == nil else { return }
+        await reload(season: season)
+    }
+
+    func reload(season: String = FirestoreService.fallbackSeason) async {
         norms = try? await FirestoreService.shared.fetchLeagueNorms(season: season)
     }
 }

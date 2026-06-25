@@ -71,6 +71,7 @@ struct TeamsListView: View {
                     .padding()
                 }
             }
+            .refreshable { await teamsVM.reload() }
             .navigationTitle("Teams")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

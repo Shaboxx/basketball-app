@@ -30,6 +30,10 @@ final class PlayersViewModel: ObservableObject {
 
     func load() async {
         guard players.isEmpty else { return }
+        await reload()
+    }
+
+    func reload() async {
         isLoading = true
         defer { isLoading = false }
         do {

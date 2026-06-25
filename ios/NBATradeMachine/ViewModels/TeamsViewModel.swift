@@ -10,6 +10,10 @@ final class TeamsViewModel: ObservableObject {
 
     func load() async {
         guard teams.isEmpty else { return }
+        await reload()
+    }
+
+    func reload() async {
         isLoading = true
         defer { isLoading = false }
         do {

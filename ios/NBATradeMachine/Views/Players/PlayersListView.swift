@@ -3,6 +3,8 @@ import SwiftUI
 struct PlayersListView: View {
     @StateObject private var vm = PlayersViewModel()
     @EnvironmentObject var teamsVM: TeamsViewModel
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var didLoad = false
 
     var body: some View {
         NavigationStack {
@@ -37,6 +39,7 @@ struct PlayersListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .refreshable { await vm.reload() }
                 }
             }
             .navigationTitle("Players")
@@ -60,7 +63,15 @@ struct PlayersListView: View {
                 PlayerDetailView(player: p)
             }
         }
-        .task { await vm.load() }
+        .task {
+            await vm.load()
+            didLoad = true
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active && didLoad {
+                Task { await vm.reload() }
+            }
+        }
     }
 
     /// One-line value summary appended to the row — picks the channel matching
