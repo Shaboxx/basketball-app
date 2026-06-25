@@ -537,7 +537,7 @@ final class TradeMachineViewModel: ObservableObject {
             roster(for: owner.teamId).map { p in
                 .init(kind: .player(id: p.id), ownerTeamId: owner.teamId,
                       salary: effectiveSalary(for: p),
-                      valueToOtherTeam: p.tradeValue?.forTeam(otherTri)?.value ?? 0,
+                      valueToOtherTeam: p.tradeValue?.forTeam(otherTri)?.value,   // nil == unknown (not $0)
                       label: p.name)
             }
         }
@@ -571,8 +571,11 @@ final class TradeMachineViewModel: ObservableObject {
             options: options)
 
         return TradeBalancer.balance(input) { [weak self] moves in
+            // Fail CLOSED: if self is gone, report blocked so the balancer yields
+            // couldNotLegalize rather than a false "legal" verdict. (The call is
+            // synchronous @MainActor, so self is in practice always present.)
             self?.legalitySnapshot(forAdditional: moves)
-                ?? .init(blockingIssues: [], perTeam: [:])
+                ?? .init(blockingIssues: ["balancer unavailable"], perTeam: [:])
         }
     }
 
@@ -597,19 +600,31 @@ final class TradeMachineViewModel: ObservableObject {
                 }
             }
         }
-        let blocks = complianceIssues(in: hyp).filter { $0.severity == .block }.map(\.message)
+        var blocks = complianceIssues(in: hyp).filter { $0.severity == .block }.map(\.message)
         var perTeam: [String: TradeBalancer.LegalitySnapshot.TeamSalary] = [:]
+        var flows: [TradeAnalyzer.TeamFlow] = []
         for team in hyp.teams {
             let id = team.teamId
             let outSum = outgoingSalary(from: id, in: hyp)
             let inSum = incomingSalary(to: id, in: hyp)
+            flows.append(.init(teamId: id, teamName: team.fullName, outgoing: outSum, incoming: inSum))
             let tier = capTier(for: id, in: hyp) ?? .underCap
             let capRoom = (tier == .underCap)
                 ? max(0, TradeCompliance.salaryCapFallback - teamTotalSalary(for: id)) : 0
-            let allowed = TradeCompliance.allowedIncoming(tier: tier, outgoing: outSum, capRoom: capRoom)
+            let complianceAllowed = TradeCompliance.allowedIncoming(tier: tier, outgoing: outSum, capRoom: capRoom)
+            // validate() also applies TradeAnalyzer's flat 125%+$250k structural
+            // ceiling and lets it supersede, so the effective allowance is the min.
+            let structuralCap = Int(Double(outSum) * 1.25) + 250_000
+            let allowed = min(complianceAllowed, structuralCap)
             perTeam[id] = .init(allowedIncoming: allowed, actualIncoming: inSum,
                                 actualOutgoing: outSum, rosterCount: postTradeRosterCount(for: id, in: hyp))
         }
+        // Mirror validate()'s structural gate (each team must send AND receive a
+        // player, plus the flat 125%+$250k cap), which SUPERSEDES compliance —
+        // without it the balancer could call a trade "legal" that the Validate
+        // button then rejects, defeating the feature's core guarantee.
+        let structural = TradeAnalyzer.validate(flows: flows)
+        if !structural.isValid { blocks.append(structural.reason) }
         return .init(blockingIssues: blocks, perTeam: perTeam)
     }
 

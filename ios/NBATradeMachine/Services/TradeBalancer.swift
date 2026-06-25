@@ -12,7 +12,10 @@ enum TradeBalancer {
         let kind: Kind
         let ownerTeamId: String
         let salary: Int
-        let valueToOtherTeam: Double
+        /// $ value to the *receiving* (other) team. `nil` means the value is
+        /// unknown (no uploaded tradeValue) — treated as ship-last in Phase A
+        /// and as unusable for fairness sweeteners, never as $0.
+        let valueToOtherTeam: Double?
         let label: String
 
         var isPlayer: Bool { if case .player = kind { return true }; return false }
@@ -114,7 +117,7 @@ enum TradeBalancer {
         h[input.teamAId, default: 0] += 0
         h[input.teamBId, default: 0] += 0
         for a in additions {
-            h[a.move.toTeamId, default: 0] += a.move.candidate.valueToOtherTeam
+            h[a.move.toTeamId, default: 0] += (a.move.candidate.valueToOtherTeam ?? 0)
         }
         return h
     }
@@ -230,9 +233,11 @@ enum TradeBalancer {
             .filter { less($0.1, current) }
             .sorted { lhs, rhs in
                 if lhs.1 != rhs.1 { return less(lhs.1, rhs.1) }                 // best improvement first
-                if lhs.0.valueToOtherTeam != rhs.0.valueToOtherTeam {
-                    return lhs.0.valueToOtherTeam < rhs.0.valueToOtherTeam       // ship least value
-                }
+                // Ship least KNOWN value; unknown-value assets sort last so a
+                // star with no data is never picked as cheap salary filler.
+                let lv = lhs.0.valueToOtherTeam ?? .greatestFiniteMagnitude
+                let rv = rhs.0.valueToOtherTeam ?? .greatestFiniteMagnitude
+                if lv != rv { return lv < rv }
                 return lhs.0.salary < rhs.0.salary
             }
             .prefix(input.options.branchFactor)
@@ -276,9 +281,9 @@ enum TradeBalancer {
             var best: (cand: BalanceCandidate, residual: Double)?
             for c in donorCands where !used.contains(key(c)) {
                 if !input.options.includePicks && !c.isPlayer { continue }
+                guard let v = c.valueToOtherTeam else { continue }            // can't balance value with an unknown-value asset
                 let mv = BalanceMove(candidate: c, toTeamId: shortTeam)
                 guard legality(prefix + [mv]).isLegal else { continue }       // must not break legality
-                let v = c.valueToOtherTeam
                 let newG = (shortTeam == input.teamAId) ? (g + v) : (g - v)   // adding v to short side
                 let residual = abs(newG)
                 guard residual < abs(g) else { continue }                     // must strictly close the gap
