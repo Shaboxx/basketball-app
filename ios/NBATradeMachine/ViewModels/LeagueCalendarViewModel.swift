@@ -13,6 +13,9 @@ final class LeagueCalendarViewModel: ObservableObject {
     }
 
     func reload() async {
-        calendar = try? await FirestoreService.shared.fetchLeagueCalendar()
+        // Keep last-known-good on a failed/missing fetch (foreground-refresh blip).
+        if let c = try? await FirestoreService.shared.fetchLeagueCalendar() {
+            calendar = c
+        }
     }
 }

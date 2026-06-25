@@ -15,6 +15,9 @@ final class LeagueNormsViewModel: ObservableObject {
     }
 
     func reload(season: String = FirestoreService.fallbackSeason) async {
-        norms = try? await FirestoreService.shared.fetchLeagueNorms(season: season)
+        // Keep last-known-good on a failed/missing fetch (foreground-refresh blip).
+        if let n = try? await FirestoreService.shared.fetchLeagueNorms(season: season) {
+            norms = n
+        }
     }
 }
