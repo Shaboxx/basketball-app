@@ -7,14 +7,11 @@ import Combine
 @MainActor
 final class NewsViewModel: ObservableObject {
     @Published var items: [NewsItem] = []
-    @Published var isLoading = false
     private var loadedSlug: String?
 
     func load(for slug: String) async {
-        guard loadedSlug != slug else { return }
+        guard loadedSlug != slug else { return }   // skip a redundant refetch of the same player
         loadedSlug = slug
-        isLoading = true
-        defer { isLoading = false }
         items = (try? await FirestoreService.shared.fetchNews(for: slug, limit: 5)) ?? []
     }
 }

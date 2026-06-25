@@ -44,6 +44,9 @@ enum NewsDateFormatter {
         guard let date = Self.iso.date(from: iso) ?? Self.isoFractional.date(from: iso) else {
             return String(iso.prefix(10))
         }
-        return Self.rel.localizedString(for: date, relativeTo: Date())
+        // Clamp to now: a just-published item under positive server-clock skew
+        // would otherwise render future-tense ("in 2 min"). Collapse to "now".
+        let now = Date()
+        return Self.rel.localizedString(for: min(date, now), relativeTo: now)
     }
 }

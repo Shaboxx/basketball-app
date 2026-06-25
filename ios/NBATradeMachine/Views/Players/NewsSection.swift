@@ -23,7 +23,8 @@ struct NewsSection: View {
                 )
             }
         }
-        .task { await vm.load(for: player.slug) }
+        // id: player.slug so a reused NewsSection reloads if the player changes.
+        .task(id: player.slug) { await vm.load(for: player.slug) }
     }
 
     @ViewBuilder
@@ -44,8 +45,10 @@ struct NewsSection: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
             HStack(spacing: 6) {
-                Text(item.source)
-                Text("·")
+                if !item.source.isEmpty {
+                    Text(item.source)
+                    Text("·")
+                }
                 Text(item.relativeDate)
             }
             .font(.caption)
