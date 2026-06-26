@@ -38,6 +38,12 @@ final class TeamsViewModel: ObservableObject {
         players(for: teamId).reduce(0) { $0 + $1.currentSalary }
     }
 
+    /// Resolve a player across all rosters by canonical slug — for cross-tab
+    /// navigation (e.g. the News tab's Hot Players strip). Nil if not on a roster.
+    func player(slug: String) -> Player? {
+        playersByTeamId.values.lazy.flatMap { $0 }.first { $0.slug == slug }
+    }
+
     /// Flat list of every player across every roster. Used for league-wide
     /// percentile math (value-gap on the profile). Not memoized — the source
     /// dictionary only changes on `load()` so the cost of recomputing per

@@ -5,6 +5,7 @@ import SwiftUI
 /// placeholder / the list. Mirrors PlayersListView's refresh wiring.
 struct NewsListView: View {
     @StateObject private var vm = NewsFeedViewModel()
+    @EnvironmentObject private var teamsVM: TeamsViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLoad = false
 
@@ -46,6 +47,7 @@ struct NewsListView: View {
                 }
             }
             .navigationTitle("News")
+            .navigationDestination(for: Player.self) { PlayerDetailView(player: $0) }
         }
         .task {
             await vm.load()
@@ -69,10 +71,13 @@ struct NewsListView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(vm.hotPlayers) { p in
-                        VStack(spacing: 4) {
-                            HeadshotImage(slug: p.slug, size: 56).clipShape(Circle())
-                            Text(p.name).font(.caption2).lineLimit(1)
-                                .frame(maxWidth: 64)
+                        // Tappable -> player detail when the slug resolves to a
+                        // rostered player; otherwise a plain (display-only) cell.
+                        if let player = teamsVM.player(slug: p.slug) {
+                            NavigationLink(value: player) { hotPlayerCell(p) }
+                                .buttonStyle(.plain)
+                        } else {
+                            hotPlayerCell(p)
                         }
                     }
                 }
@@ -80,6 +85,14 @@ struct NewsListView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    private func hotPlayerCell(_ p: HotPlayer) -> some View {
+        VStack(spacing: 4) {
+            HeadshotImage(slug: p.slug, size: 56).clipShape(Circle())
+            Text(p.name).font(.caption2).lineLimit(1)
+                .frame(maxWidth: 64)
+        }
     }
 
     private func errorView(_ message: String) -> some View {
