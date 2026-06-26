@@ -16,25 +16,37 @@ struct DataHealthView: View {
                         HStack {
                             Text(feed.label)
                             Spacer()
-                            if let when = feed.updatedAt {
-                                Text(when, format: .relative(presentation: .named))
-                                    .foregroundStyle(feed.isStale ? .orange : .secondary)
-                            } else {
-                                Text("never").foregroundStyle(.secondary)
-                            }
-                            if feed.isStale {
+                            switch feed.state {
+                            case .fresh:
+                                if let when = feed.updatedAt {
+                                    Text(when, format: .relative(presentation: .named))
+                                        .foregroundStyle(.secondary)
+                                }
+                            case .stale:
+                                if let when = feed.updatedAt {
+                                    Text(when, format: .relative(presentation: .named))
+                                        .foregroundStyle(.orange)
+                                }
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(.orange)
                                     .accessibilityLabel("stale")
+                            case .unknown:
+                                // No timestamp / read failed — don't imply staleness.
+                                Text("Unknown").foregroundStyle(.secondary)
                             }
                         }
                     }
                 } header: {
                     Text("Last updated")
                 } footer: {
-                    Text(vm.anyStale
-                         ? "Some data may be out of date. Background jobs refresh rosters daily and contracts/picks weekly."
-                         : "All feeds are current.")
+                    switch vm.status {
+                    case .current:
+                        Text("All feeds are current. Background jobs refresh rosters daily and contracts/picks weekly.")
+                    case .someStale:
+                        Text("Some data may be out of date. Background jobs refresh rosters daily and contracts/picks weekly.")
+                    case .unavailable:
+                        Text("Couldn’t check data freshness right now.")
+                    }
                 }
             }
             .navigationTitle("Data Freshness")
