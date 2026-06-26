@@ -22,9 +22,27 @@ struct NewsListView: View {
                         description: Text("League news will appear here.")
                     )
                 } else {
-                    List(vm.items) { NewsRow(item: $0) }
-                        .listStyle(.plain)
-                        .refreshable { await vm.reload() }
+                    List {
+                        if !vm.hotPlayers.isEmpty {
+                            Section {
+                                hotPlayersStrip
+                                    .listRowInsets(EdgeInsets())
+                                    .listRowSeparator(.hidden)
+                            }
+                        }
+                        Section {
+                            Picker("Sort", selection: sortBinding) {
+                                ForEach(NewsSort.allCases) { Text($0.label).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .listRowSeparator(.hidden)
+                        }
+                        Section {
+                            ForEach(vm.items) { NewsRow(item: $0) }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .refreshable { await vm.reload() }
                 }
             }
             .navigationTitle("News")
@@ -38,6 +56,30 @@ struct NewsListView: View {
                 Task { await vm.reload() }
             }
         }
+    }
+
+    private var sortBinding: Binding<NewsSort> {
+        Binding(get: { vm.sort }, set: { newSort in Task { await vm.setSort(newSort) } })
+    }
+
+    /// Compact "Hot Right Now" portrait strip — display-only in v1.
+    private var hotPlayersStrip: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("🔥 Hot Right Now").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(vm.hotPlayers) { p in
+                        VStack(spacing: 4) {
+                            HeadshotImage(slug: p.slug, size: 56).clipShape(Circle())
+                            Text(p.name).font(.caption2).lineLimit(1)
+                                .frame(maxWidth: 64)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(.horizontal)
     }
 
     private func errorView(_ message: String) -> some View {
