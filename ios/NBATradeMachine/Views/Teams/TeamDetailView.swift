@@ -61,6 +61,8 @@ struct TeamDetailView: View {
                     }
                 }
             }
+
+            AdRow()   // bottom-of-page banner slot; self-hides when ads are off
         }
         .navigationDestination(for: Player.self) { p in
             PlayerDetailView(player: p)
