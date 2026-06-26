@@ -28,6 +28,11 @@ struct NewsRow: View {
                     Text("·")
                 }
                 Text(item.relativeDate)
+                if item.isMultiSource, let n = item.sourceCount {
+                    Text("·")
+                    Text("covered by \(n) sources")
+                        .foregroundStyle(.tertiary)
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
