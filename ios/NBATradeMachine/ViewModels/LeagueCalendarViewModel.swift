@@ -7,6 +7,9 @@ import Combine
 final class LeagueCalendarViewModel: ObservableObject {
     @Published var calendar: LeagueCalendar?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load() async {
         guard calendar == nil else { return }
         await reload()
@@ -14,7 +17,7 @@ final class LeagueCalendarViewModel: ObservableObject {
 
     func reload() async {
         // Keep last-known-good on a failed/missing fetch (foreground-refresh blip).
-        if let c = try? await FirestoreService.shared.fetchLeagueCalendar() {
+        if let c = try? await service.fetchLeagueCalendar() {
             calendar = c
         }
     }

@@ -10,6 +10,9 @@ final class NewsFeedViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load() async {
         guard items.isEmpty else { return }
         await reload()
@@ -19,7 +22,7 @@ final class NewsFeedViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            items = try await FirestoreService.shared.fetchLeagueNews(limit: 30)
+            items = try await service.fetchLeagueNews(limit: 30)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

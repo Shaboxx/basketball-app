@@ -8,6 +8,9 @@ final class TeamsViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load() async {
         guard teams.isEmpty else { return }
         await reload()
@@ -17,8 +20,8 @@ final class TeamsViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            async let teamsTask = FirestoreService.shared.fetchTeams()
-            async let playersTask = FirestoreService.shared.fetchPlayers()
+            async let teamsTask = service.fetchTeams()
+            async let playersTask = service.fetchPlayers()
             let (teams, players) = try await (teamsTask, playersTask)
             self.teams = teams.sorted { $0.fullName < $1.fullName }
             self.playersByTeamId = Dictionary(grouping: players, by: { $0.teamId })

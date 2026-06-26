@@ -28,6 +28,9 @@ final class PlayersViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load() async {
         guard players.isEmpty else { return }
         await reload()
@@ -37,7 +40,7 @@ final class PlayersViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let p = try await FirestoreService.shared.fetchPlayers()
+            let p = try await service.fetchPlayers()
             self.players = p.sorted { $0.name < $1.name }
         } catch {
             errorMessage = error.localizedDescription

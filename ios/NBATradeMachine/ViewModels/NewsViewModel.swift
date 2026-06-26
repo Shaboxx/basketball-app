@@ -9,9 +9,12 @@ final class NewsViewModel: ObservableObject {
     @Published var items: [NewsItem] = []
     private var loadedSlug: String?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load(for slug: String) async {
         guard loadedSlug != slug else { return }   // skip a redundant refetch of the same player
         loadedSlug = slug
-        items = (try? await FirestoreService.shared.fetchNews(for: slug, limit: 5)) ?? []
+        items = (try? await service.fetchNews(for: slug, limit: 5)) ?? []
     }
 }

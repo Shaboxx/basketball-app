@@ -9,6 +9,9 @@ import Combine
 final class LeagueNormsViewModel: ObservableObject {
     @Published var norms: LeagueNorms?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load(season: String = FirestoreService.fallbackSeason) async {
         guard norms == nil else { return }
         await reload(season: season)
@@ -16,7 +19,7 @@ final class LeagueNormsViewModel: ObservableObject {
 
     func reload(season: String = FirestoreService.fallbackSeason) async {
         // Keep last-known-good on a failed/missing fetch (foreground-refresh blip).
-        if let n = try? await FirestoreService.shared.fetchLeagueNorms(season: season) {
+        if let n = try? await service.fetchLeagueNorms(season: season) {
             norms = n
         }
     }

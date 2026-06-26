@@ -7,6 +7,9 @@ import Combine
 final class DataHealthViewModel: ObservableObject {
     @Published var health: DataHealth?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load() async {
         guard health == nil else { return }
         await reload()
@@ -14,7 +17,7 @@ final class DataHealthViewModel: ObservableObject {
 
     func reload() async {
         // Keep last-known-good on a transient failure (mirrors the other VMs).
-        if let h = try? await FirestoreService.shared.fetchDataHealth() { health = h }
+        if let h = try? await service.fetchDataHealth() { health = h }
     }
 
     struct Feed: Identifiable {

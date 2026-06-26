@@ -7,6 +7,9 @@ final class PicksViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private let service: FirestoreReading
+    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
     func load() async {
         guard picksByTeamId.isEmpty else { return }
         await reload()
@@ -16,7 +19,7 @@ final class PicksViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            picksByTeamId = try await FirestoreService.shared.fetchAllTeamPicks()
+            picksByTeamId = try await service.fetchAllTeamPicks()
         } catch {
             errorMessage = error.localizedDescription
         }
