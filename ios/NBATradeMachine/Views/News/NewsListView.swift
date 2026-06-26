@@ -67,7 +67,12 @@ struct NewsListView: View {
     /// Compact "Hot Right Now" portrait strip — display-only in v1.
     private var hotPlayersStrip: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("🔥 Hot Right Now").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Label {
+                Text("Hot Right Now").foregroundStyle(.secondary)
+            } icon: {
+                Image(systemName: "flame.fill").foregroundStyle(.orange)
+            }
+            .font(.caption.weight(.semibold))
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(vm.hotPlayers) { p in
