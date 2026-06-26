@@ -9,7 +9,9 @@ struct PlayersListView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if vm.isLoading && vm.players.isEmpty {
+                if let err = vm.errorMessage, vm.players.isEmpty {
+                    errorView(err)
+                } else if vm.isLoading && vm.players.isEmpty {
                     ProgressView()
                 } else {
                     List(vm.filtered) { p in
@@ -72,6 +74,19 @@ struct PlayersListView: View {
                 Task { await vm.reload() }
             }
         }
+    }
+
+    @ViewBuilder
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.largeTitle).foregroundStyle(.red)
+            Text("Couldn't load players").font(.headline)
+            Text(message).font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal)
+            Button("Try Again") { Task { await vm.reload() } }
+                .buttonStyle(.borderedProminent)
+        }.padding()
     }
 
     /// One-line value summary appended to the row — picks the channel matching
