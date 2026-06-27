@@ -1,13 +1,24 @@
 import SwiftUI
 
-/// A single news item row: title, source · relative date, optional summary,
-/// wrapped in a Link to the publisher when the URL is valid http(s). Shared by
-/// the per-player NewsSection (SP2) and the league NewsListView (SP3).
+/// A single news item row: title, source · relative date, optional summary.
+/// With comments OFF it wraps the content in an external `Link` to the publisher
+/// (when the URL is valid http(s)); with comments ON it instead pushes the in-app
+/// `NewsDetailView` via `NavigationLink(value: item)`. Shared by the per-player
+/// NewsSection (SP2) and the league NewsListView (SP3).
+///
+/// NOTE: when `AppConfig.commentsEnabled` is turned on, ANY screen that embeds
+/// `NewsRow` under a NavigationStack must also register
+/// `.navigationDestination(for: NewsItem.self) { NewsDetailView(item: $0) }` so
+/// the value-routed link resolves. NewsListView does this; the player-detail
+/// NewsSection would need it too (out of scope for this task — flagged).
 struct NewsRow: View {
     let item: NewsItem
 
     var body: some View {
-        if let url = item.articleURL {
+        if AppConfig.commentsEnabled {
+            NavigationLink(value: item) { content }
+                .buttonStyle(.plain)
+        } else if let url = item.articleURL {
             Link(destination: url) { content }
                 .buttonStyle(.plain)
         } else {

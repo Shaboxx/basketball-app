@@ -48,6 +48,7 @@ struct NewsListView: View {
             }
             .navigationTitle("News")
             .navigationDestination(for: Player.self) { PlayerDetailView(player: $0) }
+            .navigationDestination(for: NewsItem.self) { NewsDetailView(item: $0) }
         }
         .task {
             await vm.load()
