@@ -31,6 +31,14 @@ final class PlayersViewModel: ObservableObject {
     private let service: FirestoreReading
     init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
 
+    /// Bumped whenever `players` is reassigned — part of the `filtered` cache key
+    /// so a roster reload invalidates the memoized result.
+    private var playersVersion = 0
+    /// Memoized `filtered` result + the key it was computed for. Plain (non-@Published)
+    /// so writing the cache from the getter doesn't trigger objectWillChange.
+    private var _filtered: [Player]?
+    private var _filteredKey: String?
+
     func load() async {
         guard players.isEmpty else { return }
         await reload()
@@ -42,6 +50,7 @@ final class PlayersViewModel: ObservableObject {
         do {
             let p = try await service.fetchPlayers()
             self.players = p.sorted { $0.name < $1.name }
+            self.playersVersion += 1
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -52,16 +61,27 @@ final class PlayersViewModel: ObservableObject {
     /// re-sorts per `sortMode`, so order here only sets the default name display.
     func adopt(_ players: [Player]) {
         self.players = players.sorted { $0.name < $1.name }
+        self.playersVersion += 1
         self.isLoading = false
         self.errorMessage = nil
     }
 
+    /// Filter (by search) + sort (by `sortMode`) over the full player set. Memoized
+    /// on (playersVersion, sortMode, query): SwiftUI re-evaluates `body` for reasons
+    /// unrelated to these inputs, and recomputing the filter+sort over the whole
+    /// league each time is wasted work. The cache returns the prior result until one
+    /// of the three inputs actually changes.
     var filtered: [Player] {
         let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let cacheKey = "\(playersVersion)|\(sortMode.rawValue)|\(q)"
+        if _filteredKey == cacheKey, let cached = _filtered { return cached }
         let base: [Player] = q.isEmpty
             ? players
             : players.filter { $0.name.lowercased().contains(q) }
-        return sorted(base)
+        let result = sorted(base)
+        _filtered = result
+        _filteredKey = cacheKey
+        return result
     }
 
     /// Sort sentinel: pick a value missing-σ players will lose to, so they sink

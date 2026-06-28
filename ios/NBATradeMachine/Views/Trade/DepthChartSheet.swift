@@ -31,8 +31,7 @@ struct DepthChartSheet: View {
                     if let team = currentTeam {
                         DepthChartLayersView(
                             columns: TeamDepthChartBuilder.columns(for: roster(for: team), cap: 5),
-                            league: TeamDepthChartBuilder.leagueLayerStats(
-                                rostersByTeam: teamsVM.playersByTeamId),
+                            league: teamsVM.leagueLayerStats,   // cached; rebuilt only on data reload
                             norms: normsVM.norms,
                             roster: roster(for: team)
                         )

@@ -78,8 +78,7 @@ struct TeamDetailView: View {
             NavigationStack {
                 DepthChartLayersView(
                     columns: TeamDepthChartBuilder.columns(for: roster, cap: 5),
-                    league: TeamDepthChartBuilder.leagueLayerStats(
-                        rostersByTeam: teamsVM.playersByTeamId),
+                    league: teamsVM.leagueLayerStats,   // cached; rebuilt only on data reload
                     norms: normsVM.norms,
                     roster: roster
                 )

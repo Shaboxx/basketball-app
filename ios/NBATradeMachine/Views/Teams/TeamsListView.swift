@@ -138,22 +138,20 @@ struct TeamsListView: View {
     /// fall to the bottom on σ-desc sorts via a -inf sentinel.
     private var sortedTeams: [Team] {
         let teams = teamsVM.teams
+        let channel: SortChannel
         switch sortMode {
         case .name:
             return teams.sorted { $0.fullName < $1.fullName }
-        case .totalSigmaDesc:
-            return teams.sorted {
-                sortKey($0, .total) > sortKey($1, .total)
-            }
-        case .offSigmaDesc:
-            return teams.sorted {
-                sortKey($0, .off) > sortKey($1, .off)
-            }
-        case .defSigmaDesc:
-            return teams.sorted {
-                sortKey($0, .def) > sortKey($1, .def)
-            }
+        case .totalSigmaDesc: channel = .total
+        case .offSigmaDesc:   channel = .off
+        case .defSigmaDesc:   channel = .def
         }
+        // Schwartzian: compute each team's sort key ONCE (sortKey loops the roster
+        // via latentValueRollup), then sort by the precomputed key — instead of
+        // recomputing the rollup inside every O(n log n) comparison.
+        return teams.map { ($0, sortKey($0, channel)) }
+                    .sorted { $0.1 > $1.1 }
+                    .map(\.0)
     }
 
     private enum SortChannel { case off, def, total }

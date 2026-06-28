@@ -14,6 +14,21 @@ final class TeamsViewModel: ObservableObject {
     /// slug -> Player index for O(1) cross-tab lookup (rebuilt on each load).
     private var playerBySlug: [String: Player] = [:]
 
+    /// League-wide per-layer depth statistics, computed once per data load. The
+    /// build is O(teams × roster × positions) and the depth-chart sheets call it
+    /// on EVERY render (team page + post-trade sheet), so cache it and invalidate
+    /// only when `dataVersion` advances. The result depends solely on the league
+    /// rosters (`playersByTeamId`), which change only on `reload()`.
+    private var _leagueLayerStats: TeamDepthChartBuilder.LeagueLayerStats?
+    private var _leagueLayerStatsVersion = -1
+    var leagueLayerStats: TeamDepthChartBuilder.LeagueLayerStats {
+        if _leagueLayerStats == nil || _leagueLayerStatsVersion != dataVersion {
+            _leagueLayerStats = TeamDepthChartBuilder.leagueLayerStats(rostersByTeam: playersByTeamId)
+            _leagueLayerStatsVersion = dataVersion
+        }
+        return _leagueLayerStats!
+    }
+
     /// Every rostered player, flattened — the Players tab derives from this instead of
     /// issuing a SECOND whole-collection fetch.
     var allRosteredPlayers: [Player] { playersByTeamId.values.flatMap { $0 } }
