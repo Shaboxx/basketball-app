@@ -35,14 +35,18 @@ enum TradeCompliance {
     // MARK: §4.3 Salary matching
     /// Max incoming aggregate salary the team may absorb, by post-trade tier.
     /// Sources (leagueRules.json::tradeRules.salaryMatching):
-    /// - underCap: room + $250k
+    /// - underCap: room + outgoing + $250k (the outgoing salaries also free cap space)
     /// - overCap/overTax (over cap, under first apron): expanded TPE — larger of
     ///   (200% + $250k, capped at outgoing + $7.936M) and (125% + $250k)
     /// - overFirstApron / overSecondApron: 100% + $0
     static func allowedIncoming(tier: LeagueRules.CapTier, outgoing: Int, capRoom: Int) -> Int {
         switch tier {
         case .underCap:
-            return max(capRoom, 0) + matchBuffer
+            // The team's OUTGOING salaries also free cap space, so it can absorb its
+            // pre-trade room PLUS what it sends out, then the $250k allowance. (The
+            // prior formula counted only pre-trade room and ignored outgoing, so it
+            // wrongly blocked even-money trades for any team at or near the cap.)
+            return max(capRoom, 0) + outgoing + matchBuffer
         case .overCap, .overTax:
             let formula1 = min(2 * outgoing + matchBuffer, outgoing + expandedTPECap)
             let formula2 = (outgoing * 125) / 100 + matchBuffer
