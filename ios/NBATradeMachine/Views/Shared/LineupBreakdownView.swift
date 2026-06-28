@@ -14,6 +14,11 @@ struct LineupBreakdownView: View {
     let impacts: [Double?]
     var tier: String = "starters"
 
+    /// Backend written analysis for this exact five (basic headlines + detail).
+    /// Self-fetching so both call sites stay unchanged; renders nothing until/unless
+    /// a matching `lineupSuggestions` report loads.
+    @StateObject private var analysisVM = LineupAnalysisViewModel()
+
     private var label: LineupLabel? {
         guard let norms else { return nil }
         return LineupLabeler.label(players: players, norms: norms,
@@ -26,13 +31,24 @@ struct LineupBreakdownView: View {
                 if let label, !label.isEmpty {
                     archetypeHeader(label)
                     rosterStrip
+                    analysisSection
                     tagsSection(label)
                     formationsSection(label)
                     capabilitiesSection(label)
                     strengthsSection(label)
                     weaknessesSection(label)
                 } else {
-                    unavailable
+                    // Client-side labeling abstained (norms/features unloaded), but
+                    // the backend analysis is independent — still show who's in the
+                    // lineup and any written analysis that loaded. Only show the
+                    // "unavailable" notice when there's genuinely nothing to show
+                    // (no backend analysis either) — else it contradicts the section
+                    // rendered right above it.
+                    rosterStrip
+                    analysisSection
+                    if analysisVM.report?.basic.isEmpty ?? true {
+                        unavailable
+                    }
                 }
             }
             .padding(16)
@@ -40,6 +56,10 @@ struct LineupBreakdownView: View {
         }
         .navigationTitle("Lineup Breakdown")
         .navigationBarTitleDisplayMode(.inline)
+        // Keyed to the lineup identity: a view reused for a different five refetches.
+        .task(id: LineupSuggestionMatching.lineupId(for: players)) {
+            await analysisVM.load(players: players)
+        }
     }
 
     // MARK: - Header
@@ -49,6 +69,121 @@ struct LineupBreakdownView: View {
             Text("Archetype").font(.caption).foregroundStyle(.secondary)
             Text(label.archetypeLabel)
                 .font(.largeTitle.bold())
+        }
+    }
+
+    // MARK: - Written analysis (backend lineupSuggestions)
+
+    /// The prose layer: always-visible `basic` headlines + an expandable
+    /// per-category `detail` breakdown (grade / tags / explanation). Renders
+    /// nothing until a matching report loads.
+    @ViewBuilder
+    private var analysisSection: some View {
+        if let report = analysisVM.report, !report.basic.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Analysis").font(.headline)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(report.basic.enumerated()), id: \.offset) { _, line in
+                        basicRow(line)
+                    }
+                }
+                if hasDetail(report) {
+                    DisclosureGroup {
+                        detailBody(report).padding(.top, 6)
+                    } label: {
+                        Text("Detailed breakdown").font(.subheadline.weight(.semibold))
+                    }
+                    .tint(.primary)
+                }
+            }
+        }
+    }
+
+    private func basicRow(_ line: SuggestionLine) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle().fill(analysisColor(line.category))
+                .frame(width: 6, height: 6).padding(.top, 6)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.text).font(.subheadline)
+                // Conservative-negative: a low-confidence finding is flagged as
+                // tentative so a thin sample never reads as a hard verdict.
+                if line.confidence == "low" {
+                    Text("tentative — limited sample")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func hasDetail(_ report: LineupSuggestionReport) -> Bool {
+        SuggestionCategory.order.contains { !(report.detail[$0]?.isEmpty ?? true) }
+    }
+
+    private func detailBody(_ report: LineupSuggestionReport) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(SuggestionCategory.order, id: \.self) { cat in
+                let items = report.detail[cat] ?? []
+                if !items.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(SuggestionCategory.title(cat))
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                            detailItem(item)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func detailItem(_ item: SuggestionDetail) -> some View {
+        // Conservative-negative: a low-confidence finding never shows a hard
+        // (e.g. red "Poor") verdict — the grade pill is desaturated to gray and a
+        // "tentative" caption is appended, matching the basic-row treatment.
+        let tentative = item.confidence == "low"
+        return VStack(alignment: .leading, spacing: 4) {
+            FlowLayout(spacing: 6) {
+                if let grade = item.grade {
+                    let color = tentative ? Color.gray : gradeColor(grade)
+                    Text(grade)
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(color.opacity(0.18), in: Capsule())
+                        .foregroundStyle(color)
+                }
+                ForEach(item.tags ?? [], id: \.self) { tag in
+                    Text(tag)
+                        .font(.caption2)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .foregroundStyle(.secondary)
+                        .background(Color(.secondarySystemBackground), in: Capsule())
+                }
+            }
+            if let explanation = item.explanation, !explanation.isEmpty {
+                Text(explanation).font(.footnote).foregroundStyle(.secondary)
+            }
+            if tentative {
+                Text("tentative — limited sample")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func analysisColor(_ category: String) -> Color {
+        switch category {
+        case "offense": return .orange
+        case "defense": return .blue
+        case "structure": return .purple
+        case "tempo": return .teal
+        default: return .gray
+        }
+    }
+
+    private func gradeColor(_ grade: String) -> Color {
+        switch grade.lowercased() {
+        case "elite", "great", "good": return .green
+        case "poor", "bad", "weak": return .red
+        default: return .gray
         }
     }
 

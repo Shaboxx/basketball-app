@@ -7,6 +7,10 @@ struct Player: Codable, Identifiable, Hashable {
     let name: String
     let teamId: String
     let position: String
+    // NBA Stats player id (string), from players.json. Optional — older docs may lack it.
+    // Used to reconstruct the backend lineupId (sorted nbaIds joined by "-") so a lineup
+    // can be matched to its `lineupSuggestions/{teamId}` report.
+    let nbaId: String?
     let heightInches: Int?
     let weightLbs: Int?
     let birthdate: String?       // ISO-8601 "YYYY-MM-DD"
@@ -72,7 +76,7 @@ struct Player: Codable, Identifiable, Hashable {
     // MUST be listed below. A property missing from this enum will silently
     // decode as nil (or fail to encode) without any compile-time warning.
     enum CodingKeys: String, CodingKey {
-        case slug, name, teamId, position
+        case slug, name, teamId, position, nbaId
         case heightInches, weightLbs, birthdate
         case primaryRole, secondaryRole, defensiveRole
         case salaryY1, salaryY2, salaryY3, salaryY4
@@ -130,6 +134,7 @@ extension Player {
         name: String = "Test Player",
         teamId: String = "1610612737",
         position: String = "G",
+        nbaId: String? = nil,
         heightInches: Int? = 78,
         weightLbs: Int? = 210,
         birthdate: String? = nil,
@@ -162,7 +167,7 @@ extension Player {
         rosterValue: RosterValue? = nil
     ) -> Player {
         Player(
-            slug: slug, name: name, teamId: teamId, position: position,
+            slug: slug, name: name, teamId: teamId, position: position, nbaId: nbaId,
             heightInches: heightInches, weightLbs: weightLbs,
             birthdate: birthdate, primaryRole: primaryRole,
             secondaryRole: secondaryRole, defensiveRole: defensiveRole,
