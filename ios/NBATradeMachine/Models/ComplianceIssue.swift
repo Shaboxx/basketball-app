@@ -40,11 +40,19 @@ struct TeamContext {
     /// Future draft years in which the team owns >=1 first-round pick AFTER the
     /// trade (protected picks and swaps count as owned).
     let ownedFirstRoundYears: Set<Int>
+    /// Same, BEFORE the trade — so Stepien only blocks gaps the trade CREATES, not
+    /// pre-existing (often curated-data) gaps that are the team's standing position.
+    let preTradeOwnedFirstRoundYears: Set<Int>
     /// Inclusive range of future draft years to evaluate Stepien gaps over.
     let draftYearHorizon: ClosedRange<Int>
-    /// Dollar ceiling this team can't exceed this scenario (first-apron hard
-    /// cap from an exception/sign-and-trade); nil = not hard-capped. (M2)
+    /// Dollar ceiling this team can't exceed this scenario (apron hard cap from an
+    /// exception/sign-and-trade); nil = not hard-capped. (M2)
     let hardCapLimit: Int?
     /// True if this team is acquiring a player via sign-and-trade this scenario. (M3)
     let acquiringViaSignAndTrade: Bool
+    /// Prior teams of the sign-and-trade players this team is ACQUIRING; each must be
+    /// a participant in the trade. (M3)
+    let signAndTradePriorTeamIds: [String]
+    /// Every team participating in this trade (to check S&T prior-team participation).
+    let tradeTeamIds: Set<String>
 }

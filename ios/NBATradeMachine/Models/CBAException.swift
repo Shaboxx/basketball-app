@@ -1,10 +1,11 @@
 import Foundation
 
 /// CBA salary-cap exception used for a signing. Drives hard-cap derivation.
-/// Hard-cap triggers are sourced from leagueRules.json `exceptions[*].useRestriction`
+/// Hard-cap aprons are sourced from leagueRules.json `exceptions[*].hardCapApron`
 /// and `tradeRules.signAndTrade.acquiringTeamHardCapped` (= "first apron").
-/// NOTE: leagueRules.json hard-caps BOTH MLE tiers at the first apron (the real
-/// 2023 CBA puts the taxpayer MLE at the second apron); we follow the app's data.
+/// The taxpayer MLE hard-caps at the SECOND apron (CBA Art. VII §6(f); leagueRules
+/// corrected 2026-06-13); the non-taxpayer MLE, bi-annual, and sign-and-trade cap
+/// at the FIRST apron.
 enum ExceptionType: String, Codable, Hashable, CaseIterable {
     case capSpace, minimum, birdRights
     case nonTaxpayerMLE, taxpayerMLE, biAnnual, roomMLE
@@ -23,14 +24,17 @@ enum ExceptionType: String, Codable, Hashable, CaseIterable {
         }
     }
 
-    /// Using this exception hard-caps the team at the first apron for the season.
-    var hardCapsAtFirstApron: Bool {
+    /// The apron a team is hard-capped at for the season after using this exception,
+    /// or nil if it triggers no hard cap. Taxpayer MLE binds at the SECOND apron; the
+    /// non-taxpayer MLE / bi-annual / sign-and-trade bind at the FIRST apron.
+    var hardCapApron: HardCapApron? {
         switch self {
-        case .nonTaxpayerMLE, .taxpayerMLE, .biAnnual, .signAndTrade: return true
-        case .capSpace, .minimum, .birdRights, .roomMLE: return false
+        case .taxpayerMLE: return .second
+        case .nonTaxpayerMLE, .biAnnual, .signAndTrade: return .first
+        case .capSpace, .minimum, .birdRights, .roomMLE: return nil
         }
     }
 }
 
-/// Apron a hard cap binds at. Only `.first` is produced in M2/M3.
+/// Apron a hard cap binds at.
 enum HardCapApron: String, Codable, Hashable { case first, second }

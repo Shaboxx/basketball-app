@@ -611,18 +611,16 @@ final class TradeMachineViewModel: ObservableObject {
             let tier = capTier(for: id, in: hyp) ?? .underCap
             let capRoom = (tier == .underCap)
                 ? max(0, TradeCompliance.salaryCapFallback - teamTotalSalary(for: id)) : 0
-            let complianceAllowed = TradeCompliance.allowedIncoming(tier: tier, outgoing: outSum, capRoom: capRoom)
-            // validate() also applies TradeAnalyzer's flat 125%+$250k structural
-            // ceiling and lets it supersede, so the effective allowance is the min.
-            let structuralCap = Int(Double(outSum) * 1.25) + 250_000
-            let allowed = min(complianceAllowed, structuralCap)
+            // Tier-aware matching allowance is the sole salary-matching ceiling (the
+            // old flat 125%+$250k clamp wrongly under-allowed under-cap room and
+            // over-cap expanded-TPE trades — matching legality lives in TradeCompliance).
+            let allowed = TradeCompliance.allowedIncoming(tier: tier, outgoing: outSum, capRoom: capRoom)
             perTeam[id] = .init(allowedIncoming: allowed, actualIncoming: inSum,
                                 actualOutgoing: outSum, rosterCount: postTradeRosterCount(for: id, in: hyp))
         }
-        // Mirror validate()'s structural gate (each team must send AND receive a
-        // player, plus the flat 125%+$250k cap), which SUPERSEDES compliance —
-        // without it the balancer could call a trade "legal" that the Validate
-        // button then rejects, defeating the feature's core guarantee.
+        // Mirror validate()'s remaining STRUCTURAL gate (each team must send AND
+        // receive a player) so the balancer can't call a trade "legal" that the
+        // Validate button then rejects. Salary matching is already covered above.
         let structural = TradeAnalyzer.validate(flows: flows)
         if !structural.isValid { blocks.append(structural.reason) }
         return .init(blockingIssues: blocks, perTeam: perTeam)
@@ -651,8 +649,9 @@ final class TradeMachineViewModel: ObservableObject {
         let issues = complianceIssues()
         let blocks = issues.filter { $0.severity == .block }
 
-        // Keep the existing structural matching from TradeAnalyzer as a baseline
-        // (each team must send and receive); compliance blocks supersede it.
+        // TradeAnalyzer.validate is now ONLY the structural guard (each team must
+        // send AND receive a player); a structural failure short-circuits. Salary
+        // matching + every other CBA rule come from the tier-aware compliance blocks.
         let flows = trade.teams.map {
             TradeAnalyzer.TeamFlow(
                 teamId: $0.teamId,
@@ -702,8 +701,17 @@ final class TradeMachineViewModel: ObservableObject {
 
     private func hardCapLimit(for teamId: String) -> Int? {
         guard let rules = rulesVM?.rules else { return nil }
-        let hardCapped = signedFAs(for: teamId).contains { $0.exceptionUsed.hardCapsAtFirstApron }
-        return hardCapped ? rules.firstApron : nil
+        // Each triggering exception binds at its own apron (taxpayer MLE -> second,
+        // others -> first). With multiple signings the team is bound by the LOWEST
+        // (most restrictive) apron.
+        let limits = signedFAs(for: teamId).compactMap { fa -> Int? in
+            switch fa.exceptionUsed.hardCapApron {
+            case .first: return rules.firstApron
+            case .second: return rules.secondApron
+            case nil: return nil
+            }
+        }
+        return limits.min()
     }
 
     private func teamContext(for team: Team) -> TeamContext { teamContext(for: team, in: trade) }
@@ -726,10 +734,31 @@ final class TradeMachineViewModel: ObservableObject {
             postTradeRosterCount: postCount,
             isOffseason: isOffseason,
             ownedFirstRoundYears: ownedFirstRoundYears(for: id, in: trade),
+            preTradeOwnedFirstRoundYears: preTradeOwnedFirstRoundYears(for: id),
             draftYearHorizon: horizon,
             hardCapLimit: hardCapLimit(for: id),
-            acquiringViaSignAndTrade: acquiringViaSignAndTrade(for: id)
+            acquiringViaSignAndTrade: acquiringViaSignAndTrade(for: id),
+            signAndTradePriorTeamIds: signAndTradePriorTeamIds(for: id),
+            // Both id forms (numeric teamId + tricode) so the S&T prior-team check
+            // matches regardless of which namespace free-agents.json uses for priorTeamId.
+            tradeTeamIds: Set(trade.teams.flatMap { [$0.teamId, $0.tricode] })
         )
+    }
+
+    /// First-round years the team owns BEFORE the trade (curated picks only) — the
+    /// baseline Stepien diffs against so pre-existing data gaps aren't blamed on the trade.
+    private func preTradeOwnedFirstRoundYears(for teamId: String) -> Set<Int> {
+        var countByYear: [Int: Int] = [:]
+        for pick in (picksVM?.picks(for: teamId) ?? []) where pick.round == 1 {
+            countByYear[pick.year, default: 0] += 1
+        }
+        return Set(countByYear.filter { $0.value > 0 }.map(\.key))
+    }
+
+    /// Prior teams of the sign-and-trade players this team is acquiring (each must
+    /// be a participant in the trade).
+    private func signAndTradePriorTeamIds(for teamId: String) -> [String] {
+        signedFAs(for: teamId).filter { $0.isSignAndTrade }.compactMap { $0.priorTeamId }
     }
 
     private func contractLite(_ p: Player) -> ContractLite {

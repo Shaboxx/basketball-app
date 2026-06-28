@@ -2,9 +2,6 @@ import Foundation
 
 enum TradeAnalyzer {
 
-    private static let salaryMatchMultiplier: Double = 1.25
-    private static let salaryMatchBuffer: Int = 250_000
-
     private static let avgHeightByPosition: [String: Double] = [
         "PG": 75.0, "SG": 77.0, "SF": 79.0, "PF": 81.0, "C": 83.0
     ]
@@ -17,6 +14,10 @@ enum TradeAnalyzer {
         let incoming: Int
     }
 
+    /// STRUCTURAL guard only: each team must send AND receive a player. Salary-
+    /// MATCHING legality is tier-aware and lives in `TradeCompliance.salaryMatchIssues`
+    /// — a flat 125%+$250k cap here wrongly blocked legal under-cap room-absorption
+    /// and over-cap expanded-TPE (up to 200%) trades the compliance engine allows.
     static func validate(flows: [TeamFlow]) -> TradeValidation {
         guard !flows.isEmpty else {
             return TradeValidation(isValid: false, reason: "Add teams and players to the trade.")
@@ -26,13 +27,7 @@ enum TradeAnalyzer {
                 return TradeValidation(isValid: false, reason: "\(flow.teamName) must send and receive at least one player.")
             }
         }
-        for flow in flows {
-            let cap = Int(Double(flow.outgoing) * salaryMatchMultiplier) + salaryMatchBuffer
-            if flow.incoming > cap {
-                return TradeValidation(isValid: false, reason: "\(flow.teamName) is taking back too much salary (over 125% + $250k).")
-            }
-        }
-        return TradeValidation(isValid: true, reason: "Salaries match for all teams (within 125% + $250k).")
+        return TradeValidation(isValid: true, reason: "Each team sends and receives a player.")
     }
 
     static func fitWarnings(incoming: [Player], receivingRoster: [Player], teamId: String) -> [PositionFitWarning] {

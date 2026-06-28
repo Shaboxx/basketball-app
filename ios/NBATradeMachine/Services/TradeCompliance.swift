@@ -8,6 +8,8 @@ enum TradeCompliance {
     // Roster (leagueRules.json::rosterRules.standardContractsRequired = "14 or 15")
     static let rosterMax = 15
     static let rosterMin = 14
+    // Offseason/camp roster ceiling (leagueRules.json::rosterRules.offseasonAndCampMax)
+    static let offseasonRosterMax = 21
     // Cash (leagueRules.json::tradeRules.cashLimit.perTeamPerYear)
     static let cashLimitPerTeam = 8_120_000
     // Matching (leagueRules.json::tradeRules.salaryMatching)
@@ -16,18 +18,32 @@ enum TradeCompliance {
 
     // MARK: §4.1 Roster
     static func rosterIssues(_ t: TeamContext) -> [ComplianceIssue] {
-        if t.postTradeRosterCount > rosterMax {
+        let n = t.postTradeRosterCount
+        if t.isOffseason {
+            // Offseason/camp rosters may carry up to 21; landing at 16–21 is legal
+            // now but must be trimmed to the 15-man cap by opening night.
+            if n > offseasonRosterMax {
+                return [ComplianceIssue(
+                    severity: .block, category: .roster, teamId: t.teamId,
+                    message: "\(t.teamName): \(n) players after the trade — over the \(offseasonRosterMax)-man offseason/camp maximum.")]
+            }
+            if n > rosterMax {
+                return [ComplianceIssue(
+                    severity: .warn, category: .roster, teamId: t.teamId,
+                    message: "\(t.teamName): \(n) players after the trade — legal in the offseason, but must reach \(rosterMax) by opening night.")]
+            }
+        } else if n > rosterMax {
             return [ComplianceIssue(
                 severity: .block, category: .roster, teamId: t.teamId,
-                message: "\(t.teamName): \(t.postTradeRosterCount) players after the trade — over the \(rosterMax)-man standard-roster maximum.")]
+                message: "\(t.teamName): \(n) players after the trade — over the \(rosterMax)-man standard-roster maximum.")]
         }
-        if t.postTradeRosterCount < rosterMin {
+        if n < rosterMin {
             let tail = t.isOffseason
                 ? " (legal in the offseason, but must reach \(rosterMin) by opening night)."
                 : "."
             return [ComplianceIssue(
                 severity: .warn, category: .roster, teamId: t.teamId,
-                message: "\(t.teamName): \(t.postTradeRosterCount) players after the trade — below the \(rosterMin)-man minimum\(tail)")]
+                message: "\(t.teamName): \(n) players after the trade — below the \(rosterMin)-man minimum\(tail)")]
         }
         return []
     }
@@ -93,13 +109,19 @@ enum TradeCompliance {
         guard t.postTradeTier == .overSecondApron else { return [] }
         var issues: [ComplianceIssue] = []
 
-        // No aggregation: heuristic — sends >=2 players AND takes back a single
-        // contract larger than its largest single outgoing salary.
-        if t.outgoing.count >= 2, let biggestOut = t.outgoing.map(\.salaryY1).max(),
-           t.incoming.contains(where: { $0.salaryY1 > biggestOut }) {
+        // No aggregation: a second-apron team can only use single-player traded-player
+        // exceptions (100% + $0), so every incoming salary must fit into ONE outgoing
+        // player's slot — i.e. the incoming set must be assignable to the outgoing
+        // players with each outgoing "bucket" summing to <= that player's salary. If no
+        // such assignment exists, absorbing the incoming requires AGGREGATING outgoing
+        // salaries, which is banned. (Only meaningful when sending >=2 players; a single
+        // outgoing can't be aggregated and over-match is already caught by salary matching.)
+        if t.outgoing.count >= 2,
+           !canMatchWithoutAggregation(incoming: t.incoming.map(\.salaryY1),
+                                       outgoing: t.outgoing.map(\.salaryY1)) {
             issues.append(ComplianceIssue(
                 severity: .block, category: .apron, teamId: t.teamId,
-                message: "\(t.teamName): second-apron teams cannot aggregate salaries — combining outgoing contracts to absorb a larger player is not allowed."))
+                message: "\(t.teamName): second-apron teams cannot aggregate salaries — the incoming players can't be matched without combining outgoing contracts."))
         }
         // No cash sent.
         if t.cashSent > 0 {
@@ -114,32 +136,63 @@ enum TradeCompliance {
         return issues
     }
 
+    /// Can `incoming` salaries be absorbed WITHOUT aggregating `outgoing` salaries? —
+    /// assign every incoming to a single outgoing "bucket" so each bucket's total stays
+    /// <= that outgoing player's salary (multiple incoming may share one bucket; no
+    /// incoming may span two). Exact backtracking; trade sizes are tiny.
+    static func canMatchWithoutAggregation(incoming: [Int], outgoing: [Int]) -> Bool {
+        let items = incoming.filter { $0 > 0 }.sorted(by: >)   // largest first prunes fastest
+        if items.isEmpty { return true }
+        if outgoing.isEmpty { return false }
+        var capacity = outgoing
+        func place(_ i: Int) -> Bool {
+            if i == items.count { return true }
+            let item = items[i]
+            var tried = Set<Int>()
+            for b in capacity.indices where capacity[b] >= item && !tried.contains(capacity[b]) {
+                tried.insert(capacity[b])   // symmetry break: skip buckets with identical remaining capacity
+                capacity[b] -= item
+                if place(i + 1) { return true }
+                capacity[b] += item
+            }
+            return false
+        }
+        return place(0)
+    }
+
     // MARK: §4.6 Cash limit
     static func cashIssues(_ t: TeamContext) -> [ComplianceIssue] {
         guard t.cashSent > cashLimitPerTeam else { return [] }
+        // The per-team annual cash limit is a HARD ceiling (2023 CBA Art. VII) — no
+        // exception permits exceeding it, so this is a block, not a warning.
         return [ComplianceIssue(
-            severity: .warn, category: .cash, teamId: t.teamId,
+            severity: .block, category: .cash, teamId: t.teamId,
             message: "\(t.teamName): sending \(dollars(t.cashSent)) — over the \(dollars(cashLimitPerTeam)) per-team season cash limit.")]
     }
 
     // MARK: §4.2 Stepien rule
     static func stepienIssues(_ t: TeamContext) -> [ComplianceIssue] {
-        var run = 0
-        var gapStart = 0
-        for year in t.draftYearHorizon {
-            if t.ownedFirstRoundYears.contains(year) {
-                run = 0
-            } else {
-                if run == 0 { gapStart = year }
-                run += 1
-                if run >= 2 {
-                    return [ComplianceIssue(
-                        severity: .block, category: .stepien, teamId: t.teamId,
-                        message: "\(t.teamName): Stepien rule — no first-round pick in \(gapStart) and \(year). A team can't be without a first-round pick in consecutive drafts.")]
-                }
-            }
+        // Only block a consecutive-draft gap the TRADE CREATES. A team's pre-trade
+        // pick position is CBA-legal by definition (and curated pick data is often
+        // incomplete), so a gap present both before and after — or a pick-less trade
+        // (identical owned sets) — must not block.
+        let before = stepienGapStarts(owned: t.preTradeOwnedFirstRoundYears, horizon: t.draftYearHorizon)
+        let after = stepienGapStarts(owned: t.ownedFirstRoundYears, horizon: t.draftYearHorizon)
+        guard let created = after.subtracting(before).min() else { return [] }
+        return [ComplianceIssue(
+            severity: .block, category: .stepien, teamId: t.teamId,
+            message: "\(t.teamName): Stepien rule — this trade leaves no first-round pick in \(created) and \(created + 1). A team can't be without a first-round pick in consecutive drafts.")]
+    }
+
+    /// Start years of consecutive-draft gaps: each `y` where the team owns NO
+    /// first-rounder in both `y` and `y+1` within the horizon.
+    private static func stepienGapStarts(owned: Set<Int>, horizon: ClosedRange<Int>) -> Set<Int> {
+        guard horizon.lowerBound < horizon.upperBound else { return [] }
+        var starts = Set<Int>()
+        for y in horizon.lowerBound..<horizon.upperBound where !owned.contains(y) && !owned.contains(y + 1) {
+            starts.insert(y)
         }
-        return []
+        return starts
     }
 
     // MARK: §4.5 Max-salary sanity
@@ -168,6 +221,13 @@ enum TradeCompliance {
             issues.append(ComplianceIssue(
                 severity: .block, category: .signAndTrade, teamId: t.teamId,
                 message: "\(t.teamName): teams over the first apron cannot acquire a player via sign-and-trade."))
+        }
+        // The signed player's prior (Bird-rights) team must sign AND simultaneously
+        // trade them — i.e. be a participant in this trade.
+        if t.signAndTradePriorTeamIds.contains(where: { !t.tradeTeamIds.contains($0) }) {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .signAndTrade, teamId: t.teamId,
+                message: "\(t.teamName): a sign-and-trade requires the player's prior team to be a participant in the trade."))
         }
         issues.append(ComplianceIssue(
             severity: .warn, category: .signAndTrade, teamId: t.teamId,

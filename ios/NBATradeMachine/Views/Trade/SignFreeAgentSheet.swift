@@ -264,8 +264,8 @@ struct SignFreeAgentDetail: View {
                                 Text(ex.label).tag(ex)
                             }
                         }
-                        if exceptionUsed.hardCapsAtFirstApron {
-                            Text("Using this hard-caps the team at the first apron for the season.")
+                        if let apron = exceptionUsed.hardCapApron {
+                            Text("Using this hard-caps the team at the \(apron == .second ? "second" : "first") apron for the season.")
                                 .font(.caption2).foregroundStyle(.secondary)
                         }
                     }
