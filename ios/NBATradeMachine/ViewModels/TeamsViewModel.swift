@@ -4,9 +4,19 @@ import Combine
 @MainActor
 final class TeamsViewModel: ObservableObject {
     @Published var teams: [Team] = []
-    @Published var playersByTeamId: [String: [Player]] = [:]
+    @Published var playersByTeamId: [String: [Player]] = [:]   // each roster pre-sorted salary desc
     @Published var isLoading = false
     @Published var errorMessage: String?
+    /// Bumped on each successful load — a cheap signal other tabs can observe to
+    /// re-derive from the shared player set without diffing the whole dictionary.
+    @Published private(set) var dataVersion = 0
+
+    /// slug -> Player index for O(1) cross-tab lookup (rebuilt on each load).
+    private var playerBySlug: [String: Player] = [:]
+
+    /// Every rostered player, flattened — the Players tab derives from this instead of
+    /// issuing a SECOND whole-collection fetch.
+    var allRosteredPlayers: [Player] { playersByTeamId.values.flatMap { $0 } }
 
     private let service: FirestoreReading
     init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
@@ -24,14 +34,19 @@ final class TeamsViewModel: ObservableObject {
             async let playersTask = service.fetchPlayers()
             let (teams, players) = try await (teamsTask, playersTask)
             self.teams = teams.sorted { $0.fullName < $1.fullName }
+            // Sort each roster ONCE here (salary desc) so players(for:) is an O(1) lookup
+            // — it funnels all trade/cap/sort/depth math and was re-sorting on every call.
             self.playersByTeamId = Dictionary(grouping: players, by: { $0.teamId })
+                .mapValues { $0.sorted { $0.currentSalary > $1.currentSalary } }
+            self.playerBySlug = Dictionary(players.map { ($0.slug, $0) }, uniquingKeysWith: { a, _ in a })
+            self.dataVersion += 1
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func players(for teamId: String) -> [Player] {
-        (playersByTeamId[teamId] ?? []).sorted { $0.currentSalary > $1.currentSalary }
+        playersByTeamId[teamId] ?? []   // pre-sorted (salary desc) at load
     }
 
     func totalSalary(for teamId: String) -> Int {
@@ -40,9 +55,8 @@ final class TeamsViewModel: ObservableObject {
 
     /// Resolve a player across all rosters by canonical slug — for cross-tab
     /// navigation (e.g. the News tab's Hot Players strip). Nil if not on a roster.
-    func player(slug: String) -> Player? {
-        playersByTeamId.values.lazy.flatMap { $0 }.first { $0.slug == slug }
-    }
+    /// O(1) via the slug index (was an O(all-players) scan per call).
+    func player(slug: String) -> Player? { playerBySlug[slug] }
 
     /// Flat list of every player across every roster. Used for league-wide
     /// percentile math (value-gap on the profile). Not memoized — the source

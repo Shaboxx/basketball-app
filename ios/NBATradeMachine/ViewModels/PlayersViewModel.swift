@@ -47,6 +47,15 @@ final class PlayersViewModel: ObservableObject {
         }
     }
 
+    /// Seed from an already-loaded roster set (the Players tab shares TeamsViewModel's
+    /// single players fetch instead of re-reading the whole collection). `filtered`
+    /// re-sorts per `sortMode`, so order here only sets the default name display.
+    func adopt(_ players: [Player]) {
+        self.players = players.sorted { $0.name < $1.name }
+        self.isLoading = false
+        self.errorMessage = nil
+    }
+
     var filtered: [Player] {
         let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         let base: [Player] = q.isEmpty

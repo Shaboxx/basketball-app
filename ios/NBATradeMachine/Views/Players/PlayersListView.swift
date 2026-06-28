@@ -3,15 +3,13 @@ import SwiftUI
 struct PlayersListView: View {
     @StateObject private var vm = PlayersViewModel()
     @EnvironmentObject var teamsVM: TeamsViewModel
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var didLoad = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if let err = vm.errorMessage, vm.players.isEmpty {
                     errorView(err)
-                } else if vm.isLoading && vm.players.isEmpty {
+                } else if (vm.isLoading || teamsVM.isLoading) && vm.players.isEmpty {
                     ProgressView()
                 } else {
                     List(vm.filtered) { p in
@@ -41,7 +39,10 @@ struct PlayersListView: View {
                         }
                     }
                     .listStyle(.plain)
-                    .refreshable { await vm.reload() }
+                    .refreshable {
+                        await teamsVM.reload()                  // refresh the shared source
+                        vm.adopt(teamsVM.allRosteredPlayers)
+                    }
                 }
             }
             .navigationTitle("Players")
@@ -65,14 +66,16 @@ struct PlayersListView: View {
                 PlayerDetailView(player: p)
             }
         }
+        // Derive from TeamsViewModel's single shared fetch (no second whole-collection
+        // read). teamsVM.load() is idempotent; adopt once it's available and re-adopt
+        // whenever the shared data reloads (incl. ContentView's throttled foreground
+        // refresh) — so this view no longer needs its own scenePhase handler.
         .task {
-            await vm.load()
-            didLoad = true
+            await teamsVM.load()
+            vm.adopt(teamsVM.allRosteredPlayers)
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active && didLoad {
-                Task { await vm.reload() }
-            }
+        .onChange(of: teamsVM.dataVersion) { _, _ in
+            vm.adopt(teamsVM.allRosteredPlayers)
         }
     }
 
