@@ -14,41 +14,36 @@ struct LineupBreakdownView: View {
     let impacts: [Double?]
     var tier: String = "starters"
 
-    /// Backend written analysis for this exact five (basic headlines + detail).
-    /// Self-fetching so both call sites stay unchanged; renders nothing until/unless
-    /// a matching `lineupSuggestions` report loads.
-    @StateObject private var analysisVM = LineupAnalysisViewModel()
-
     private var label: LineupLabel? {
         guard let norms else { return nil }
         return LineupLabeler.label(players: players, norms: norms,
                                    tier: tier, impacts: impacts)
     }
 
+    /// Written analysis (basic headlines + detail), narrated client-side from the
+    /// already-computed `label` + each player's features. nil when there are no
+    /// features to narrate from.
+    private func report(for label: LineupLabel) -> LineupSuggestionReport? {
+        guard let norms, !label.isEmpty else { return nil }
+        let r = LineupNarrator.narrate(players: players, norms: norms, label: label)
+        return r.basic.isEmpty ? nil : r
+    }
+
     var body: some View {
-        ScrollView {
+        let label = self.label   // compute the label engine once per render
+        return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let label, !label.isEmpty {
                     archetypeHeader(label)
                     rosterStrip
-                    analysisSection
+                    analysisSection(report(for: label))
                     tagsSection(label)
                     formationsSection(label)
                     capabilitiesSection(label)
                     strengthsSection(label)
                     weaknessesSection(label)
                 } else {
-                    // Client-side labeling abstained (norms/features unloaded), but
-                    // the backend analysis is independent — still show who's in the
-                    // lineup and any written analysis that loaded. Only show the
-                    // "unavailable" notice when there's genuinely nothing to show
-                    // (no backend analysis either) — else it contradicts the section
-                    // rendered right above it.
-                    rosterStrip
-                    analysisSection
-                    if analysisVM.report?.basic.isEmpty ?? true {
-                        unavailable
-                    }
+                    unavailable
                 }
             }
             .padding(16)
@@ -56,10 +51,6 @@ struct LineupBreakdownView: View {
         }
         .navigationTitle("Lineup Breakdown")
         .navigationBarTitleDisplayMode(.inline)
-        // Keyed to the lineup identity: a view reused for a different five refetches.
-        .task(id: LineupSuggestionMatching.lineupId(for: players)) {
-            await analysisVM.load(players: players)
-        }
     }
 
     // MARK: - Header
@@ -72,18 +63,18 @@ struct LineupBreakdownView: View {
         }
     }
 
-    // MARK: - Written analysis (backend lineupSuggestions)
+    // MARK: - Written analysis (narrated client-side by LineupNarrator)
 
     /// The prose layer: always-visible `basic` headlines + an expandable
     /// per-category `detail` breakdown (grade / tags / explanation). Renders
-    /// nothing until a matching report loads.
+    /// nothing when there is no narration for this five.
     @ViewBuilder
-    private var analysisSection: some View {
-        if let report = analysisVM.report, !report.basic.isEmpty {
+    private func analysisSection(_ report: LineupSuggestionReport?) -> some View {
+        if let report, !report.basic.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Analysis").font(.headline)
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(report.basic.enumerated()), id: \.offset) { _, line in
+                    ForEach(report.basic, id: \.self) { line in
                         basicRow(line)
                     }
                 }
@@ -127,7 +118,7 @@ struct LineupBreakdownView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(SuggestionCategory.title(cat))
                             .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        ForEach(items, id: \.self) { item in
                             detailItem(item)
                         }
                     }
