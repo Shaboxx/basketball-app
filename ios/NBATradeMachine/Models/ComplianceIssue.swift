@@ -6,6 +6,7 @@ struct ComplianceIssue: Identifiable, Hashable {
     enum Severity: Hashable { case block, warn }
     enum Category: Hashable {
         case roster, stepien, salaryMatch, apron, maxSalary, cash, hardCap, signAndTrade
+        case exceptionEligibility, draftPick, aggregation, waitingPeriod, tpe
     }
     let id = UUID()
     let severity: Severity
@@ -22,6 +23,12 @@ struct ContractLite: Hashable {
     let salaryY1: Int
     let standardMax: Int?
     let nextContractMax: Int?
+    // --- Scaffolded (no data source yet; aggregation-timing/waiting-period checks
+    // stay inert when these are nil). ---
+    /// When this team acquired the player (for the 2-month no-aggregation window). (SG9)
+    var acquiredDate: Date? = nil
+    /// True if this is a minimum-salary contract (for the 3+-aggregation min-rule). (SG10)
+    var isMinimumContract: Bool? = nil
 }
 
 /// Everything `TradeCompliance` needs about one team in a proposed trade.
@@ -55,4 +62,23 @@ struct TeamContext {
     let signAndTradePriorTeamIds: [String]
     /// Every team participating in this trade (to check S&T prior-team participation).
     let tradeTeamIds: Set<String>
+    /// Cap exceptions this team used for signings in this scenario. (SG2/SG4)
+    let signedExceptions: [ExceptionType]
+    /// Contract terms (years) of the sign-and-trade players this team is acquiring. (SG3)
+    let signAndTradeAcquiredYears: [Int]
+    /// Draft years of FIRST-round picks this team is SENDING out in the trade. (SG5)
+    let conveyedFirstRoundYears: [Int]
+    /// Draft years of ALL picks this team is sending out (round 1 + 2). (SG6)
+    let conveyedPickYears: [Int]
+    /// The next upcoming draft year (for the 7-years-out + frozen-pick windows). (SG5/SG6)
+    let currentDraftYear: Int
+    /// Total cash this team RECEIVES across the trade. (SG7)
+    let cashReceived: Int
+    // --- Scaffolded inputs (no data source yet; checks stay inert when absent) ---
+    /// Two-way contract count after the trade (nil = unknown / no data). (SG8)
+    let twoWayCount: Int?
+    /// The scenario "as-of" date, for aggregation-timing + waiting-period windows. (SG9/SG10/SG12)
+    let scenarioDate: Date?
+    /// Standing traded-player exceptions (amounts) carried from prior trades. (SG11)
+    let standingTPEs: [Int]
 }

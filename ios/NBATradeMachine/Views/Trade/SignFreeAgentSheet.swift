@@ -235,7 +235,9 @@ struct SignFreeAgentDetail: View {
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
-                    Stepper("Years: \(years)", value: $years, in: 1...4)
+                    // Sign-and-trade contracts must be 3-4 years (the engine blocks
+                    // otherwise), so constrain the stepper when S&T is on.
+                    Stepper("Years: \(years)", value: $years, in: isSignAndTrade ? 3...4 : 1...4)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Allowed: \(Money.display(hardMin)) – \(Money.display(hardMax))")
                             .font(.caption2).foregroundStyle(.secondary)
@@ -245,6 +247,9 @@ struct SignFreeAgentDetail: View {
                 }
                 Section("Exception") {
                     Toggle("Sign-and-trade", isOn: $isSignAndTrade)
+                        .onChange(of: isSignAndTrade) { _, on in
+                            if on { years = max(years, 3) }   // S&T minimum term
+                        }
                     if isSignAndTrade {
                         if let prior = fa.priorTeamId {
                             HStack {

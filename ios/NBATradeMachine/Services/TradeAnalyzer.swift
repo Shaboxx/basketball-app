@@ -23,11 +23,15 @@ enum TradeAnalyzer {
             return TradeValidation(isValid: false, reason: "Add teams and players to the trade.")
         }
         for flow in flows {
-            if flow.outgoing == 0 || flow.incoming == 0 {
-                return TradeValidation(isValid: false, reason: "\(flow.teamName) must send and receive at least one player.")
+            // Each team must be INVOLVED (move salary in or out). One-way salary flows
+            // are legal — an under-cap / TPE team can absorb a player for a pick or cash
+            // (no outgoing salary), and a team can dump salary for a pick. The receiver's
+            // room and all salary matching are enforced by TradeCompliance.
+            if flow.outgoing == 0 && flow.incoming == 0 {
+                return TradeValidation(isValid: false, reason: "\(flow.teamName) isn't sending or receiving salary in this trade.")
             }
         }
-        return TradeValidation(isValid: true, reason: "Each team sends and receives a player.")
+        return TradeValidation(isValid: true, reason: "Every team is involved in the trade.")
     }
 
     static func fitWarnings(incoming: [Player], receivingRoster: [Player], teamId: String) -> [PositionFitWarning] {

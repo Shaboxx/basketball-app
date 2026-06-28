@@ -741,8 +741,34 @@ final class TradeMachineViewModel: ObservableObject {
             signAndTradePriorTeamIds: signAndTradePriorTeamIds(for: id),
             // Both id forms (numeric teamId + tricode) so the S&T prior-team check
             // matches regardless of which namespace free-agents.json uses for priorTeamId.
-            tradeTeamIds: Set(trade.teams.flatMap { [$0.teamId, $0.tricode] })
+            tradeTeamIds: Set(trade.teams.flatMap { [$0.teamId, $0.tricode] }),
+            signedExceptions: signedFAs(for: id).map(\.exceptionUsed),
+            signAndTradeAcquiredYears: signedFAs(for: id).filter { $0.isSignAndTrade }.map(\.years),
+            // SG5 freezes only the team's OWN far-future first-rounder, so filter by
+            // pick origin (numeric id or tricode — robust to the pick data's namespace).
+            // An acquired pick at the same year is freely tradeable.
+            conveyedFirstRoundYears: trade.picksOutgoing(from: id)
+                .filter { $0.pick.round == 1 && ($0.pick.originatingTeamId == id || $0.pick.originatingTeamId == team.tricode) }
+                .map { $0.pick.year },
+            conveyedPickYears: trade.picksOutgoing(from: id).map { $0.pick.year },
+            // The next upcoming draft, approximated by the earliest first-round pick year
+            // in the (future-only) curated data. (Anchoring to a league-calendar draft
+            // year would be more robust; the data is future-only today so this is safe.)
+            currentDraftYear: draftYearHorizon().lowerBound,
+            cashReceived: cashReceived(for: id, in: trade),
+            // Scaffolded inputs — no data source yet, so the dependent checks stay inert.
+            twoWayCount: nil,
+            scenarioDate: nil,
+            standingTPEs: []
         )
+    }
+
+    /// Cash this team RECEIVES in the trade. Only a 2-team trade has an unambiguous
+    /// recipient (the model carries no cash destination), so 3+-team trades return 0
+    /// until cash routing is modeled (SG7's remaining piece).
+    private func cashReceived(for teamId: String, in trade: Trade) -> Int {
+        let others = trade.teams.filter { $0.teamId != teamId }
+        return others.count == 1 ? (trade.cashSent[others[0].teamId] ?? 0) : 0
     }
 
     /// First-round years the team owns BEFORE the trade (curated picks only) — the

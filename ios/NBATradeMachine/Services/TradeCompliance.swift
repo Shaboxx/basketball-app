@@ -73,7 +73,12 @@ enum TradeCompliance {
     }
 
     static func salaryMatchIssues(_ t: TeamContext) -> [ComplianceIssue] {
-        guard !t.outgoing.isEmpty, !t.incoming.isEmpty else { return [] }
+        // Only the RECEIVING side needs matching. A team with no incoming has nothing
+        // to match (it's dumping salary). A one-way receiver (no outgoing) is matched
+        // against its cap room (under-cap) or 100%/TPE band — outSum=0 falls through
+        // allowedIncoming correctly (under-cap -> room+$250k; over-cap -> $250k, i.e. it
+        // can't absorb a real contract without a traded-player exception).
+        guard !t.incoming.isEmpty else { return [] }
         let outSum = t.outgoing.reduce(0) { $0 + $1.salaryY1 }
         let inSum = t.incoming.reduce(0) { $0 + $1.salaryY1 }
         let allowed = allowedIncoming(tier: t.postTradeTier, outgoing: outSum,
@@ -162,12 +167,112 @@ enum TradeCompliance {
 
     // MARK: §4.6 Cash limit
     static func cashIssues(_ t: TeamContext) -> [ComplianceIssue] {
-        guard t.cashSent > cashLimitPerTeam else { return [] }
-        // The per-team annual cash limit is a HARD ceiling (2023 CBA Art. VII) — no
-        // exception permits exceeding it, so this is a block, not a warning.
+        // The per-team annual cash limit is a HARD ceiling (2023 CBA Art. VII), tracked
+        // separately for cash SENT and RECEIVED (not netted) — no exception permits
+        // exceeding it on either side, so these are blocks.
+        var issues: [ComplianceIssue] = []
+        if t.cashSent > cashLimitPerTeam {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .cash, teamId: t.teamId,
+                message: "\(t.teamName): sending \(dollars(t.cashSent)) — over the \(dollars(cashLimitPerTeam)) per-team season cash limit."))
+        }
+        // SG7: receiving over the limit is equally illegal (a 3+-team trade can route
+        // cash from several senders to one team).
+        if t.cashReceived > cashLimitPerTeam {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .cash, teamId: t.teamId,
+                message: "\(t.teamName): receiving \(dollars(t.cashReceived)) — over the \(dollars(cashLimitPerTeam)) per-team season cash limit."))
+        }
+        return issues
+    }
+
+    // SG2 (exception eligibility by apron) is ENFORCED by hardCapIssues: using an
+    // NTMLE/BAE hard-caps the team at the first apron and the taxpayer MLE at the second,
+    // so an over-apron team using an ineligible exception already trips the hard cap
+    // (strict-over, no at-apron false-positive). A separate eligibility block was
+    // redundant with it and fired one dollar early at exactly the apron, so it was
+    // removed. (A clearer per-exception message + UI Picker filtering by tier is a
+    // deferred UI improvement — `signedExceptions` is carried for that.)
+
+    // MARK: §4.2b Draft-pick trade limits (SG5/SG6)
+    static let pickTradeHorizonYears = 7
+    static func draftPickIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        var issues: [ComplianceIssue] = []
+        let maxYear = t.currentDraftYear + pickTradeHorizonYears
+        // SG6: only picks within 7 drafts of the next draft may be traded.
+        for y in Set(t.conveyedPickYears).sorted() where y > maxYear {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .draftPick, teamId: t.teamId,
+                message: "\(t.teamName): can't trade a \(y) pick — only picks through \(maxYear) (7 drafts out) may be traded."))
+        }
+        // SG5: a second-apron team's first-round pick 7 drafts out is frozen (untradeable).
+        if t.postTradeTier == .overSecondApron, t.conveyedFirstRoundYears.contains(maxYear) {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .draftPick, teamId: t.teamId,
+                message: "\(t.teamName): second-apron teams can't trade their \(maxYear) first-round pick — it's frozen."))
+        }
+        return issues
+    }
+
+    // MARK: scaffolded checks (inert until a data source populates the inputs)
+    static let twoWayMax = 3   // leagueRules.json::rosterRules.twoWayContractsAllowed
+
+    /// SG8 — two-way contract count. Inert when `twoWayCount` is nil (no data).
+    static func twoWayIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard let n = t.twoWayCount, n > twoWayMax else { return [] }
         return [ComplianceIssue(
-            severity: .block, category: .cash, teamId: t.teamId,
-            message: "\(t.teamName): sending \(dollars(t.cashSent)) — over the \(dollars(cashLimitPerTeam)) per-team season cash limit.")]
+            severity: .block, category: .roster, teamId: t.teamId,
+            message: "\(t.teamName): \(n) two-way contracts after the trade — over the \(twoWayMax) allowed.")]
+    }
+
+    /// SG9/SG10 — aggregation timing. Inert without a scenario date / acquisition dates.
+    static func aggregationTimingIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard let asOf = t.scenarioDate, t.outgoing.count >= 2 else { return [] }
+        var issues: [ComplianceIssue] = []
+        // SG9: a player acquired < 2 months ago can't be aggregated with others.
+        for c in t.outgoing {
+            if let acq = c.acquiredDate, daysBetween(acq, asOf) < 60 {
+                issues.append(ComplianceIssue(
+                    severity: .block, category: .aggregation, teamId: t.teamId,
+                    message: "\(t.teamName): \(c.name) was acquired less than 2 months ago and can't be aggregated in a trade yet."))
+            }
+        }
+        // SG10: when aggregating 3+ players, only one may be on a minimum contract.
+        if t.outgoing.count >= 3 {
+            let mins = t.outgoing.filter { $0.isMinimumContract == true }.count
+            if mins > 1 {
+                issues.append(ComplianceIssue(
+                    severity: .block, category: .aggregation, teamId: t.teamId,
+                    message: "\(t.teamName): when aggregating 3+ players, only one may be on a minimum-salary contract (\(mins) here)."))
+            }
+        }
+        return issues
+    }
+
+    /// SG11 — prior-year traded-player exceptions. A second-apron team can't use a TPE
+    /// generated in a prior year. Inert until standing TPEs are modeled (always empty).
+    static func tpeIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard t.postTradeTier == .overSecondApron, !t.standingTPEs.isEmpty,
+              t.outgoing.isEmpty, !t.incoming.isEmpty else { return [] }
+        return [ComplianceIssue(
+            severity: .block, category: .tpe, teamId: t.teamId,
+            message: "\(t.teamName): second-apron teams can't use a traded-player exception generated in a prior year.")]
+    }
+
+    /// SG12 — post-acquisition trade waiting periods. Inert without acquisition/signing
+    /// dates + a scenario date; uses acquiredDate as the proxy for the restriction window.
+    static func waitingPeriodIssues(_ t: TeamContext) -> [ComplianceIssue] {
+        guard let asOf = t.scenarioDate else { return [] }
+        return t.outgoing.compactMap { c in
+            guard let acq = c.acquiredDate, daysBetween(acq, asOf) < 60 else { return nil }
+            return ComplianceIssue(
+                severity: .warn, category: .waitingPeriod, teamId: t.teamId,
+                message: "\(t.teamName): \(c.name) may still be inside a post-acquisition trade-restriction window.")
+        }
+    }
+
+    private static func daysBetween(_ a: Date, _ b: Date) -> Int {
+        Int(b.timeIntervalSince(a) / 86_400)
     }
 
     // MARK: §4.2 Stepien rule
@@ -229,6 +334,20 @@ enum TradeCompliance {
                 severity: .block, category: .signAndTrade, teamId: t.teamId,
                 message: "\(t.teamName): a sign-and-trade requires the player's prior team to be a participant in the trade."))
         }
+        // SG3: a sign-and-trade contract must be 3-4 years.
+        for yrs in t.signAndTradeAcquiredYears where yrs < 3 || yrs > 4 {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .signAndTrade, teamId: t.teamId,
+                message: "\(t.teamName): a sign-and-trade contract must be 3 to 4 years (this one is \(yrs))."))
+        }
+        // SG4: a sign-and-trade can't be combined with the Non-Taxpayer MLE, Room MLE,
+        // or Bi-Annual exception in the same offseason.
+        let stConflicts: Set<ExceptionType> = [.nonTaxpayerMLE, .roomMLE, .biAnnual]
+        if t.signedExceptions.contains(where: { stConflicts.contains($0) }) {
+            issues.append(ComplianceIssue(
+                severity: .block, category: .signAndTrade, teamId: t.teamId,
+                message: "\(t.teamName): a sign-and-trade can't be combined with the Non-Taxpayer MLE, Room MLE, or Bi-Annual exception."))
+        }
         issues.append(ComplianceIssue(
             severity: .warn, category: .signAndTrade, teamId: t.teamId,
             message: "\(t.teamName): sign-and-trade requires a 3-4 year contract with the first year fully guaranteed, signed before opening night, and the prior team must be a trade participant. The acquirer is hard-capped at the first apron."))
@@ -247,6 +366,11 @@ enum TradeCompliance {
             issues += cashIssues(t)
             issues += hardCapIssues(t)
             issues += signAndTradeIssues(t)
+            issues += draftPickIssues(t)              // SG5/SG6
+            issues += twoWayIssues(t)                 // SG8 (scaffold)
+            issues += aggregationTimingIssues(t)      // SG9/SG10 (scaffold)
+            issues += tpeIssues(t)                    // SG11 (scaffold)
+            issues += waitingPeriodIssues(t)          // SG12 (scaffold)
         }
         return issues
     }
