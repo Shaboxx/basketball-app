@@ -12,8 +12,42 @@ final class NewsFeedViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    /// Hot players the user has tapped to filter the feed. Empty -> full feed.
+    @Published private(set) var selectedSlugs: Set<String> = []
+
     private let service: FirestoreReading
     init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+
+    func toggleSelection(_ slug: String) {
+        if selectedSlugs.contains(slug) { selectedSlugs.remove(slug) }
+        else { selectedSlugs.insert(slug) }
+    }
+
+    func isSelected(_ slug: String) -> Bool { selectedSlugs.contains(slug) }
+
+    /// The feed actually rendered: full list when nothing is selected, else only items
+    /// mentioning a selected player, most-relevant first.
+    var displayedItems: [NewsItem] { Self.display(items, selected: selectedSlugs) }
+
+    /// Pure relevance filter. No selection -> input order. Otherwise keep items whose
+    /// playerSlugs intersect `selected`, ordered (overlap desc, hotnessScore desc,
+    /// publishedAt desc).
+    nonisolated static func display(_ items: [NewsItem], selected: Set<String>) -> [NewsItem] {
+        guard !selected.isEmpty else { return items }
+        return items
+            .filter { !selected.isDisjoint(with: $0.playerSlugs) }
+            .sorted { a, b in
+                let oa = selected.intersection(a.playerSlugs).count
+                let ob = selected.intersection(b.playerSlugs).count
+                if oa != ob { return oa > ob }
+                let ha = a.hotnessScore ?? 0, hb = b.hotnessScore ?? 0
+                if ha != hb { return ha > hb }
+                // `publishedAt` is canonical fixed-width UTC ("…Z"), so a lexical
+                // descending compare equals chronological (same assumption as
+                // FirestoreService.filterNews).
+                return a.publishedAt > b.publishedAt
+            }
+    }
 
     func load() async {
         guard items.isEmpty else { return }
