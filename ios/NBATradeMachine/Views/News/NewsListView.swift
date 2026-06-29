@@ -8,9 +8,10 @@ struct NewsListView: View {
     @EnvironmentObject private var teamsVM: TeamsViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLoad = false
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let err = vm.errorMessage, vm.items.isEmpty {
                     errorView(err)
@@ -39,7 +40,12 @@ struct NewsListView: View {
                             .listRowSeparator(.hidden)
                         }
                         Section {
-                            ForEach(vm.items) { NewsRow(item: $0) }
+                            if vm.displayedItems.isEmpty && !vm.selectedSlugs.isEmpty {
+                                Text("No loaded stories mention the selected player\(vm.selectedSlugs.count > 1 ? "s" : "").")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                ForEach(vm.displayedItems) { NewsRow(item: $0) }
+                            }
                         }
                     }
                     .listStyle(.plain)
@@ -77,14 +83,7 @@ struct NewsListView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(vm.hotPlayers) { p in
-                        // Tappable -> player detail when the slug resolves to a
-                        // rostered player; otherwise a plain (display-only) cell.
-                        if let player = teamsVM.player(slug: p.slug) {
-                            NavigationLink(value: player) { hotPlayerCell(p) }
-                                .buttonStyle(.plain)
-                        } else {
-                            hotPlayerCell(p)
-                        }
+                        hotPlayerCell(p)
                     }
                 }
                 .padding(.vertical, 4)
@@ -93,11 +92,35 @@ struct NewsListView: View {
         .padding(.horizontal)
     }
 
+    /// Single-tap toggles the feed filter (an accent ring shows selection); double-tap
+    /// opens the player's profile when the slug resolves to a rostered player, else falls
+    /// back to toggling the filter (so a double-tap is never a dead-end).
     private func hotPlayerCell(_ p: HotPlayer) -> some View {
-        VStack(spacing: 4) {
-            HeadshotImage(slug: p.slug, size: 56).clipShape(Circle())
+        let selected = vm.isSelected(p.slug)
+        let player = teamsVM.player(slug: p.slug)
+        return VStack(spacing: 4) {
+            HeadshotImage(slug: p.slug, size: 56)
+                .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: selected ? 3 : 0))
             Text(p.name).font(.caption2).lineLimit(1)
                 .frame(maxWidth: 64)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            if let player { path.append(player) } else { vm.toggleSelection(p.slug) }
+        }
+        .onTapGesture(count: 1) {
+            vm.toggleSelection(p.slug)
+        }
+        // VoiceOver: a button whose primary action toggles the news filter (conveyed by
+        // .isSelected); opening the profile is a named rotor action. Restores the
+        // semantics the removed NavigationLink provided.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(p.name)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint("Filters the news feed to this player")
+        .accessibilityAction { vm.toggleSelection(p.slug) }
+        .accessibilityAction(named: "Open profile") {
+            if let player { path.append(player) }
         }
     }
 
