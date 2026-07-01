@@ -87,3 +87,69 @@ nonisolated enum FantasyLeagueSchedule {
         return weeks
     }
 }
+
+/// One category line in a head-to-head matchup.
+nonisolated struct FantasyCategoryLine: Equatable {
+    enum Outcome: Equatable { case home, away, tie }
+    let category: FantasyLeagueCategory
+    let homeZ: Double
+    let awayZ: Double
+    var outcome: Outcome { homeZ > awayZ ? .home : (awayZ > homeZ ? .away : .tie) }
+}
+
+/// The result of scoring ONE matchup. Category formats fill `lines` + the category
+/// tallies; points formats fill `homePoints`/`awayPoints`. `outcome` is the overall
+/// winner (more categories won, or higher points).
+nonisolated struct FantasyMatchupResult: Equatable {
+    enum Outcome: Equatable { case home, away, tie }
+    let home: UUID
+    let away: UUID
+    let isPoints: Bool
+    let lines: [FantasyCategoryLine]        // empty for points formats
+    let homeCategoryWins: Int
+    let awayCategoryWins: Int
+    let categoryTies: Int
+    let homePoints: Double                  // 0 for category formats
+    let awayPoints: Double
+
+    var outcome: Outcome {
+        if isPoints {
+            return homePoints > awayPoints ? .home : (awayPoints > homePoints ? .away : .tie)
+        }
+        return homeCategoryWins > awayCategoryWins ? .home
+             : (awayCategoryWins > homeCategoryWins ? .away : .tie)
+    }
+}
+
+/// Pure per-matchup scoring over already-resolved productions. Category formats compare
+/// each category's summed z (higher wins); points formats compare `pointsPerGame`.
+nonisolated enum FantasyMatchupScoring {
+
+    static func score(home: UUID, away: UUID,
+                      productions: [UUID: FantasyTeamProduction],
+                      format: FantasyFormat) -> FantasyMatchupResult {
+        let hp = productions[home] ?? .zero
+        let ap = productions[away] ?? .zero
+
+        if format.isPoints {
+            return FantasyMatchupResult(
+                home: home, away: away, isPoints: true, lines: [],
+                homeCategoryWins: 0, awayCategoryWins: 0, categoryTies: 0,
+                homePoints: hp.pointsPerGame, awayPoints: ap.pointsPerGame)
+        }
+
+        let lines = FantasyLeagueCategory.categories(for: format).map { c in
+            FantasyCategoryLine(category: c,
+                                homeZ: c.z(in: hp.categoryTotals),
+                                awayZ: c.z(in: ap.categoryTotals))
+        }
+        let hw = lines.filter { $0.outcome == .home }.count
+        let aw = lines.filter { $0.outcome == .away }.count
+        let ties = lines.filter { $0.outcome == .tie }.count
+
+        return FantasyMatchupResult(
+            home: home, away: away, isPoints: false, lines: lines,
+            homeCategoryWins: hw, awayCategoryWins: aw, categoryTies: ties,
+            homePoints: 0, awayPoints: 0)
+    }
+}
