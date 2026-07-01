@@ -3,6 +3,7 @@ import SwiftUI
 struct PlayerDetailView: View {
     let player: Player
     @EnvironmentObject private var normsVM: LeagueNormsViewModel
+    @EnvironmentObject private var appSettings: AppSettings
 
     var body: some View {
         ScrollView {
@@ -28,9 +29,15 @@ struct PlayerDetailView: View {
 
                 RolesSection(player: player)
                 NewsSection(player: player)
-                LatentValueSection(player: player)
-                SalarySection(player: player)
-                ProjectedContractSection(player: player)
+                if AppConfig.fantasyEnabled && appSettings.fantasyModeOn {
+                    FantasyValueSection(player: player)
+                    CategoryBreakdownSection(player: player)
+                    FantasyBoxSection(player: player)
+                } else {
+                    LatentValueSection(player: player)
+                    SalarySection(player: player)
+                    ProjectedContractSection(player: player)
+                }
 
                 AdBanner()   // bottom-of-page banner slot; self-hides when ads are off
             }
