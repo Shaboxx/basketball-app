@@ -232,3 +232,38 @@ nonisolated enum FantasyValueMath {
                              dynastyFactor: fv.dynastyFactor)
     }
 }
+
+/// Pure first-use predicate: prompt for scoring format the first time Fantasy mode is
+/// turned on and the user has never chosen a format. nonisolated → unit-testable.
+nonisolated enum FantasyFirstUse {
+    static func shouldPrompt(modeOn: Bool, hasChosen: Bool) -> Bool { modeOn && !hasChosen }
+}
+
+/// Pure decision for what a fantasy section renders. Three independent triggers over
+/// the top-level `FantasyPhase`, so this stays off the MainActor.
+nonisolated enum FantasyEmptyState {
+    enum Decision: Equatable { case data, collectionEmpty, playerMissing }
+    static func decide(phase: FantasyPhase, value: FantasyValue?) -> Decision {
+        switch phase {
+        case .empty:  return .collectionEmpty            // whole collection unpopulated (pre-launch)
+        case .failed: return .collectionEmpty            // treat fetch failure as "not available yet"
+        default:      return value == nil ? .playerMissing : .data
+        }
+    }
+}
+
+/// Pure category ordering for the breakdown section: the full 9-element `categoryZ`
+/// vector as (label, z) pairs sorted DESCENDING by z (strengths first). Turnovers are
+/// already sign-flipped server-side (positive `to`-z = good) so no special-casing.
+/// The full vector renders regardless of the active format (per-format masking is a
+/// fast-follow). nonisolated → unit-testable.
+nonisolated enum FantasyCategoryOrder {
+    static func ordered(_ cz: FantasyValue.CategoryZ) -> [(label: String, z: Double)] {
+        let pairs: [(label: String, z: Double)] = [
+            ("PTS", cz.pts), ("REB", cz.reb), ("AST", cz.ast),
+            ("STL", cz.stl), ("BLK", cz.blk), ("TO", cz.to),
+            ("3PM", cz.fg3m), ("FG%", cz.fgPct), ("FT%", cz.ftPct),
+        ]
+        return pairs.sorted { $0.z > $1.z }
+    }
+}
