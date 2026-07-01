@@ -153,3 +153,113 @@ nonisolated enum FantasyMatchupScoring {
             homePoints: 0, awayPoints: 0)
     }
 }
+
+/// A standings row: order + the primary metric + the accumulated head-to-head record.
+nonisolated struct FantasyStandingRow: Equatable, Identifiable {
+    let teamId: UUID
+    let rank: Int             // 1-based, after sort
+    let record: FantasyRecord // accumulated W-L-T (+ category tally / points-for)
+    let rotoPoints: Double    // category formats (roto rank-sum); 0 for points
+    let pointsPerGame: Double // points formats (static per-game roster strength); 0 for category
+    var id: UUID { teamId }
+}
+
+/// Accumulated head-to-head record for one team across the whole schedule.
+nonisolated struct FantasyRecord: Equatable {
+    var wins = 0, losses = 0, ties = 0                          // matchup record
+    var categoryWins = 0, categoryLosses = 0, categoryTies = 0  // summed category tally
+    var pointsFor = 0.0                                          // summed points across matchups
+}
+
+nonisolated enum FantasyStandings {
+
+    /// Full standings: score the schedule, accumulate records, compute the metric, and
+    /// sort per the format rule above so the displayed order agrees with the W-L column.
+    static func standings(productions: [UUID: FantasyTeamProduction],
+                          teamIds: [UUID],
+                          schedule: [FantasyScheduleWeek],
+                          format: FantasyFormat) -> [FantasyStandingRow] {
+        let recs = records(schedule: schedule, productions: productions, format: format)
+        let roto = format.isPoints
+            ? [:] : rotoPoints(productions: productions, teamIds: teamIds, format: format)
+
+        func rec(_ id: UUID) -> FantasyRecord { recs[id] ?? .init() }
+        func rotoOf(_ id: UUID) -> Double { roto[id] ?? 0 }
+        func ppg(_ id: UUID) -> Double { (productions[id] ?? .zero).pointsPerGame }
+
+        let sorted = teamIds.sorted { l, r in
+            switch format {
+            case .pointsEspn, .pointsYahoo:
+                let ml = ppg(l), mr = ppg(r)
+                if ml != mr { return ml > mr }
+            case .roto:
+                let ml = rotoOf(l), mr = rotoOf(r)
+                if ml != mr { return ml > mr }
+            case .nineCat, .eightCat:                       // sort BY record (matches W-L column)
+                let rl = rec(l), rr = rec(r)
+                if rl.wins != rr.wins { return rl.wins > rr.wins }
+                let dl = rl.categoryWins - rl.categoryLosses
+                let dr = rr.categoryWins - rr.categoryLosses
+                if dl != dr { return dl > dr }
+                let ml = rotoOf(l), mr = rotoOf(r)
+                if ml != mr { return ml > mr }
+            }
+            return l.uuidString < r.uuidString              // deterministic final tiebreak
+        }
+
+        return sorted.enumerated().map { i, id in
+            FantasyStandingRow(teamId: id, rank: i + 1, record: rec(id),
+                               rotoPoints:   format.isPoints ? 0 : rotoOf(id),
+                               pointsPerGame: format.isPoints ? ppg(id) : 0)
+        }
+    }
+
+    /// Schedule-derived head-to-head record accumulation: score every scheduled matchup
+    /// and tally each team's wins/losses/ties (+ category tally + points-for).
+    static func records(schedule: [FantasyScheduleWeek],
+                        productions: [UUID: FantasyTeamProduction],
+                        format: FantasyFormat) -> [UUID: FantasyRecord] {
+        var out: [UUID: FantasyRecord] = [:]
+        for week in schedule {
+            for p in week.pairings {
+                let r = FantasyMatchupScoring.score(home: p.home, away: p.away,
+                                                    productions: productions, format: format)
+                var h = out[p.home] ?? .init()
+                var a = out[p.away] ?? .init()
+                h.pointsFor += r.homePoints
+                a.pointsFor += r.awayPoints
+                if !format.isPoints {
+                    h.categoryWins += r.homeCategoryWins; h.categoryLosses += r.awayCategoryWins
+                    a.categoryWins += r.awayCategoryWins; a.categoryLosses += r.homeCategoryWins
+                    h.categoryTies += r.categoryTies;     a.categoryTies += r.categoryTies
+                }
+                switch r.outcome {
+                case .home: h.wins += 1;  a.losses += 1
+                case .away: a.wins += 1;  h.losses += 1
+                case .tie:  h.ties += 1;  a.ties += 1
+                }
+                out[p.home] = h; out[p.away] = a
+            }
+        }
+        return out
+    }
+
+    /// Classic roto rank-sum: for each participating category, rank all teams (higher z =
+    /// more roto points; ties share the AVERAGE of the tied ranks) and sum per team.
+    static func rotoPoints(productions: [UUID: FantasyTeamProduction],
+                           teamIds: [UUID],
+                           format: FantasyFormat) -> [UUID: Double] {
+        var out = Dictionary(uniqueKeysWithValues: teamIds.map { ($0, 0.0) })
+        for c in FantasyLeagueCategory.categories(for: format) {
+            let vals = teamIds.map { c.z(in: (productions[$0] ?? .zero).categoryTotals) }
+            for (idx, id) in teamIds.enumerated() {
+                let v = vals[idx]
+                let less  = vals.filter { $0 < v }.count      // teams strictly worse
+                let equal = vals.filter { $0 == v }.count     // teams tied (incl. self)
+                // average of the tied rank block: (1 + less) + (equal - 1)/2
+                out[id, default: 0] += Double(1 + less) + Double(equal - 1) / 2.0
+            }
+        }
+        return out
+    }
+}
