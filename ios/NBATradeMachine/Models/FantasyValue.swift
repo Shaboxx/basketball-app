@@ -218,3 +218,17 @@ nonisolated struct FantasyMeta: Codable, Equatable, Hashable {
         static let zero = PointsReplacement(espn: 0, yahoo: 0)
     }
 }
+
+/// The only client-side fantasy math: the dynasty-adjusted single-player value.
+/// Non-negative value-above-replacement basis × the server-precomputed factor, so
+/// it can never invert ordering. `nonisolated` (mirrors `AdGate`).
+nonisolated enum FantasyValueMath {
+    static func dynastyAdjustedValue(value: Double, replacement: Double, dynastyFactor: Double) -> Double {
+        max(0, value - replacement) * dynastyFactor
+    }
+    static func dynastyAdjustedValue(_ fv: FantasyValue, _ meta: FantasyMeta, format: FantasyFormat) -> Double {
+        dynastyAdjustedValue(value: format.entry(in: fv).value,
+                             replacement: format.replacement(in: meta),
+                             dynastyFactor: fv.dynastyFactor)
+    }
+}
