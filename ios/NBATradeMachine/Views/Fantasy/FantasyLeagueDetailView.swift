@@ -50,15 +50,23 @@ struct FantasyLeagueDetailView: View {
                           uniquingKeysWith: { a, _ in a })
     }
 
-    /// Live is selected but NOT ONE rostered player resolves to a live-season actuals doc
-    /// (preseason / not yet populated). We show an honest note — NOT a silent fallback to
-    /// projected, and NOT all-zero standings.
+    /// Member teams with NO live-season actuals for any rostered player, via the shared
+    /// resolution rules in `FantasyLiveResolution` (canonical slug + season filter — the
+    /// view does not re-derive them). A zero-resolved team's `.zero` production is
+    /// poisonous in raw-rate space (`to = 0` beats every real team's ≤ 0), so live
+    /// standings only compute when this is empty.
+    private var liveUnresolvedTeams: [FantasyTeam] {
+        FantasyLiveResolution.unresolvedTeams(teams: memberTeams,
+                                              actuals: fantasyActualsStore.actualsBySlug,
+                                              season: fantasyActualsStore.season)
+    }
+
+    /// Live is selected but NOT ONE rostered player on ANY team resolves (preseason /
+    /// not yet populated). An honest note — NOT a silent fallback to projected, and
+    /// NOT all-zero standings.
     private var liveNoData: Bool {
         guard appSettings.statSource == .live else { return false }
-        return memberTeams.flatMap(\.playerSlugs)
-            .compactMap { fantasyActualsStore.actuals(for: $0) }
-            .filter { $0.season == fantasyActualsStore.season }
-            .isEmpty
+        return liveUnresolvedTeams.count == memberTeams.count
     }
     private var schedule: [FantasyScheduleWeek] { FantasyLeagueSchedule.roundRobin(teamIds) }
 
@@ -75,19 +83,29 @@ struct FantasyLeagueDetailView: View {
             if memberTeams.count < 2 {
                 Section { guardCard }
             } else if appSettings.statSource == .live {
-                if liveNoData {
-                    Section { liveNoDataCard }
+                if fantasyActualsStore.phase == .idle || fantasyActualsStore.phase == .loading {
+                    Section { loadingRow }
                 } else {
-                    Section { segmentPicker }
-                    if segment == .standings { standingsSections } else { scheduleSections }
+                    switch FantasyEmptyState.decide(phase: fantasyActualsStore.phase,
+                                                    hasData: !liveNoData) {
+                    case .collectionEmpty:
+                        Section { liveUnavailableCard }
+                    case .playerMissing:
+                        Section { liveNoDataCard }
+                    case .data:
+                        if liveUnresolvedTeams.isEmpty {
+                            contentSections
+                        } else {
+                            Section { livePartialCard }
+                        }
+                    }
                 }
             } else {
                 switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: firstResolvedValue) {
                 case .collectionEmpty:
                     Section { Text("Fantasy values not available yet.").foregroundStyle(.secondary) }
                 default:
-                    Section { segmentPicker }
-                    if segment == .standings { standingsSections } else { scheduleSections }
+                    contentSections
                 }
             }
         }
@@ -112,8 +130,31 @@ struct FantasyLeagueDetailView: View {
         }
     }
 
+    /// The shared Standings/Schedule content (one definition — both source branches use it).
+    @ViewBuilder private var contentSections: some View {
+        Section { segmentPicker }
+        if segment == .standings { standingsSections } else { scheduleSections }
+    }
+
+    @ViewBuilder private var loadingRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+            Text("Loading live data…").foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var liveUnavailableCard: some View {
+        Text("Live data isn't available right now (not yet published, or the fetch failed). Projected mode still works — switch in Fantasy Settings.")
+            .foregroundStyle(.secondary)
+    }
+
     @ViewBuilder private var liveNoDataCard: some View {
         Text("No live data yet. Season-to-date scoring appears once these players have played regular-season games. Switch to Projected in Fantasy Settings to see season-long projections now.")
+            .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private var livePartialCard: some View {
+        Text("Live standings need season-to-date data for every team. No rostered player has live data yet on: \(liveUnresolvedTeams.map(\.name).joined(separator: ", ")). Switch to Projected in Fantasy Settings to compare these teams now.")
             .foregroundStyle(.secondary)
     }
 

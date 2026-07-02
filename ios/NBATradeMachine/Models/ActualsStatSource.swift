@@ -57,3 +57,21 @@ nonisolated struct ActualsStatSource: FantasyStatSource {
         return FantasyTeamProduction(categoryTotals: totals, pointsPerGame: ppg)
     }
 }
+
+/// League-level resolution report: which member teams have NO live-season actuals for
+/// any rostered player. Shares ActualsStatSource's exact resolution rules (canonical
+/// slug + season filter) so views never re-derive them. Matters because a zero-resolved
+/// team's `.zero` production is poisonous in raw-rate space — `to = 0` is strictly the
+/// BEST turnover value in the league (everyone else is ≤ 0 after inversion) — so the
+/// standings view blocks live standings until every team resolves at least one player.
+nonisolated enum FantasyLiveResolution {
+    static func unresolvedTeams(teams: [FantasyTeam],
+                                actuals: [String: FantasyActuals],
+                                season: String) -> [FantasyTeam] {
+        teams.filter { team in
+            !team.playerSlugs.contains { slug in
+                actuals[FantasyValueStore.canonicalSlug(slug)]?.season == season
+            }
+        }
+    }
+}

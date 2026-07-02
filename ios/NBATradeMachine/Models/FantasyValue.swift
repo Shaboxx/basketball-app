@@ -244,10 +244,17 @@ nonisolated enum FantasyFirstUse {
 nonisolated enum FantasyEmptyState {
     enum Decision: Equatable { case data, collectionEmpty, playerMissing }
     static func decide(phase: FantasyPhase, value: FantasyValue?) -> Decision {
+        decide(phase: phase, hasData: value != nil)
+    }
+
+    /// Value-type-agnostic variant: the SAME three triggers for any fantasy
+    /// collection (values, actuals), so the live league branch shares this
+    /// seam instead of re-deriving loading/failed/empty logic in a view.
+    static func decide(phase: FantasyPhase, hasData: Bool) -> Decision {
         switch phase {
         case .empty:  return .collectionEmpty            // whole collection unpopulated (pre-launch)
         case .failed: return .collectionEmpty            // treat fetch failure as "not available yet"
-        default:      return value == nil ? .playerMissing : .data
+        default:      return hasData ? .data : .playerMissing
         }
     }
 }
