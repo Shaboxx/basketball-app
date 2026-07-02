@@ -18,6 +18,15 @@ struct FantasySettingsSheet: View {
                     }
                 }
                 Section {
+                    Picker("Source", selection: $appSettings.statSource) {
+                        ForEach(StatSourceMode.allCases) { Text($0.displayName).tag($0) }
+                    }
+                } header: {
+                    Text("Scoring Source")
+                } footer: {
+                    Text("Projected uses season-long projections. Live scores standings on real season-to-date box scores.")
+                }
+                Section {
                     Toggle("Dynasty", isOn: $appSettings.dynastyOn)
                 } footer: {
                     Text("Dynasty weights long-term value by age.")

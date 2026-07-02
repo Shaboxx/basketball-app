@@ -11,6 +11,7 @@ struct FantasyMatchupDetailView: View {
     let productions: [UUID: FantasyTeamProduction]
     let format: FantasyFormat
     let nameFor: (UUID) -> String
+    let isLive: Bool
 
     private var result: FantasyMatchupResult {
         FantasyMatchupScoring.score(home: pairing.home, away: pairing.away,
@@ -33,7 +34,9 @@ struct FantasyMatchupDetailView: View {
                 }
 
                 Section {
-                    Text("Projected — this matchup is the same every time these teams meet until live scoring is available.")
+                    Text(isLive
+                         ? "Live — season-to-date production; totals are static, so the result is the same every meeting."
+                         : "Projected — this matchup is the same every time these teams meet until live scoring is available.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

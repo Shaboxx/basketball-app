@@ -11,6 +11,7 @@ struct FantasyLeagueDetailView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
     @EnvironmentObject var fantasyStore: FantasyValueStore
+    @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
     @EnvironmentObject var appSettings: AppSettings
 
     let leagueId: UUID
@@ -31,13 +32,33 @@ struct FantasyLeagueDetailView: View {
     }
     private var teamIds: [UUID] { memberTeams.map(\.id) }
 
-    /// Resolve each member's production via the SEAM, on MainActor, into a pure map.
-    /// `uniquingKeysWith` is defensive (teamIds are already deduped in §3) — it can never
-    /// trap on a duplicate id.
+    /// The active source, chosen on the GLOBAL toggle. Both conform to `FantasyStatSource`
+    /// and emit `FantasyTeamProduction`, so the engine below is untouched.
+    private var source: FantasyStatSource {
+        switch appSettings.statSource {
+        case .projected:
+            return ProjectedStatSource(values: fantasyStore.values)
+        case .live:
+            return ActualsStatSource(actuals: fantasyActualsStore.actualsBySlug,
+                                     season: fantasyActualsStore.season)
+        }
+    }
+
     private var productions: [UUID: FantasyTeamProduction] {
-        let source = ProjectedStatSource(values: fantasyStore.values)
-        return Dictionary(memberTeams.map { ($0.id, source.production(for: $0, format: format)) },
+        let src = source
+        return Dictionary(memberTeams.map { ($0.id, src.production(for: $0, format: format)) },
                           uniquingKeysWith: { a, _ in a })
+    }
+
+    /// Live is selected but NOT ONE rostered player resolves to a live-season actuals doc
+    /// (preseason / not yet populated). We show an honest note — NOT a silent fallback to
+    /// projected, and NOT all-zero standings.
+    private var liveNoData: Bool {
+        guard appSettings.statSource == .live else { return false }
+        return memberTeams.flatMap(\.playerSlugs)
+            .compactMap { fantasyActualsStore.actuals(for: $0) }
+            .filter { $0.season == fantasyActualsStore.season }
+            .isEmpty
     }
     private var schedule: [FantasyScheduleWeek] { FantasyLeagueSchedule.roundRobin(teamIds) }
 
@@ -53,12 +74,17 @@ struct FantasyLeagueDetailView: View {
 
             if memberTeams.count < 2 {
                 Section { guardCard }
+            } else if appSettings.statSource == .live {
+                if liveNoData {
+                    Section { liveNoDataCard }
+                } else {
+                    Section { segmentPicker }
+                    if segment == .standings { standingsSections } else { scheduleSections }
+                }
             } else {
                 switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: firstResolvedValue) {
                 case .collectionEmpty:
-                    Section {
-                        Text("Fantasy values not available yet.").foregroundStyle(.secondary)
-                    }
+                    Section { Text("Fantasy values not available yet.").foregroundStyle(.secondary) }
                 default:
                     Section { segmentPicker }
                     if segment == .standings { standingsSections } else { scheduleSections }
@@ -69,14 +95,26 @@ struct FantasyLeagueDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedPairing) { p in
             FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
-                                     nameFor: { fantasyTeamStore.team($0)?.name ?? "Team" })
+                                     nameFor: { fantasyTeamStore.team($0)?.name ?? "Team" },
+                                     isLive: appSettings.statSource == .live)
         }
     }
 
     // MARK: pieces
     @ViewBuilder private var banner: some View {
-        Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Live weekly scoring arrives with real game data.")
-            .font(.caption).foregroundStyle(.secondary)
+        switch appSettings.statSource {
+        case .projected:
+            Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Switch to Live in Fantasy Settings for real season-to-date scoring.")
+                .font(.caption).foregroundStyle(.secondary)
+        case .live:
+            Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var liveNoDataCard: some View {
+        Text("No live data yet. Season-to-date scoring appears once these players have played regular-season games. Switch to Projected in Fantasy Settings to see season-long projections now.")
+            .foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var guardCard: some View {
