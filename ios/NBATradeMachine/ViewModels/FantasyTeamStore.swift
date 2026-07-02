@@ -87,6 +87,18 @@ final class FantasyTeamStore: ObservableObject {
         persist()
     }
 
+    /// Replace the whole roster (draft apply): slugs canonicalized + deduped,
+    /// slot choices cleared so auto-fill re-derives the standard divide for the
+    /// new roster.
+    func setRoster(_ slugs: [String], for id: UUID) {
+        guard let i = index(of: id) else { return }
+        var seen = Set<String>()
+        teams[i].playerSlugs = slugs.map(FantasyValueStore.canonicalSlug)
+            .filter { seen.insert($0).inserted }
+        teams[i].slots = [:]
+        persist()
+    }
+
     /// Set the team owner's display name (profanity-gated by callers via
     /// FantasyNameRules; the store trims but stays permissive on content).
     func setOwner(_ owner: String, for id: UUID) {

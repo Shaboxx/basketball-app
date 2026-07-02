@@ -22,6 +22,11 @@ struct FantasyLeagueDetailView: View {
     }
     @State private var segment: Segment = .standings
     @State private var selectedPairing: FantasyMatchupPairing?
+    @State private var showLeagueSettings = false
+    @State private var showDraftRoom = false
+    @State private var confirmResetDraft = false
+    @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
+    @EnvironmentObject var teamsVM: TeamsViewModel
 
     // MARK: Derived (recomputed each render — cheap; the engine is pure)
     private var league: FantasyLeague? { fantasyLeagueStore.league(leagueId) }
@@ -121,6 +126,53 @@ struct FantasyLeagueDetailView: View {
         }
         .navigationTitle(fantasyLeagueStore.league(leagueId)?.name ?? "League")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showLeagueSettings = true
+                    } label: {
+                        Label("League Settings", systemImage: "slider.horizontal.3")
+                    }
+                    Button {
+                        showDraftRoom = true
+                    } label: {
+                        Label("Draft Room", systemImage: "list.number")
+                    }
+                    if fantasyDraftStore.draft(for: leagueId) != nil {
+                        Button(role: .destructive) {
+                            confirmResetDraft = true
+                        } label: {
+                            Label("Reset Draft", systemImage: "trash")
+                        }
+                    }
+                } label: {
+                    Label("Commissioner", systemImage: "person.badge.key")
+                }
+            }
+        }
+        .confirmationDialog("Reset this league's draft? All picks are discarded (applied rosters stay on the teams).",
+                            isPresented: $confirmResetDraft, titleVisibility: .visible) {
+            Button("Reset Draft", role: .destructive) {
+                fantasyDraftStore.resetDraft(leagueId: leagueId)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showLeagueSettings) {
+            FantasyLeagueBuilderView(leagueId: leagueId)
+                .environmentObject(fantasyLeagueStore)
+                .environmentObject(fantasyTeamStore)
+                .environmentObject(fantasyDraftStore)
+        }
+        .sheet(isPresented: $showDraftRoom) {
+            FantasyDraftRoomView(leagueId: leagueId)
+                .environmentObject(fantasyDraftStore)
+                .environmentObject(fantasyTeamStore)
+                .environmentObject(fantasyLeagueStore)
+                .environmentObject(fantasyStore)
+                .environmentObject(teamsVM)
+                .environmentObject(appSettings)
+        }
         .sheet(item: $selectedPairing) { p in
             FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
                                      customCategories: customCats,
