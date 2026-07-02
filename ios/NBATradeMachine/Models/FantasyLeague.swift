@@ -20,21 +20,25 @@ nonisolated struct FantasyLeague: Codable, Identifiable, Hashable {
     var rules: FantasyLeagueRules
     /// Entry stakes (recorded only — payment happens on the linked platform).
     var stakes: FantasyLeagueStakes
+    /// Where the real league lives (This App / ESPN / Yahoo / Fantrax / Other).
+    var host: FantasyLeagueHost
 
     init(id: UUID = UUID(), name: String, teamIds: [UUID] = [],
-         rules: FantasyLeagueRules = .none, stakes: FantasyLeagueStakes = .none) {
+         rules: FantasyLeagueRules = .none, stakes: FantasyLeagueStakes = .none,
+         host: FantasyLeagueHost = .thisApp) {
         self.id = id
         self.name = name
         self.teamIds = teamIds
         self.rules = rules
         self.stakes = stakes
+        self.host = host
     }
 
     /// Forgiving decode: an older/partial local blob (missing `name`/`teamIds`/
     /// `rules`/`stakes`) decodes safely, and any duplicate ids from a hand-edited/
     /// legacy blob are collapsed (first-wins, order-preserving) so downstream
     /// id-keyed maps stay unique.
-    enum CodingKeys: String, CodingKey { case id, name, teamIds, rules, stakes }
+    enum CodingKeys: String, CodingKey { case id, name, teamIds, rules, stakes, host }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -44,5 +48,6 @@ nonisolated struct FantasyLeague: Codable, Identifiable, Hashable {
         teamIds = raw.filter { seen.insert($0).inserted }
         rules = try c.decodeIfPresent(FantasyLeagueRules.self, forKey: .rules) ?? .none
         stakes = try c.decodeIfPresent(FantasyLeagueStakes.self, forKey: .stakes) ?? .none
+        host = try c.decodeIfPresent(FantasyLeagueHost.self, forKey: .host) ?? .thisApp
     }
 }

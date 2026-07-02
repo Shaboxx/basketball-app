@@ -20,6 +20,7 @@ struct FantasyTeamsListView: View {
     @State private var builderTeam: BuilderTarget?
     @State private var renameTarget: FantasyTeam?
     @State private var renameText: String = ""
+    @State private var deleteTarget: FantasyTeam?
 
     /// Identifiable wrapper so `.sheet(item:)` builds the builder once a team exists.
     private struct BuilderTarget: Identifiable {
@@ -126,6 +127,14 @@ struct FantasyTeamsListView: View {
                     .padding(6)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if isIncomplete(team) {
+                Image(systemName: "flag.fill")
+                    .font(.caption2).foregroundStyle(.red)
+                    .padding(6)
+                    .accessibilityLabel("Incomplete team")
+            }
+        }
         .contextMenu {
             Button { fantasyTeamStore.setMyTeam(team.id) } label: {
                 Label("Set as My Team", systemImage: "star")
@@ -134,9 +143,19 @@ struct FantasyTeamsListView: View {
                 renameTarget = team
                 renameText = team.name
             } label: { Label("Rename", systemImage: "pencil") }
-            Button(role: .destructive) { fantasyTeamStore.delete(team.id) } label: {
+            Button(role: .destructive) { deleteTarget = team } label: {
                 Label("Delete", systemImage: "trash")
             }
+        }
+        .confirmationDialog("Are you sure you want to delete the team?",
+                            isPresented: Binding(get: { deleteTarget?.id == team.id },
+                                                 set: { if !$0 { deleteTarget = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete Team", role: .destructive) {
+                if let t = deleteTarget { fantasyTeamStore.delete(t.id) }
+                deleteTarget = nil
+            }
+            Button("Cancel", role: .cancel) { deleteTarget = nil }
         }
     }
 
@@ -160,6 +179,18 @@ struct FantasyTeamsListView: View {
         let seed = standing(team).map { "#\($0)" } ?? "—"
         let grade = gradeLetter(team) ?? "—"
         return "\(seed) · Grade \(grade)"
+    }
+
+    /// Red-flag rule: no league affiliation, or roster short of the lineup size —
+    /// the LEAGUE's roster shape when its rules override it (first-league
+    /// convention, matching standing() and the draft room's rounds).
+    private func isIncomplete(_ team: FantasyTeam) -> Bool {
+        let league = fantasyLeagueStore.leagues.first { $0.teamIds.contains(team.id) }
+        let lineup = (league?.rules.limits ?? appSettings.fantasyRosterLimits).lineup
+        return FantasyTeamCompleteness.isIncomplete(
+            playerCount: team.playerSlugs.count,
+            inAnyLeague: league != nil,
+            lineupLimit: lineup)
     }
 
     /// Names of every OTHER team sharing a league with `teamId` (rename guard).

@@ -15,6 +15,8 @@ struct FantasyTeamDetailView: View {
 
     let teamId: UUID
     @State private var showBuilder = false
+    @State private var confirmDelete = false
+    @Environment(\.dismiss) private var dismiss
 
     private var team: FantasyTeam? { fantasyTeamStore.team(teamId) }
     private var isMyTeam: Bool { fantasyTeamStore.myTeamId == teamId }
@@ -88,7 +90,19 @@ struct FantasyTeamDetailView: View {
                     .buttonStyle(.bordered)
                 }
                 Spacer()
+                Button(role: .destructive) { confirmDelete = true } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
             }
+        }
+        .confirmationDialog("Are you sure you want to delete the team?",
+                            isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete Team", role: .destructive) {
+                fantasyTeamStore.delete(teamId)
+                dismiss()                       // back to the Fantasy Teams grid
+            }
+            Button("Cancel", role: .cancel) {}
         }
     }
 

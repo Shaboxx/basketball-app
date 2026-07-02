@@ -73,10 +73,16 @@ final class FantasyLeagueStore: ObservableObject {
         persist()
     }
 
-    // MARK: League setup (rules + stakes)
+    // MARK: League setup (rules + stakes + host)
     func setRules(_ rules: FantasyLeagueRules, in id: UUID) {
         guard let i = index(of: id) else { return }
         leagues[i].rules = rules
+        persist()
+    }
+
+    func setHost(_ host: FantasyLeagueHost, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].host = host
         persist()
     }
 

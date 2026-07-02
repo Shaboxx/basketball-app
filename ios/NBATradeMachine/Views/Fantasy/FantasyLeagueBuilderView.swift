@@ -8,11 +8,13 @@ import SwiftUI
 struct FantasyLeagueBuilderView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
+    @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
     @Environment(\.dismiss) private var dismiss
 
     let leagueId: UUID
     @State private var name: String = ""
     @State private var nameError: String?
+    @State private var confirmDelete = false
 
     // Scoring draft state
     private enum ScoringChoice: Hashable {
@@ -53,10 +55,13 @@ struct FantasyLeagueBuilderView: View {
         memberIds.compactMap { fantasyTeamStore.team($0)?.name }
     }
 
+    @State private var host: FantasyLeagueHost = .thisApp
+
     var body: some View {
         NavigationStack {
             Form {
                 nameSection
+                hostingSection
                 scoringSection
                 rosterSection
                 playoffsSection
@@ -69,14 +74,20 @@ struct FantasyLeagueBuilderView: View {
             .onAppear(perform: adoptFromStore)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Delete", role: .destructive) {
-                        fantasyLeagueStore.delete(leagueId)
-                        dismiss()
-                    }
+                    Button("Delete", role: .destructive) { confirmDelete = true }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .confirmationDialog("Are you sure you want to delete the league?",
+                                isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete League", role: .destructive) {
+                    fantasyDraftStore.resetDraft(leagueId: leagueId)   // purge its draft blob
+                    fantasyLeagueStore.delete(leagueId)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
             }
         }
     }
@@ -86,6 +97,7 @@ struct FantasyLeagueBuilderView: View {
     private func adoptFromStore() {
         guard let league = fantasyLeagueStore.league(leagueId) else { return }
         name = league.name
+        host = league.host
         if let custom = league.rules.effectiveCustomCategories {
             scoring = .custom
             customCats = Set(custom)
@@ -157,6 +169,32 @@ struct FantasyLeagueBuilderView: View {
             Text("League Name")
         } footer: {
             if let nameError { Text(nameError).foregroundStyle(.red) }
+        }
+    }
+
+    @ViewBuilder private var hostingSection: some View {
+        Section {
+            Picker("Hosted on", selection: $host) {
+                ForEach(FantasyLeagueHost.allCases) { h in
+                    Text(h.displayName).tag(h)
+                }
+            }
+            .onChange(of: host) { _, h in fantasyLeagueStore.setHost(h, in: leagueId) }
+            if host.supportsSync {
+                Button {
+                    // Connector milestone: Yahoo OAuth / ESPN league-ID / Fantrax export.
+                } label: {
+                    Label("Connect & Sync from \(host.displayName)",
+                          systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(true)
+            }
+        } header: {
+            Text("Hosting")
+        } footer: {
+            if host.supportsSync {
+                Text("Sync arrives with the connector milestone (Yahoo: official sign-in; ESPN: league ID or cookie connect; Fantrax: league export). Manual entry works today — syncing will OVERWRITE manually-entered data.")
+            }
         }
     }
 

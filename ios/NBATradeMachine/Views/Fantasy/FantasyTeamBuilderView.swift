@@ -23,6 +23,10 @@ struct FantasyTeamBuilderView: View {
     @State private var owner = ""
     @State private var ownerError: String?
     @State private var logoItem: PhotosPickerItem?
+    /// Bound path so the profile chevron pushes PROGRAMMATICALLY — a row-level
+    /// NavigationLink in a Form draws the system disclosure chevron next to our
+    /// own arrow (the double-arrow squeeze).
+    @State private var navPath = NavigationPath()
 
     init(teamId: UUID, initialName: String) {
         self.teamId = teamId
@@ -74,7 +78,7 @@ struct FantasyTeamBuilderView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             Form {
                 Section {
                     TextField("Team name", text: $name)
@@ -166,12 +170,7 @@ struct FantasyTeamBuilderView: View {
                 PlayerDetailView(player: p)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Delete", role: .destructive) {
-                        fantasyTeamStore.delete(teamId)
-                        dismiss()
-                    }
-                }
+                // Delete lives on the team's MAIN page (with confirmation), not here.
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
@@ -220,9 +219,9 @@ struct FantasyTeamBuilderView: View {
     private func addRow(_ p: Player) -> some View {
         let added = rosterCanonSet.contains(FantasyValueStore.canonicalSlug(p.slug))
         let blocked = !added && rosterFull
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Tap the row (or the check) to TOGGLE: add when absent, remove when
-            // present — no Edit mode needed.
+            // present — no Edit mode needed. The name column owns the free width.
             Button {
                 if added {
                     fantasyTeamStore.removePlayer(p.slug, from: teamId)
@@ -230,16 +229,17 @@ struct FantasyTeamBuilderView: View {
                     fantasyTeamStore.addPlayer(p.slug, to: teamId)
                 }
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     HeadshotImage(slug: p.slug, size: 36)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(p.name).font(.subheadline)
+                        Text(p.name).font(.subheadline).lineLimit(1)
                         Text("\(p.teamId) · \(p.position)").font(.caption).foregroundStyle(.secondary)
                     }
-                    Spacer()
+                    Spacer(minLength: 4)
                     if let fv = fantasyStore.value(for: p.slug) {
                         Text(String(format: "%.1f", appSettings.fantasyFormat.entry(in: fv).value))
                             .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            .layoutPriority(1)
                     }
                     Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
                         .foregroundStyle(added ? .green : (blocked ? .secondary : .accentColor))
@@ -248,12 +248,15 @@ struct FantasyTeamBuilderView: View {
             .buttonStyle(.plain)
             .disabled(blocked)
 
-            // Far-right arrow → the player's page (state-preserving push).
-            NavigationLink(value: p) {
+            // The ONE profile arrow: pushes programmatically (a NavigationLink row
+            // would add the system disclosure chevron — the double-arrow bug).
+            Button {
+                navPath.append(p)
+            } label: {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 36)
+                    .frame(width: 20, height: 36)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

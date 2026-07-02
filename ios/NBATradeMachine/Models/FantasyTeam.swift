@@ -53,3 +53,12 @@ nonisolated struct FantasyTeam: Codable, Identifiable, Hashable {
         return letters.joined().uppercased()
     }
 }
+
+/// A team is INCOMPLETE (red flag on the Teams grid) when it has no league
+/// affiliation or its roster is short of the lineup size — either gap means
+/// it can't field a full scoring lineup in a real league week.
+nonisolated enum FantasyTeamCompleteness {
+    static func isIncomplete(playerCount: Int, inAnyLeague: Bool, lineupLimit: Int) -> Bool {
+        !inAnyLeague || playerCount < lineupLimit
+    }
+}

@@ -8,11 +8,13 @@ import SwiftUI
 struct FantasyLeaguesListView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
+    @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
 
     @State private var path = NavigationPath()
     @State private var builderLeague: BuilderTarget?
     @State private var renameTarget: FantasyLeague?
     @State private var renameText: String = ""
+    @State private var deleteTarget: FantasyLeague?
 
     /// Identifiable wrapper so `.sheet(item:)` builds the builder once a league exists.
     private struct BuilderTarget: Identifiable { let id: UUID }
@@ -42,8 +44,21 @@ struct FantasyLeaguesListView: View {
                             }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
-                                    fantasyLeagueStore.delete(league.id)
+                                    deleteTarget = league
                                 } label: { Label("Delete", systemImage: "trash") }
+                            }
+                            .confirmationDialog("Are you sure you want to delete the league?",
+                                                isPresented: Binding(get: { deleteTarget?.id == league.id },
+                                                                     set: { if !$0 { deleteTarget = nil } }),
+                                                titleVisibility: .visible) {
+                                Button("Delete League", role: .destructive) {
+                                    if let l = deleteTarget {
+                                        fantasyDraftStore.resetDraft(leagueId: l.id)   // purge its draft blob
+                                        fantasyLeagueStore.delete(l.id)
+                                    }
+                                    deleteTarget = nil
+                                }
+                                Button("Cancel", role: .cancel) { deleteTarget = nil }
                             }
                             .swipeActions(edge: .leading) {
                                 Button {
@@ -65,6 +80,7 @@ struct FantasyLeaguesListView: View {
             FantasyLeagueBuilderView(leagueId: target.id)
                 .environmentObject(fantasyLeagueStore)
                 .environmentObject(fantasyTeamStore)
+                .environmentObject(fantasyDraftStore)
         }
         .alert("Rename League", isPresented: renameBinding) {
             TextField("League name", text: $renameText)
