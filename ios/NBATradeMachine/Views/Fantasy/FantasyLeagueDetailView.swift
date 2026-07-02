@@ -24,7 +24,17 @@ struct FantasyLeagueDetailView: View {
     @State private var selectedPairing: FantasyMatchupPairing?
 
     // MARK: Derived (recomputed each render — cheap; the engine is pure)
-    private var format: FantasyFormat { appSettings.fantasyFormat }
+    private var league: FantasyLeague? { fantasyLeagueStore.league(leagueId) }
+
+    /// This league's scoring: its own rules when set, else the app-wide format.
+    private var format: FantasyFormat {
+        league?.rules.effectiveFormat(appDefault: appSettings.fantasyFormat)
+            ?? appSettings.fantasyFormat
+    }
+    /// Custom category mask (custom leagues score H2H over exactly these).
+    private var customCats: [FantasyLeagueCategory]? { league?.rules.effectiveCustomCategories }
+    /// Points-scoring only when the format is a points preset AND no custom mask.
+    private var pointsScoring: Bool { format.isPoints && customCats == nil }
 
     /// Still-existing member teams, in league order (dangling ids skipped — §9).
     private var memberTeams: [FantasyTeam] {
@@ -113,6 +123,7 @@ struct FantasyLeagueDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedPairing) { p in
             FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
+                                     customCategories: customCats,
                                      nameFor: { fantasyTeamStore.team($0)?.name ?? "Team" },
                                      isLive: appSettings.statSource == .live)
         }
@@ -120,14 +131,35 @@ struct FantasyLeagueDetailView: View {
 
     // MARK: pieces
     @ViewBuilder private var banner: some View {
-        switch appSettings.statSource {
-        case .projected:
-            Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Switch to Live in Fantasy Settings for real season-to-date scoring.")
-                .font(.caption).foregroundStyle(.secondary)
-        case .live:
-            Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
-                .font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(rulesSummary).font(.caption.weight(.semibold))
+            switch appSettings.statSource {
+            case .projected:
+                Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Switch to Live in Fantasy Settings for real season-to-date scoring.")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .live:
+                Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
+    }
+
+    /// One-line league setup summary (scoring · rosters · stakes).
+    private var rulesSummary: String {
+        var parts: [String] = []
+        if let customCats {
+            parts.append("Custom (\(customCats.count) cats)")
+        } else {
+            parts.append(format.displayName)
+        }
+        if let limits = league?.rules.limits {
+            parts.append("Rosters \(limits.lineup)/\(limits.bench)/\(limits.ir)")
+        }
+        if let stakes = league?.stakes, stakes.isSet {
+            let amount = stakes.buyIn.map { String(format: "$%.0f", $0) } ?? "Stakes"
+            parts.append(stakes.platform.map { "\(amount) via \($0.displayName)" } ?? amount)
+        }
+        return parts.joined(separator: " · ")
     }
 
     /// The shared Standings/Schedule content (one definition — both source branches use it).
@@ -173,20 +205,21 @@ struct FantasyLeagueDetailView: View {
     // MARK: Standings
     @ViewBuilder private var standingsSections: some View {
         let rows = FantasyStandings.standings(productions: productions, teamIds: teamIds,
-                                              schedule: schedule, format: format)
+                                              schedule: schedule, format: format,
+                                              customCategories: customCats)
         Section("Standings") {
             HStack {
                 Text("#").frame(width: 24, alignment: .leading)
                 Text("Team")
                 Spacer()
                 Text("W-L-T").frame(width: 64, alignment: .trailing)
-                Text(format.isPoints ? "Pts/G" : "Roto").frame(width: 52, alignment: .trailing)
+                Text(pointsScoring ? "Pts/G" : "Roto").frame(width: 52, alignment: .trailing)
             }
             .font(.caption).foregroundStyle(.secondary)
 
             ForEach(rows) { row in standingRow(row) }
         }
-        if format == .roto {
+        if format == .roto && customCats == nil {
             Section {
                 Text("Roto standings sort by category rank-sum. The W-L column is an auxiliary head-to-head read (roto has no native head-to-head).")
                     .font(.caption2).foregroundStyle(.secondary)
@@ -202,11 +235,11 @@ struct FantasyLeagueDetailView: View {
                 Spacer()
                 Text("\(row.record.wins)-\(row.record.losses)-\(row.record.ties)")
                     .font(.subheadline.monospacedDigit()).frame(width: 64, alignment: .trailing)
-                Text(format.isPoints ? String(format: "%.1f", row.pointsPerGame)
-                                     : String(format: "%.1f", row.rotoPoints))
+                Text(pointsScoring ? String(format: "%.1f", row.pointsPerGame)
+                                   : String(format: "%.1f", row.rotoPoints))
                     .font(.subheadline.monospacedDigit()).frame(width: 52, alignment: .trailing)
             }
-            if !format.isPoints {
+            if !pointsScoring {
                 Text("Cats \(row.record.categoryWins)-\(row.record.categoryLosses)")
                     .font(.caption2).foregroundStyle(.secondary)
             }
@@ -230,6 +263,31 @@ struct FantasyLeagueDetailView: View {
                 if let bye = week.bye {
                     Text("Bye: \(fantasyTeamStore.team(bye)?.name ?? "Team")")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        playoffsSection
+    }
+
+    /// Playoff preview: the configured bracket seeded by CURRENT standings (the
+    /// full bracket simulation lands with the commissioner arc).
+    @ViewBuilder private var playoffsSection: some View {
+        if let pt = league?.rules.playoffTeams, pt >= 2 {
+            Section("Playoffs") {
+                let week = league?.rules.playoffStartWeek ?? (schedule.count + 1)
+                Text("Top \(pt) seeds enter the bracket in week \(week).")
+                    .font(.caption).foregroundStyle(.secondary)
+                let rows = FantasyStandings.standings(productions: productions, teamIds: teamIds,
+                                                      schedule: schedule, format: format,
+                                                      customCategories: customCats)
+                ForEach(rows.prefix(pt)) { row in
+                    HStack {
+                        Text("Seed \(row.rank)").font(.caption).foregroundStyle(.secondary)
+                            .frame(width: 60, alignment: .leading)
+                        Text(fantasyTeamStore.team(row.teamId)?.name ?? "Removed team")
+                            .font(.subheadline)
+                        Spacer()
+                    }
                 }
             }
         }

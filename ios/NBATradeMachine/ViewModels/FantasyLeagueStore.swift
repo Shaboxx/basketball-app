@@ -73,6 +73,19 @@ final class FantasyLeagueStore: ObservableObject {
         persist()
     }
 
+    // MARK: League setup (rules + stakes)
+    func setRules(_ rules: FantasyLeagueRules, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].rules = rules
+        persist()
+    }
+
+    func setStakes(_ stakes: FantasyLeagueStakes, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].stakes = stakes
+        persist()
+    }
+
     // MARK: Persistence
     private func index(of id: UUID) -> Int? { leagues.firstIndex { $0.id == id } }
 

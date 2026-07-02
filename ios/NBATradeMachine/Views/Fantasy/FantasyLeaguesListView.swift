@@ -69,10 +69,14 @@ struct FantasyLeaguesListView: View {
         .alert("Rename League", isPresented: renameBinding) {
             TextField("League name", text: $renameText)
             Button("Save") {
-                if let l = renameTarget { fantasyLeagueStore.rename(l.id, to: renameText) }
+                if let l = renameTarget, !FantasyNameRules.readsProfane(renameText) {
+                    fantasyLeagueStore.rename(l.id, to: renameText)
+                }
                 renameTarget = nil
             }
             Button("Cancel", role: .cancel) { renameTarget = nil }
+        } message: {
+            Text("Names with profanity are rejected.")
         }
     }
 

@@ -15,9 +15,10 @@ nonisolated enum FantasySlot: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// User-configurable roster shape (AppSettings-backed). The default is the
-/// standard fantasy divide: 10 lineup · 3 bench · 1 injury-reserve.
-nonisolated struct FantasyRosterLimits: Equatable {
+/// User-configurable roster shape (AppSettings-backed; per-league overrides live
+/// in FantasyLeagueRules). The default is the standard fantasy divide:
+/// 10 lineup · 3 bench · 1 injury-reserve.
+nonisolated struct FantasyRosterLimits: Codable, Equatable, Hashable {
     var lineup: Int
     var bench: Int
     var ir: Int

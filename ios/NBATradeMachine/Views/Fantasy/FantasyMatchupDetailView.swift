@@ -10,12 +10,14 @@ struct FantasyMatchupDetailView: View {
     let pairing: FantasyMatchupPairing
     let productions: [UUID: FantasyTeamProduction]
     let format: FantasyFormat
+    let customCategories: [FantasyLeagueCategory]?
     let nameFor: (UUID) -> String
     let isLive: Bool
 
     private var result: FantasyMatchupResult {
         FantasyMatchupScoring.score(home: pairing.home, away: pairing.away,
-                                    productions: productions, format: format)
+                                    productions: productions, format: format,
+                                    customCategories: customCategories)
     }
     private var homeName: String { nameFor(pairing.home) }
     private var awayName: String { nameFor(pairing.away) }

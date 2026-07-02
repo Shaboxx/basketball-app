@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Build or edit one saved league. Holds only `leagueId` (+ a local name draft); every
-/// edit routes through `FantasyLeagueStore`, and the member list reads the current
-/// `fantasyLeagueStore.league(leagueId)?.teamIds`. Add/remove/reorder member teams;
-/// rename; delete. Mirrors `FantasyTeamBuilderView`.
+/// Build or edit one saved league — the full ESPN/Yahoo-style setup: name,
+/// scoring (presets or a custom category mask), roster shape, playoffs, entry
+/// stakes (recorded + linked out, never processed), and members. Holds only
+/// `leagueId`; every edit routes through `FantasyLeagueStore` (rules/stakes are
+/// written through on change), and the member list reads the live store state.
 struct FantasyLeagueBuilderView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
@@ -11,50 +12,61 @@ struct FantasyLeagueBuilderView: View {
 
     let leagueId: UUID
     @State private var name: String = ""
+    @State private var nameError: String?
+
+    // Scoring draft state
+    private enum ScoringChoice: Hashable {
+        case followApp
+        case preset(FantasyFormat)
+        case custom
+    }
+    @State private var scoring: ScoringChoice = .followApp
+    @State private var customCats: Set<FantasyLeagueCategory> = Set(FantasyLeagueCategory.allCases)
+
+    // Roster draft state
+    @State private var customRoster = false
+    @State private var lineup = FantasyRosterLimits.standard.lineup
+    @State private var bench = FantasyRosterLimits.standard.bench
+    @State private var ir = FantasyRosterLimits.standard.ir
+
+    // Playoffs draft state
+    @State private var playoffsOn = false
+    @State private var playoffTeams = 4
+    @State private var playoffStartWeek = 1
+
+    // Stakes draft state. Buy-in is string-backed: TextField(value:format:)
+    // only commits on submit/focus-loss, and .decimalPad has no return key —
+    // a per-keystroke string binding matches the form's persist-on-change contract.
+    @State private var buyInText = ""
+    @State private var dueBy = ""
+    @State private var platform: FantasyPayPlatform?
+
+    private var buyInValue: Double? {
+        Double(buyInText.replacingOccurrences(of: ",", with: "."))
+    }
 
     init(leagueId: UUID) { self.leagueId = leagueId }
 
     /// The current (persisted) member team ids for this league.
     private var memberIds: [UUID] { fantasyLeagueStore.league(leagueId)?.teamIds ?? [] }
+    private var memberNames: [String] {
+        memberIds.compactMap { fantasyTeamStore.team($0)?.name }
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("League Name") {
-                    TextField("League name", text: $name)
-                        .onChange(of: name) { _, newValue in
-                            fantasyLeagueStore.rename(leagueId, to: newValue)
-                        }
-                }
-
-                Section("Members (\(memberIds.count))") {
-                    if memberIds.isEmpty {
-                        Text("No teams yet — add at least two from below.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(memberIds, id: \.self) { teamId in memberRow(teamId) }
-                            .onMove { source, destination in
-                                fantasyLeagueStore.moveTeam(in: leagueId, from: source, to: destination)
-                            }
-                            .onDelete { offsets in
-                                for teamId in offsets.map({ memberIds[$0] }) {
-                                    fantasyLeagueStore.removeTeam(teamId, from: leagueId)
-                                }
-                            }
-                    }
-                }
-
-                Section("Add Teams") {
-                    if fantasyTeamStore.teams.count < 2 {
-                        Text("Create fantasy teams first (Teams tab), then add at least two here to see standings.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(fantasyTeamStore.teams) { team in addRow(team) }
-                }
+                nameSection
+                scoringSection
+                rosterSection
+                playoffsSection
+                stakesSection
+                membersSection
+                addTeamsSection
             }
             .navigationTitle("Edit League")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { name = fantasyLeagueStore.league(leagueId)?.name ?? "" }
+            .onAppear(perform: adoptFromStore)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Delete", role: .destructive) {
@@ -65,8 +77,224 @@ struct FantasyLeagueBuilderView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) { EditButton() }
             }
+        }
+    }
+
+    // MARK: Draft <-> store sync
+
+    private func adoptFromStore() {
+        guard let league = fantasyLeagueStore.league(leagueId) else { return }
+        name = league.name
+        if let custom = league.rules.effectiveCustomCategories {
+            scoring = .custom
+            customCats = Set(custom)
+        } else if let f = league.rules.format {
+            scoring = .preset(f)
+        } else {
+            scoring = .followApp
+        }
+        if let limits = league.rules.limits {
+            customRoster = true
+            lineup = limits.lineup; bench = limits.bench; ir = limits.ir
+        }
+        if let pt = league.rules.playoffTeams, pt >= 2 {
+            playoffsOn = true
+            playoffTeams = pt
+            playoffStartWeek = league.rules.playoffStartWeek ?? 1
+        }
+        if let b = league.stakes.buyIn {
+            buyInText = b == b.rounded() ? String(Int(b)) : String(b)
+        } else {
+            buyInText = ""
+        }
+        dueBy = league.stakes.dueBy ?? ""
+        platform = league.stakes.platform
+    }
+
+    private func persistRules() {
+        var rules = FantasyLeagueRules.none
+        switch scoring {
+        case .followApp:
+            break
+        case .preset(let f):
+            rules.format = f
+        case .custom:
+            rules.customCategories = FantasyLeagueCategory.allCases.filter(customCats.contains)
+        }
+        if customRoster {
+            rules.limits = FantasyRosterLimits(lineup: lineup, bench: bench, ir: ir)
+        }
+        if playoffsOn {
+            rules.playoffTeams = playoffTeams
+            rules.playoffStartWeek = playoffStartWeek
+        }
+        fantasyLeagueStore.setRules(rules, in: leagueId)
+    }
+
+    private func persistStakes() {
+        fantasyLeagueStore.setStakes(
+            FantasyLeagueStakes(buyIn: buyInValue,
+                                dueBy: dueBy.isEmpty ? nil : dueBy,
+                                platform: platform),
+            in: leagueId)
+    }
+
+    // MARK: Sections
+
+    @ViewBuilder private var nameSection: some View {
+        Section {
+            TextField("League name", text: $name)
+                .onChange(of: name) { _, newValue in
+                    if FantasyNameRules.readsProfane(newValue) {
+                        nameError = "That name isn't allowed."
+                    } else {
+                        nameError = nil
+                        fantasyLeagueStore.rename(leagueId, to: newValue)
+                    }
+                }
+        } header: {
+            Text("League Name")
+        } footer: {
+            if let nameError { Text(nameError).foregroundStyle(.red) }
+        }
+    }
+
+    @ViewBuilder private var scoringSection: some View {
+        Section {
+            Picker("Scoring", selection: $scoring) {
+                Text("Follow App Setting").tag(ScoringChoice.followApp)
+                ForEach(FantasyFormat.allCases) { f in
+                    Text(f.displayName).tag(ScoringChoice.preset(f))
+                }
+                Text("Custom Categories").tag(ScoringChoice.custom)
+            }
+            .onChange(of: scoring) { _, _ in persistRules() }
+            if scoring == .custom {
+                ForEach(FantasyLeagueCategory.allCases, id: \.self) { cat in
+                    Toggle(cat.label, isOn: Binding(
+                        get: { customCats.contains(cat) },
+                        set: { on in
+                            if on { customCats.insert(cat) } else { customCats.remove(cat) }
+                            persistRules()
+                        }))
+                }
+            }
+        } header: {
+            Text("Scoring")
+        } footer: {
+            if scoring == .custom {
+                Text(customCats.isEmpty
+                     ? "Pick at least one category — an empty set falls back to the app format."
+                     : "Custom leagues score head-to-head over the \(customCats.count) selected categor\(customCats.count == 1 ? "y" : "ies").")
+            }
+        }
+    }
+
+    @ViewBuilder private var rosterSection: some View {
+        Section {
+            Toggle("Custom roster sizes", isOn: $customRoster)
+                .onChange(of: customRoster) { _, _ in persistRules() }
+            if customRoster {
+                Stepper("Lineup: \(lineup)", value: $lineup, in: 1...15)
+                    .onChange(of: lineup) { _, _ in persistRules() }
+                Stepper("Bench: \(bench)", value: $bench, in: 0...10)
+                    .onChange(of: bench) { _, _ in persistRules() }
+                Stepper("IR: \(ir)", value: $ir, in: 0...5)
+                    .onChange(of: ir) { _, _ in persistRules() }
+            }
+        } header: {
+            Text("Rosters")
+        } footer: {
+            Text(customRoster
+                 ? "Recorded for this league: \(lineup + bench + ir) players (\(lineup) lineup · \(bench) bench · \(ir) IR). Team building and grading currently use your app-wide limits — full per-league enforcement lands with the commissioner tools."
+                 : "Uses your app-wide roster limits (Fantasy Settings).")
+        }
+    }
+
+    @ViewBuilder private var playoffsSection: some View {
+        Section {
+            Toggle("Playoffs", isOn: $playoffsOn)
+                .onChange(of: playoffsOn) { _, _ in persistRules() }
+            if playoffsOn {
+                Stepper("Playoff teams: \(playoffTeams)",
+                        value: $playoffTeams, in: 2...max(2, max(memberIds.count, 2)))
+                    .onChange(of: playoffTeams) { _, _ in persistRules() }
+                Stepper("Start week: \(playoffStartWeek)",
+                        value: $playoffStartWeek, in: 1...30)
+                    .onChange(of: playoffStartWeek) { _, _ in persistRules() }
+            }
+        } header: {
+            Text("Playoffs")
+        } footer: {
+            if playoffsOn {
+                Text("Top \(playoffTeams) seeds by regular-season standings enter the bracket in week \(playoffStartWeek).")
+            }
+        }
+    }
+
+    @ViewBuilder private var stakesSection: some View {
+        Section {
+            HStack {
+                Text("Buy-in ($)")
+                Spacer()
+                TextField("0", text: $buyInText)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 100)
+                    .onChange(of: buyInText) { _, _ in persistStakes() }
+            }
+            TextField("Due by (e.g. before draft night)", text: $dueBy)
+                .onChange(of: dueBy) { _, _ in persistStakes() }
+            Picker("Platform", selection: $platform) {
+                Text("None").tag(FantasyPayPlatform?.none)
+                ForEach(FantasyPayPlatform.allCases) { p in
+                    Text(p.displayName).tag(FantasyPayPlatform?.some(p))
+                }
+            }
+            .onChange(of: platform) { _, _ in persistStakes() }
+            if let platform {
+                Link(destination: platform.url) {
+                    Label("Open \(platform.displayName)", systemImage: "arrow.up.right.square")
+                }
+            }
+        } header: {
+            Text("Entry Stakes")
+        } footer: {
+            Text("Recorded for your league only — payments happen on the platform you pick, never in this app.")
+        }
+    }
+
+    @ViewBuilder private var membersSection: some View {
+        Section("Members (\(memberIds.count))") {
+            if memberIds.isEmpty {
+                Text("No teams yet — add at least two from below.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(memberIds, id: \.self) { teamId in memberRow(teamId) }
+                    .onMove { source, destination in
+                        fantasyLeagueStore.moveTeam(in: leagueId, from: source, to: destination)
+                    }
+                    .onDelete { offsets in
+                        for teamId in offsets.map({ memberIds[$0] }) {
+                            fantasyLeagueStore.removeTeam(teamId, from: leagueId)
+                        }
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder private var addTeamsSection: some View {
+        Section {
+            if fantasyTeamStore.teams.count < 2 {
+                Text("Create fantasy teams first (Teams tab), then add at least two here to see standings.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(fantasyTeamStore.teams) { team in addRow(team) }
+        } header: {
+            Text("Add Teams")
+        } footer: {
+            Text("Two teams can't share a name in the same league.")
         }
     }
 
@@ -96,21 +324,28 @@ struct FantasyLeagueBuilderView: View {
     @ViewBuilder
     private func addRow(_ team: FantasyTeam) -> some View {
         let added = memberIds.contains(team.id)
+        // Duplicate-name guard: a would-be member whose (normalized) name collides
+        // with an existing member's name can't join until one is renamed.
+        let nameTaken = !added && FantasyNameRules.isDuplicate(team.name, in: memberNames)
         Button {
-            if !added { fantasyLeagueStore.addTeam(team.id, to: leagueId) }
+            if !added && !nameTaken { fantasyLeagueStore.addTeam(team.id, to: leagueId) }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(team.name).font(.subheadline)
-                    Text("\(team.playerSlugs.count) player\(team.playerSlugs.count == 1 ? "" : "s")")
-                        .font(.caption).foregroundStyle(.secondary)
+                    if nameTaken {
+                        Text("Name already used in this league").font(.caption).foregroundStyle(.red)
+                    } else {
+                        Text("\(team.playerSlugs.count) player\(team.playerSlugs.count == 1 ? "" : "s")")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
                 Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
-                    .foregroundStyle(added ? .green : .accentColor)
+                    .foregroundStyle(added ? .green : (nameTaken ? .secondary : .accentColor))
             }
         }
         .buttonStyle(.plain)
-        .disabled(added)
+        .disabled(added || nameTaken)
     }
 }

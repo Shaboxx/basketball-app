@@ -4,7 +4,7 @@ import Foundation
 /// ("PTS","REB","AST","STL","BLK","TO","3PM","FG%","FT%") and an accessor into a
 /// summed `CategoryZ`. Turnovers (`to`) are already sign-flipped server-side
 /// (positive z = good), so EVERY category is "higher z is better" — no special-casing.
-nonisolated enum FantasyLeagueCategory: CaseIterable {
+nonisolated enum FantasyLeagueCategory: String, Codable, CaseIterable {
     case pts, reb, ast, stl, blk, to, fg3m, fgPct, ftPct
 
     var label: String {
@@ -30,6 +30,14 @@ nonisolated enum FantasyLeagueCategory: CaseIterable {
         case .eightCat: return allCases.filter { $0 != .to }
         default:        return allCases
         }
+    }
+
+    /// The active category set: a league's CUSTOM mask when present (canonical
+    /// order, so the UI reads consistently), else the format's preset set.
+    static func active(format: FantasyFormat,
+                       custom: [FantasyLeagueCategory]?) -> [FantasyLeagueCategory] {
+        if let custom, !custom.isEmpty { return allCases.filter(custom.contains) }
+        return categories(for: format)
     }
 }
 
@@ -153,18 +161,21 @@ nonisolated enum FantasyMatchupScoring {
 
     static func score(home: UUID, away: UUID,
                       productions: [UUID: FantasyTeamProduction],
-                      format: FantasyFormat) -> FantasyMatchupResult {
+                      format: FantasyFormat,
+                      customCategories: [FantasyLeagueCategory]? = nil) -> FantasyMatchupResult {
         let hp = productions[home] ?? .zero
         let ap = productions[away] ?? .zero
 
-        if format.isPoints {
+        // A custom category mask forces CATEGORY scoring even under a points
+        // preset — a custom league is definitionally a category league.
+        if format.isPoints && customCategories == nil {
             return FantasyMatchupResult(
                 home: home, away: away, isPoints: true, lines: [],
                 homeCategoryWins: 0, awayCategoryWins: 0, categoryTies: 0,
                 homePoints: hp.pointsPerGame, awayPoints: ap.pointsPerGame)
         }
 
-        let lines = FantasyLeagueCategory.categories(for: format).map { c in
+        let lines = FantasyLeagueCategory.active(format: format, custom: customCategories).map { c in
             FantasyCategoryLine(category: c,
                                 homeZ: c.z(in: hp.categoryTotals),
                                 awayZ: c.z(in: ap.categoryTotals))
@@ -204,24 +215,27 @@ nonisolated enum FantasyStandings {
     static func standings(productions: [UUID: FantasyTeamProduction],
                           teamIds: [UUID],
                           schedule: [FantasyScheduleWeek],
-                          format: FantasyFormat) -> [FantasyStandingRow] {
-        let recs = records(schedule: schedule, productions: productions, format: format)
-        let roto = format.isPoints
-            ? [:] : rotoPoints(productions: productions, teamIds: teamIds, format: format)
+                          format: FantasyFormat,
+                          customCategories: [FantasyLeagueCategory]? = nil) -> [FantasyStandingRow] {
+        let recs = records(schedule: schedule, productions: productions, format: format,
+                           customCategories: customCategories)
+        let isPointsScoring = format.isPoints && customCategories == nil
+        let roto = isPointsScoring
+            ? [:] : rotoPoints(productions: productions, teamIds: teamIds, format: format,
+                               customCategories: customCategories)
 
         func rec(_ id: UUID) -> FantasyRecord { recs[id] ?? .init() }
         func rotoOf(_ id: UUID) -> Double { roto[id] ?? 0 }
         func ppg(_ id: UUID) -> Double { (productions[id] ?? .zero).pointsPerGame }
 
         let sorted = teamIds.sorted { l, r in
-            switch format {
-            case .pointsEspn, .pointsYahoo:
+            if isPointsScoring {
                 let ml = ppg(l), mr = ppg(r)
                 if ml != mr { return ml > mr }
-            case .roto:
+            } else if format == .roto && customCategories == nil {
                 let ml = rotoOf(l), mr = rotoOf(r)
                 if ml != mr { return ml > mr }
-            case .nineCat, .eightCat:                       // sort BY record (matches W-L column)
+            } else {                                        // H2H categories (incl. custom): sort BY record
                 let rl = rec(l), rr = rec(r)
                 if rl.wins != rr.wins { return rl.wins > rr.wins }
                 let dl = rl.categoryWins - rl.categoryLosses
@@ -235,8 +249,8 @@ nonisolated enum FantasyStandings {
 
         return sorted.enumerated().map { i, id in
             FantasyStandingRow(teamId: id, rank: i + 1, record: rec(id),
-                               rotoPoints:   format.isPoints ? 0 : rotoOf(id),
-                               pointsPerGame: format.isPoints ? ppg(id) : 0)
+                               rotoPoints:   isPointsScoring ? 0 : rotoOf(id),
+                               pointsPerGame: isPointsScoring ? ppg(id) : 0)
         }
     }
 
@@ -244,17 +258,19 @@ nonisolated enum FantasyStandings {
     /// and tally each team's wins/losses/ties (+ category tally + points-for).
     static func records(schedule: [FantasyScheduleWeek],
                         productions: [UUID: FantasyTeamProduction],
-                        format: FantasyFormat) -> [UUID: FantasyRecord] {
+                        format: FantasyFormat,
+                        customCategories: [FantasyLeagueCategory]? = nil) -> [UUID: FantasyRecord] {
         var out: [UUID: FantasyRecord] = [:]
         for week in schedule {
             for p in week.pairings {
                 let r = FantasyMatchupScoring.score(home: p.home, away: p.away,
-                                                    productions: productions, format: format)
+                                                    productions: productions, format: format,
+                                                    customCategories: customCategories)
                 var h = out[p.home] ?? .init()
                 var a = out[p.away] ?? .init()
                 h.pointsFor += r.homePoints
                 a.pointsFor += r.awayPoints
-                if !format.isPoints {
+                if !r.isPoints {
                     h.categoryWins += r.homeCategoryWins; h.categoryLosses += r.awayCategoryWins
                     a.categoryWins += r.awayCategoryWins; a.categoryLosses += r.homeCategoryWins
                     h.categoryTies += r.categoryTies;     a.categoryTies += r.categoryTies
@@ -274,9 +290,10 @@ nonisolated enum FantasyStandings {
     /// more roto points; ties share the AVERAGE of the tied ranks) and sum per team.
     static func rotoPoints(productions: [UUID: FantasyTeamProduction],
                            teamIds: [UUID],
-                           format: FantasyFormat) -> [UUID: Double] {
+                           format: FantasyFormat,
+                           customCategories: [FantasyLeagueCategory]? = nil) -> [UUID: Double] {
         var out = Dictionary(uniqueKeysWithValues: teamIds.map { ($0, 0.0) })
-        for c in FantasyLeagueCategory.categories(for: format) {
+        for c in FantasyLeagueCategory.active(format: format, custom: customCategories) {
             let vals = teamIds.map { c.z(in: (productions[$0] ?? .zero).categoryTotals) }
             for (idx, id) in teamIds.enumerated() {
                 let v = vals[idx]
