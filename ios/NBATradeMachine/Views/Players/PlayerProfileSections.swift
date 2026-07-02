@@ -192,11 +192,11 @@ struct LatentValueSection: View {
 
     @ViewBuilder
     private func driftRow(_ lv: LatentValue) -> some View {
-        if let off = lv.driftZOff, let def = lv.driftZDef {
+        if let drift = lv.driftZ {
             HStack {
                 Text("Drift Δσ/yr").foregroundStyle(.secondary)
                 Spacer()
-                Text("OFF \(signed(off, fmt: "%+.2f"))  ·  DEF \(signed(def, fmt: "%+.2f"))")
+                Text(signed(drift, fmt: "%+.2f"))
                     .monospacedDigit().bold()
             }
             .padding(.top, 6)

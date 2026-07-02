@@ -39,11 +39,11 @@ struct LatentValue: Codable, Equatable, Hashable {
     let projection: [Projection]?
     let thetaBySeason: [SeasonPoint]?
 
-    // Trajectory-aging diagnostics — Phase 7 v2 §4.8 (Rev 2).
-    let driftZOff: Double?
-    let driftZDef: Double?
-    let trajectoryMaxZOff: Double?
-    let trajectoryMaxZDef: Double?
+    // Trajectory-aging diagnostics — Phase 7 v2 §4.8 (Rev 2). Fused-total
+    // basis: one drift on the OFF+DEF smoothed path (the per-channel
+    // drift_z_off/def keys were removed from the artifact 2026-07-02).
+    let driftZ: Double?
+    let trajectoryMaxZ: Double?
 
     /// Crafted vs. EPM blend weights (Tier A fusion). Sum to ~1.
     struct Weights: Codable, Equatable, Hashable {
@@ -115,9 +115,7 @@ struct LatentValue: Codable, Equatable, Hashable {
         case seasonConstants = "season_constants"
         case weights, priorWeight, projection
         case thetaBySeason = "theta_by_season"
-        case driftZOff = "drift_z_off"
-        case driftZDef = "drift_z_def"
-        case trajectoryMaxZOff = "trajectory_max_z_off"
-        case trajectoryMaxZDef = "trajectory_max_z_def"
+        case driftZ = "drift_z"
+        case trajectoryMaxZ = "trajectory_max_z"
     }
 }
