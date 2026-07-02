@@ -87,6 +87,21 @@ final class FantasyTeamStore: ObservableObject {
         persist()
     }
 
+    /// Set the team owner's display name (profanity-gated by callers via
+    /// FantasyNameRules; the store trims but stays permissive on content).
+    func setOwner(_ owner: String, for id: UUID) {
+        guard let i = index(of: id) else { return }
+        teams[i].ownerName = owner.trimmingCharacters(in: .whitespacesAndNewlines)
+        persist()
+    }
+
+    /// Point the team at a stored logo file (see FantasyLogoStore).
+    func setLogo(_ fileName: String?, for id: UUID) {
+        guard let i = index(of: id) else { return }
+        teams[i].logoFileName = fileName
+        persist()
+    }
+
     /// Record the user's slot choice for one rostered player. Limit enforcement is
     /// the caller's job (the detail view disables full targets); the resolved view
     /// of slots always goes through `FantasyRosterSlots.effectiveAssignments`.

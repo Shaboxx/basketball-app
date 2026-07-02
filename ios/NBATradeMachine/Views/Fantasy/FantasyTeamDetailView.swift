@@ -10,6 +10,8 @@ struct FantasyTeamDetailView: View {
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
     @EnvironmentObject var todayGamesStore: TodayGamesStore
+    @EnvironmentObject var normsVM: LeagueNormsViewModel
+    @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
 
     let teamId: UUID
     @State private var showBuilder = false
@@ -60,6 +62,8 @@ struct FantasyTeamDetailView: View {
                     .environmentObject(teamsVM)
                     .environmentObject(fantasyStore)
                     .environmentObject(appSettings)
+                    .environmentObject(normsVM)
+                    .environmentObject(fantasyLeagueStore)
             }
         }
     }
