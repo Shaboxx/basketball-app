@@ -84,9 +84,21 @@ struct FantasyMatchupDetailView: View {
         }
     }
 
+    /// Bar value for one category line. Projected productions are z-sums, so their diff
+    /// already lives on CategoryBarRow's ±3σ window. Live productions are RAW per-game
+    /// rates — normalize the diff by the league's per-category spread so every category
+    /// renders comparably (the flanking numbers stay raw season-to-date rates).
+    private func barValue(_ line: FantasyCategoryLine) -> Double {
+        let diff = line.homeZ - line.awayZ
+        guard isLive else { return diff }
+        let sd = FantasyCategoryScale.sd(productions: Array(productions.values),
+                                         category: line.category)
+        return FantasyCategoryScale.normalizedDiff(diff, sd: sd)
+    }
+
     @ViewBuilder private func categoryRow(_ line: FantasyCategoryLine) -> some View {
         VStack(spacing: 2) {
-            CategoryBarRow(label: line.category.label, z: line.homeZ - line.awayZ)
+            CategoryBarRow(label: line.category.label, z: barValue(line))
             HStack {
                 Text(String(format: "%.2f", line.homeZ))
                     .font(.caption2.monospacedDigit())

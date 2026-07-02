@@ -33,6 +33,32 @@ nonisolated enum FantasyLeagueCategory: CaseIterable {
     }
 }
 
+/// League-wide per-category spread, for LIVE-mode presentation. Projected productions
+/// are z-sums, so a matchup diff already lives on the bar's ±3σ window; live productions
+/// are RAW per-game rates (points ~ 8–15, FG% ~ 0.01) whose diffs must be normalized by
+/// the league's spread in that category before they can share the same bar. Presentation
+/// scale ONLY — the engine itself stays scale-invariant and never uses this.
+nonisolated enum FantasyCategoryScale {
+
+    /// Population SD of one category's team totals across the league.
+    /// Degenerate spreads (fewer than 2 teams, all equal, non-finite) → 0.
+    static func sd(productions: [FantasyTeamProduction],
+                   category: FantasyLeagueCategory) -> Double {
+        let vals = productions.map { category.z(in: $0.categoryTotals) }
+        guard vals.count >= 2 else { return 0 }
+        let mean = vals.reduce(0, +) / Double(vals.count)
+        var varSum = 0.0
+        for v in vals { varSum += (v - mean) * (v - mean) }
+        let sd = (varSum / Double(vals.count)).squareRoot()
+        return sd.isFinite ? sd : 0
+    }
+
+    /// diff / sd with a zero-spread guard — the live-mode bar value.
+    static func normalizedDiff(_ diff: Double, sd: Double) -> Double {
+        sd > 0 ? diff / sd : 0
+    }
+}
+
 /// One scheduled head-to-head pairing.
 nonisolated struct FantasyMatchupPairing: Equatable, Hashable, Identifiable {
     let home: UUID
