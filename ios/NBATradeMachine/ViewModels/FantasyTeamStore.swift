@@ -83,6 +83,18 @@ final class FantasyTeamStore: ObservableObject {
         guard let i = index(of: id) else { return }
         let canon = FantasyValueStore.canonicalSlug(slug)
         teams[i].playerSlugs.removeAll { FantasyValueStore.canonicalSlug($0) == canon }
+        teams[i].slots[canon] = nil          // a departed player's slot choice goes with him
+        persist()
+    }
+
+    /// Record the user's slot choice for one rostered player. Limit enforcement is
+    /// the caller's job (the detail view disables full targets); the resolved view
+    /// of slots always goes through `FantasyRosterSlots.effectiveAssignments`.
+    func setSlot(_ slug: String, in id: UUID, to slot: FantasySlot) {
+        guard let i = index(of: id) else { return }
+        let canon = FantasyValueStore.canonicalSlug(slug)
+        guard teams[i].playerSlugs.contains(where: { FantasyValueStore.canonicalSlug($0) == canon }) else { return }
+        teams[i].slots[canon] = slot
         persist()
     }
 

@@ -11,19 +11,26 @@ nonisolated struct FantasyTeam: Codable, Identifiable, Hashable {
     var name: String
     /// Ordered roster of canonical player slugs (canonicalized on insert; see store `addPlayer`).
     var playerSlugs: [String]
+    /// The user's explicit slot choices (canonical slug → slot). Sparse: players
+    /// with no entry auto-fill via `FantasyRosterSlots.effectiveAssignments`.
+    var slots: [String: FantasySlot]
 
-    init(id: UUID = UUID(), name: String, playerSlugs: [String] = []) {
+    init(id: UUID = UUID(), name: String, playerSlugs: [String] = [],
+         slots: [String: FantasySlot] = [:]) {
         self.id = id
         self.name = name
         self.playerSlugs = playerSlugs
+        self.slots = slots
     }
 
-    /// Forgiving decode: a doc missing `name`/`playerSlugs` (older local blob) decodes safely.
-    enum CodingKeys: String, CodingKey { case id, name, playerSlugs }
+    /// Forgiving decode: a doc missing `name`/`playerSlugs`/`slots` (older local
+    /// blob) decodes safely — pre-slots teams get an empty map (pure auto-fill).
+    enum CodingKeys: String, CodingKey { case id, name, playerSlugs, slots }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? "My Team"
         playerSlugs = try c.decodeIfPresent([String].self, forKey: .playerSlugs) ?? []
+        slots = try c.decodeIfPresent([String: FantasySlot].self, forKey: .slots) ?? [:]
     }
 }

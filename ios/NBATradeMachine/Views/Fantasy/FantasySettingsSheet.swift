@@ -31,6 +31,18 @@ struct FantasySettingsSheet: View {
                 } footer: {
                     Text("Dynasty weights long-term value by age.")
                 }
+                Section {
+                    Stepper("Lineup: \(appSettings.fantasyLineupLimit)",
+                            value: $appSettings.fantasyLineupLimit, in: 1...15)
+                    Stepper("Bench: \(appSettings.fantasyBenchLimit)",
+                            value: $appSettings.fantasyBenchLimit, in: 0...10)
+                    Stepper("IR: \(appSettings.fantasyIRLimit)",
+                            value: $appSettings.fantasyIRLimit, in: 0...5)
+                } header: {
+                    Text("Roster Limits")
+                } footer: {
+                    Text("Total roster size: \(appSettings.fantasyRosterLimits.total). Standard divide is 10 lineup · 3 bench · 1 IR. Players assign to slots on the team page.")
+                }
             }
             .navigationTitle("Fantasy Settings")
             .navigationBarTitleDisplayMode(.inline)
