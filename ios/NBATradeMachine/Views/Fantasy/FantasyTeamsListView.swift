@@ -76,6 +76,7 @@ struct FantasyTeamsListView: View {
                 .environmentObject(fantasyTeamStore)
                 .environmentObject(teamsVM)
                 .environmentObject(fantasyStore)
+                .environmentObject(appSettings)
         }
         .alert("Rename Team", isPresented: renameBinding) {
             TextField("Team name", text: $renameText)

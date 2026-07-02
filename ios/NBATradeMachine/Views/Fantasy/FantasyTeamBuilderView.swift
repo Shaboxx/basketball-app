@@ -7,6 +7,7 @@ struct FantasyTeamBuilderView: View {
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var fantasyStore: FantasyValueStore
+    @EnvironmentObject var appSettings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
     let teamId: UUID
@@ -33,13 +34,23 @@ struct FantasyTeamBuilderView: View {
         Set(rosterSlugs.map { FantasyValueStore.canonicalSlug($0) })
     }
 
-    /// Search results over the league pool (name/slug contains, case-insensitive).
+    /// Search results over the league pool (name/slug contains, case-insensitive),
+    /// ordered by the active format's fantasy value (best first; no-value players
+    /// sink to the bottom) so the add list reads as a draft board.
     private var filtered: [Player] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return teamsVM.allRosteredPlayers.sorted { $0.name < $1.name } }
-        return teamsVM.allRosteredPlayers
-            .filter { $0.name.lowercased().contains(q) || $0.slug.lowercased().contains(q) }
-            .sorted { $0.name < $1.name }
+        let pool = q.isEmpty
+            ? teamsVM.allRosteredPlayers
+            : teamsVM.allRosteredPlayers.filter {
+                $0.name.lowercased().contains(q) || $0.slug.lowercased().contains(q)
+            }
+        return FantasyPlayerOrdering.byValue(pool, values: fantasyStore.values,
+                                             format: appSettings.fantasyFormat)
+    }
+
+    /// Roster cap from the user's limits (lineup + bench + IR).
+    private var rosterFull: Bool {
+        rosterSlugs.count >= appSettings.fantasyRosterLimits.total
     }
 
     var body: some View {
@@ -68,8 +79,14 @@ struct FantasyTeamBuilderView: View {
                     }
                 }
 
-                Section("Add Players") {
+                Section {
                     ForEach(filtered) { p in addRow(p) }
+                } header: {
+                    Text("Add Players")
+                } footer: {
+                    if rosterFull {
+                        Text("Roster limit reached (\(appSettings.fantasyRosterLimits.total)). Adjust limits in Fantasy Settings or remove a player.")
+                    }
                 }
             }
             .searchable(text: $query, prompt: "Search players")
@@ -113,8 +130,9 @@ struct FantasyTeamBuilderView: View {
     @ViewBuilder
     private func addRow(_ p: Player) -> some View {
         let added = rosterCanonSet.contains(FantasyValueStore.canonicalSlug(p.slug))
+        let blocked = !added && rosterFull
         Button {
-            if !added { fantasyTeamStore.addPlayer(p.slug, to: teamId) }
+            if !added && !rosterFull { fantasyTeamStore.addPlayer(p.slug, to: teamId) }
         } label: {
             HStack(spacing: 12) {
                 HeadshotImage(slug: p.slug, size: 36)
@@ -123,11 +141,15 @@ struct FantasyTeamBuilderView: View {
                     Text("\(p.teamId) · \(p.position)").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if let fv = fantasyStore.value(for: p.slug) {
+                    Text(String(format: "%.1f", appSettings.fantasyFormat.entry(in: fv).value))
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
                 Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
-                    .foregroundStyle(added ? .green : .accentColor)
+                    .foregroundStyle(added ? .green : (blocked ? .secondary : .accentColor))
             }
         }
         .buttonStyle(.plain)
-        .disabled(added)
+        .disabled(added || blocked)
     }
 }
