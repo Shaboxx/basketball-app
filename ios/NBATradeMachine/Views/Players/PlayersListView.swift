@@ -8,6 +8,39 @@ struct PlayersListView: View {
 
     private var fantasyMode: Bool { AppConfig.fantasyEnabled && appSettings.fantasyModeOn }
 
+    /// Fantasy-mode sort menu (9-Cat is the default; alphabetical is an option).
+    enum FantasySortMode: String, CaseIterable, Identifiable {
+        case nineCat, eightCat, points, name
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .nineCat: return "9-Cat"
+            case .eightCat: return "8-Cat"
+            case .points: return "Points"
+            case .name: return "Name"
+            }
+        }
+    }
+    @State private var fantasySort: FantasySortMode = .nineCat
+
+    /// The rendered list: NBA mode uses the VM's sort (default Total σ);
+    /// fantasy mode re-sorts the filtered set by the chosen fantasy value.
+    private var displayed: [Player] {
+        guard fantasyMode else { return vm.filtered }
+        switch fantasySort {
+        case .name:
+            return vm.filtered.sorted { $0.name < $1.name }
+        case .nineCat:
+            return FantasyPlayerOrdering.byValue(vm.filtered, values: fantasyStore.values, format: .nineCat)
+        case .eightCat:
+            return FantasyPlayerOrdering.byValue(vm.filtered, values: fantasyStore.values, format: .eightCat)
+        case .points:
+            let pointsFormat: FantasyFormat = appSettings.fantasyFormat.isPoints
+                ? appSettings.fantasyFormat : .pointsEspn
+            return FantasyPlayerOrdering.byValue(vm.filtered, values: fantasyStore.values, format: pointsFormat)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -16,7 +49,7 @@ struct PlayersListView: View {
                 } else if (vm.isLoading || teamsVM.isLoading) && vm.players.isEmpty {
                     ProgressView()
                 } else {
-                    List(vm.filtered) { p in
+                    List(displayed) { p in
                         NavigationLink(value: p) {
                             HStack(spacing: 12) {
                                 HeadshotImage(slug: p.slug, size: 44)
@@ -45,13 +78,21 @@ struct PlayersListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Picker("Sort", selection: $vm.sortMode) {
-                            ForEach(PlayersViewModel.SortMode.allCases) { mode in
-                                Text(mode.label).tag(mode)
+                        if fantasyMode {
+                            Picker("Sort", selection: $fantasySort) {
+                                ForEach(FantasySortMode.allCases) { mode in
+                                    Text(mode.label).tag(mode)
+                                }
+                            }
+                        } else {
+                            Picker("Sort", selection: $vm.sortMode) {
+                                ForEach(PlayersViewModel.SortMode.allCases) { mode in
+                                    Text(mode.label).tag(mode)
+                                }
                             }
                         }
                     } label: {
-                        Label("Sort: \(vm.sortMode.label)",
+                        Label("Sort: \(fantasyMode ? fantasySort.label : vm.sortMode.label)",
                               systemImage: "arrow.up.arrow.down")
                             .font(.caption)
                     }

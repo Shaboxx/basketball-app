@@ -24,7 +24,8 @@ final class PlayersViewModel: ObservableObject {
 
     @Published var players: [Player] = []
     @Published var searchText = ""
-    @Published var sortMode: SortMode = .name
+    /// Default NBA sort is Total σ (alphabetical is a menu option, not the default).
+    @Published var sortMode: SortMode = .totalSigmaDesc
     @Published var isLoading = false
     @Published var errorMessage: String?
 
