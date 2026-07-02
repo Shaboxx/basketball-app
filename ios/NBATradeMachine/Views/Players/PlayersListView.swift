@@ -3,6 +3,10 @@ import SwiftUI
 struct PlayersListView: View {
     @StateObject private var vm = PlayersViewModel()
     @EnvironmentObject var teamsVM: TeamsViewModel
+    @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var fantasyStore: FantasyValueStore
+
+    private var fantasyMode: Bool { AppConfig.fantasyEnabled && appSettings.fantasyModeOn }
 
     var body: some View {
         NavigationStack {
@@ -25,16 +29,7 @@ struct PlayersListView: View {
                                     }
                                 }
                                 Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text(Money.display(p.currentSalary))
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                    if let valueLine = valueLine(for: p) {
-                                        Text(valueLine)
-                                            .font(.caption2.monospacedDigit())
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
+                                trailingValues(p)
                             }
                         }
                     }
@@ -90,6 +85,40 @@ struct PlayersListView: View {
             Button("Try Again") { Task { await vm.reload() } }
                 .buttonStyle(.borderedProminent)
         }.padding()
+    }
+
+    private func fmtF(_ v: Double) -> String { String(format: "%.1f", v) }
+
+    /// Row trailing block: fantasy-format values in fantasy mode; salary + OFF/DEF
+    /// in NBA mode. Extracted so the List row closure stays cheap to type-check.
+    @ViewBuilder
+    private func trailingValues(_ p: Player) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            if fantasyMode {
+                if let fv = fantasyStore.value(for: p.slug) {
+                    let nine = fmtF(fv.formats.nineCat.value)
+                    let eight = fmtF(fv.formats.eightCat.value)
+                    let pts = fmtF(FantasyHeaderPoints.entry(fv, format: appSettings.fantasyFormat).value)
+                    Text("9C \(nine) · 8C \(eight)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Text("Pts \(pts)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("—").font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                Text(Money.display(p.currentSalary))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if let valueLine = valueLine(for: p) {
+                    Text(valueLine)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 
     /// One-line value summary appended to the row — picks the channel matching
