@@ -9,6 +9,7 @@ struct FantasyLeagueBuilderView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
+    @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
     @Environment(\.dismiss) private var dismiss
 
     let leagueId: UUID
@@ -84,6 +85,7 @@ struct FantasyLeagueBuilderView: View {
                                 isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete League", role: .destructive) {
                     fantasyDraftStore.resetDraft(leagueId: leagueId)   // purge its draft blob
+                    fantasyTradeStore.removeTrades(for: leagueId)      // purge its trade blobs
                     fantasyLeagueStore.delete(leagueId)
                     dismiss()
                 }

@@ -9,6 +9,7 @@ struct FantasyLeaguesListView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
+    @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
 
     @State private var path = NavigationPath()
     @State private var builderLeague: BuilderTarget?
@@ -54,6 +55,7 @@ struct FantasyLeaguesListView: View {
                                 Button("Delete League", role: .destructive) {
                                     if let l = deleteTarget {
                                         fantasyDraftStore.resetDraft(leagueId: l.id)   // purge its draft blob
+                                        fantasyTradeStore.removeTrades(for: l.id)      // purge its trade blobs
                                         fantasyLeagueStore.delete(l.id)
                                     }
                                     deleteTarget = nil
@@ -81,6 +83,7 @@ struct FantasyLeaguesListView: View {
                 .environmentObject(fantasyLeagueStore)
                 .environmentObject(fantasyTeamStore)
                 .environmentObject(fantasyDraftStore)
+                .environmentObject(fantasyTradeStore)
         }
         .alert("Rename League", isPresented: renameBinding) {
             TextField("League name", text: $renameText)

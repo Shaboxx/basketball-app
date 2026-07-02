@@ -12,6 +12,7 @@ struct FantasyTeamDetailView: View {
     @EnvironmentObject var todayGamesStore: TodayGamesStore
     @EnvironmentObject var normsVM: LeagueNormsViewModel
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
+    @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
 
     let teamId: UUID
     @State private var showBuilder = false
@@ -99,6 +100,7 @@ struct FantasyTeamDetailView: View {
         .confirmationDialog("Are you sure you want to delete the team?",
                             isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete Team", role: .destructive) {
+                fantasyTradeStore.removeTrades(involving: teamId)   // purge its dangling trades
                 fantasyTeamStore.delete(teamId)
                 dismiss()                       // back to the Fantasy Teams grid
             }

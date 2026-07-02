@@ -99,6 +99,26 @@ final class FantasyTeamStore: ObservableObject {
         persist()
     }
 
+    /// Apply an executed trade: `teamA` sends `sendsA` and receives `sendsB`;
+    /// `teamB` the reverse. Unlike `setRoster`, this PRESERVES the slot choices of
+    /// players who stay (only departing players lose their slot); received players
+    /// append and auto-fill. One persist for the whole two-sided swap.
+    func applyTrade(teamA: UUID, sendsA: [String], teamB: UUID, sendsB: [String]) {
+        guard let ia = index(of: teamA), let ib = index(of: teamB), teamA != teamB else { return }
+        applyTradeSide(&teams[ia], removing: sendsA, adding: sendsB)
+        applyTradeSide(&teams[ib], removing: sendsB, adding: sendsA)
+        persist()
+    }
+
+    private func applyTradeSide(_ team: inout FantasyTeam, removing: [String], adding: [String]) {
+        for canon in removing.map(FantasyValueStore.canonicalSlug) {
+            team.slots[canon] = nil                              // departing players lose their slot
+        }
+        // Single source of truth for the remove/add/dedup roster math.
+        team.playerSlugs = FantasyTradeEngine.resultingRoster(
+            current: team.playerSlugs, removing: removing, adding: adding)
+    }
+
     /// Set the team owner's display name (profanity-gated by callers via
     /// FantasyNameRules; the store trims but stays permissive on content).
     func setOwner(_ owner: String, for id: UUID) {

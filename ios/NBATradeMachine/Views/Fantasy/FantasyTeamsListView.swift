@@ -15,6 +15,7 @@ struct FantasyTeamsListView: View {
     @EnvironmentObject var normsVM: LeagueNormsViewModel
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
+    @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
 
     @State private var path = NavigationPath()
     @State private var builderTeam: BuilderTarget?
@@ -152,7 +153,10 @@ struct FantasyTeamsListView: View {
                                                  set: { if !$0 { deleteTarget = nil } }),
                             titleVisibility: .visible) {
             Button("Delete Team", role: .destructive) {
-                if let t = deleteTarget { fantasyTeamStore.delete(t.id) }
+                if let t = deleteTarget {
+                    fantasyTradeStore.removeTrades(involving: t.id)   // purge its dangling trades
+                    fantasyTeamStore.delete(t.id)
+                }
                 deleteTarget = nil
             }
             Button("Cancel", role: .cancel) { deleteTarget = nil }

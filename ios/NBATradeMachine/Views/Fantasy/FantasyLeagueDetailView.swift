@@ -24,8 +24,10 @@ struct FantasyLeagueDetailView: View {
     @State private var selectedPairing: FantasyMatchupPairing?
     @State private var showLeagueSettings = false
     @State private var showDraftRoom = false
+    @State private var showTrades = false
     @State private var confirmResetDraft = false
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
+    @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
     @EnvironmentObject var teamsVM: TeamsViewModel
 
     // MARK: Derived (recomputed each render — cheap; the engine is pure)
@@ -139,6 +141,11 @@ struct FantasyLeagueDetailView: View {
                     } label: {
                         Label("Draft Room", systemImage: "list.number")
                     }
+                    Button {
+                        showTrades = true
+                    } label: {
+                        Label("Trades", systemImage: "arrow.left.arrow.right")
+                    }
                     if fantasyDraftStore.draft(for: leagueId) != nil {
                         Button(role: .destructive) {
                             confirmResetDraft = true
@@ -163,12 +170,22 @@ struct FantasyLeagueDetailView: View {
                 .environmentObject(fantasyLeagueStore)
                 .environmentObject(fantasyTeamStore)
                 .environmentObject(fantasyDraftStore)
+                .environmentObject(fantasyTradeStore)
         }
         .sheet(isPresented: $showDraftRoom) {
             FantasyDraftRoomView(leagueId: leagueId)
                 .environmentObject(fantasyDraftStore)
                 .environmentObject(fantasyTeamStore)
                 .environmentObject(fantasyLeagueStore)
+                .environmentObject(fantasyStore)
+                .environmentObject(teamsVM)
+                .environmentObject(appSettings)
+        }
+        .sheet(isPresented: $showTrades) {
+            FantasyTradeReviewView(leagueId: leagueId)
+                .environmentObject(fantasyLeagueStore)
+                .environmentObject(fantasyTeamStore)
+                .environmentObject(fantasyTradeStore)
                 .environmentObject(fantasyStore)
                 .environmentObject(teamsVM)
                 .environmentObject(appSettings)
