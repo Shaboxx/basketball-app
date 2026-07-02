@@ -259,6 +259,14 @@ nonisolated enum FantasyEmptyState {
     }
 }
 
+/// Points-provider entry for header stats: the user's chosen provider when their
+/// active format IS a points format; ESPN otherwise (the default provider).
+nonisolated enum FantasyHeaderPoints {
+    static func entry(_ fv: FantasyValue, format: FantasyFormat) -> FantasyValue.PointsEntry {
+        format == .pointsYahoo ? fv.formats.points.yahoo : fv.formats.points.espn
+    }
+}
+
 /// Pure category ordering for the breakdown section: the full 9-element `categoryZ`
 /// vector as (label, z) pairs sorted DESCENDING by z (strengths first). Turnovers are
 /// already sign-flipped server-side (positive `to`-z = good) so no special-casing.

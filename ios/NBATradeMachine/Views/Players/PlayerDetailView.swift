@@ -4,6 +4,7 @@ struct PlayerDetailView: View {
     let player: Player
     @EnvironmentObject private var normsVM: LeagueNormsViewModel
     @EnvironmentObject private var appSettings: AppSettings
+    @EnvironmentObject private var fantasyStore: FantasyValueStore
 
     var body: some View {
         ScrollView {
@@ -22,9 +23,19 @@ struct PlayerDetailView: View {
                     stat("Height", player.heightDisplay)
                     stat("Weight", player.weightLbs.map { "\($0) lb" } ?? "—")
                     stat("Age", player.age().map { String($0) } ?? "—")
-                    stat("TOT", Player.fmtVal(player.dispTotal))
-                    stat("OFF", Player.fmtVal(player.dispOff))
-                    stat("DEF", Player.fmtVal(player.dispDef))
+                    if AppConfig.fantasyEnabled && appSettings.fantasyModeOn {
+                        // Fantasy mode: format values replace the NBA TOT/OFF/DEF trio.
+                        let fv = fantasyStore.value(for: player.slug)
+                        stat("9-Cat", fv.map { fmtFantasy($0.formats.nineCat.value) } ?? "—")
+                        stat("8-Cat", fv.map { fmtFantasy($0.formats.eightCat.value) } ?? "—")
+                        stat("Points", fv.map {
+                            fmtFantasy(FantasyHeaderPoints.entry($0, format: appSettings.fantasyFormat).value)
+                        } ?? "—")
+                    } else {
+                        stat("TOT", Player.fmtVal(player.dispTotal))
+                        stat("OFF", Player.fmtVal(player.dispOff))
+                        stat("DEF", Player.fmtVal(player.dispDef))
+                    }
                 }
 
                 RolesSection(player: player)
@@ -100,5 +111,7 @@ struct PlayerDetailView: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
     }
+
+    private func fmtFantasy(_ v: Double) -> String { String(format: "%.1f", v) }
 }
 
