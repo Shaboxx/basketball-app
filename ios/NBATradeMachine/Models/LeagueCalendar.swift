@@ -23,4 +23,9 @@ nonisolated struct LeagueCalendar: Codable, Equatable {
     let isOffseason: Bool
     let asOfDate: String?
     let dataAsOf: String?
+    /// Season milestone dates (ISO "YYYY-MM-DD"), keyed by window name —
+    /// `regularStart`, `playoffsStart`, `tradeDeadline`, `faMoratorium`, `draft`,
+    /// `leagueYearEnd`. Written by upload_league_calendar.py; consumed by
+    /// `FantasyCalendar` to anchor the fantasy season to real dates.
+    let windows: [String: String]?
 }

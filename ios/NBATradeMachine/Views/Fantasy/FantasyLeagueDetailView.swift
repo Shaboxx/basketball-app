@@ -25,6 +25,7 @@ struct FantasyLeagueDetailView: View {
     @State private var showLeagueSettings = false
     @State private var showDraftRoom = false
     @State private var showTrades = false
+    @State private var showManagers = false
     @State private var confirmResetDraft = false
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
     @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
@@ -146,6 +147,11 @@ struct FantasyLeagueDetailView: View {
                     } label: {
                         Label("Trades", systemImage: "arrow.left.arrow.right")
                     }
+                    Button {
+                        showManagers = true
+                    } label: {
+                        Label("Managers", systemImage: "person.2.badge.gearshape")
+                    }
                     if fantasyDraftStore.draft(for: leagueId) != nil {
                         Button(role: .destructive) {
                             confirmResetDraft = true
@@ -190,6 +196,11 @@ struct FantasyLeagueDetailView: View {
                 .environmentObject(teamsVM)
                 .environmentObject(appSettings)
         }
+        .sheet(isPresented: $showManagers) {
+            FantasyManagersView(leagueId: leagueId)
+                .environmentObject(fantasyLeagueStore)
+                .environmentObject(fantasyTeamStore)
+        }
         .sheet(item: $selectedPairing) { p in
             FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
                                      customCategories: customCats,
@@ -201,6 +212,11 @@ struct FantasyLeagueDetailView: View {
     // MARK: pieces
     @ViewBuilder private var banner: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if let seasonLine = fantasySeasonLine {
+                Label(seasonLine, systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tint)
+            }
             Text(rulesSummary).font(.caption.weight(.semibold))
             switch appSettings.statSource {
             case .projected:
@@ -210,6 +226,36 @@ struct FantasyLeagueDetailView: View {
                 Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
                     .font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// Fantasy-season status from the shared league calendar — the same source
+    /// that drives off/on-season. The "of Y" total is the league's OWN matchup-week
+    /// count (the round-robin schedule length), NOT the raw NBA calendar span, so
+    /// the banner agrees with the Schedule tab. nil when the calendar lacks windows.
+    private var fantasySeasonLine: String? {
+        let cal = appSettings.fantasyCalendar
+        let matchupWeeks = schedule.count      // the league's actual matchup weeks
+        switch cal.status(on: Date()) {
+        case .unknown:
+            return nil
+        case .preseason(let days):
+            if let start = cal.seasonStart {
+                let fmt = DateFormatter()
+                fmt.locale = Locale(identifier: "en_US_POSIX")
+                fmt.timeZone = FantasyCalendar.zone
+                fmt.dateFormat = "MMM d"
+                let when = days == 0 ? "today" : (days == 1 ? "tomorrow" : "in \(days) days")
+                return "Fantasy season starts \(when) (\(fmt.string(from: start)))"
+            }
+            return "Fantasy season hasn't started yet"
+        case .active(let week, _):
+            guard matchupWeeks > 0 else { return nil }
+            if week > matchupWeeks { return "Fantasy regular season complete" }
+            let range = cal.weekLabel(week: week).map { " (\($0))" } ?? ""
+            return "Fantasy season: Week \(week) of \(matchupWeeks)\(range)"
+        case .postseason:
+            return "Fantasy regular season complete"
         }
     }
 
@@ -316,9 +362,18 @@ struct FantasyLeagueDetailView: View {
     }
 
     // MARK: Schedule
+    /// "Week N" plus the real fantasy-date range when the calendar is available.
+    private func weekHeader(_ index: Int) -> String {
+        let n = index + 1
+        if let range = appSettings.fantasyCalendar.weekLabel(week: n) {
+            return "Week \(n) · \(range)"
+        }
+        return "Week \(n)"
+    }
+
     @ViewBuilder private var scheduleSections: some View {
         ForEach(schedule) { week in
-            Section("Week \(week.index + 1)") {
+            Section(weekHeader(week.index)) {
                 ForEach(week.pairings) { p in
                     Button { selectedPairing = p } label: {
                         HStack {
