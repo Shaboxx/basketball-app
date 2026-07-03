@@ -62,7 +62,37 @@ struct FantasyLeagueDetailView: View {
         }
     }
 
+    /// Dream Team mode: any team may roster any player and shared players' counting
+    /// stats split by ownership count. Productions come from the ownership-division
+    /// engine (raw scale) instead of the per-team source.
+    private var isDreamTeam: Bool { league?.mode == .dreamTeam }
+
+    /// One player's raw per-game line under the active stat source (Dream Team scoring).
+    private func dreamRaw(_ canon: String) -> RawPerGame? {
+        switch appSettings.statSource {
+        case .projected:
+            return fantasyStore.value(for: canon).map { RawPerGame.projected($0, format: format) }
+        case .live:
+            guard let a = fantasyActualsStore.actuals(for: canon),
+                  a.season == fantasyActualsStore.season else { return nil }
+            return RawPerGame.live(a, format: format)
+        }
+    }
+
+    /// Dream Team members with NO resolved player under the ACTIVE source (raw-rate
+    /// poison guard — empty in non-Dream-Team leagues, so the standard path is untouched).
+    private var dreamUnresolvedTeams: [FantasyTeam] {
+        guard isDreamTeam else { return [] }
+        return memberTeams.filter { team in
+            !team.playerSlugs.contains { dreamRaw(FantasyValueStore.canonicalSlug($0)) != nil }
+        }
+    }
+
     private var productions: [UUID: FantasyTeamProduction] {
+        if isDreamTeam {
+            let own = FantasyDreamTeamScoring.ownership(teams: memberTeams)
+            return FantasyDreamTeamScoring.productions(teams: memberTeams, ownership: own, raw: dreamRaw)
+        }
         let src = source
         return Dictionary(memberTeams.map { ($0.id, src.production(for: $0, format: format)) },
                           uniquingKeysWith: { a, _ in a })
@@ -123,7 +153,13 @@ struct FantasyLeagueDetailView: View {
                 case .collectionEmpty:
                     Section { Text("Fantasy values not available yet.").foregroundStyle(.secondary) }
                 default:
-                    contentSections
+                    // Dream Team scores in raw-rate space (an all-zero team's to=0 would
+                    // win turnovers), so — like live — every team must resolve ≥1 player.
+                    if !dreamUnresolvedTeams.isEmpty {
+                        Section { dreamPartialCard }
+                    } else {
+                        contentSections
+                    }
                 }
             }
         }
@@ -205,7 +241,8 @@ struct FantasyLeagueDetailView: View {
             FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
                                      customCategories: customCats,
                                      nameFor: { fantasyTeamStore.team($0)?.name ?? "Team" },
-                                     isLive: appSettings.statSource == .live)
+                                     isLive: appSettings.statSource == .live,
+                                     dreamTeam: isDreamTeam)
         }
     }
 
@@ -216,6 +253,11 @@ struct FantasyLeagueDetailView: View {
                 Label(seasonLine, systemImage: "calendar")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tint)
+            }
+            if isDreamTeam {
+                Label("Dream Team — shared players' counting stats are split among the teams that roster them.",
+                      systemImage: "person.3.sequence")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Text(rulesSummary).font(.caption.weight(.semibold))
             switch appSettings.statSource {
@@ -302,6 +344,11 @@ struct FantasyLeagueDetailView: View {
 
     @ViewBuilder private var livePartialCard: some View {
         Text("Live standings need season-to-date data for every team. No rostered player has live data yet on: \(liveUnresolvedTeams.map(\.name).joined(separator: ", ")). Switch to Projected in Fantasy Settings to compare these teams now.")
+            .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private var dreamPartialCard: some View {
+        Text("Dream Team standings need at least one resolved player on every team. Not resolved yet: \(dreamUnresolvedTeams.map(\.name).joined(separator: ", ")). Add players to those teams to see standings.")
             .foregroundStyle(.secondary)
     }
 

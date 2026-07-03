@@ -57,11 +57,13 @@ struct FantasyLeagueBuilderView: View {
     }
 
     @State private var host: FantasyLeagueHost = .thisApp
+    @State private var mode: FantasyLeagueMode = .standard
 
     var body: some View {
         NavigationStack {
             Form {
                 nameSection
+                modeSection
                 hostingSection
                 scoringSection
                 rosterSection
@@ -100,6 +102,7 @@ struct FantasyLeagueBuilderView: View {
         guard let league = fantasyLeagueStore.league(leagueId) else { return }
         name = league.name
         host = league.host
+        mode = league.mode
         if let custom = league.rules.effectiveCustomCategories {
             scoring = .custom
             customCats = Set(custom)
@@ -171,6 +174,21 @@ struct FantasyLeagueBuilderView: View {
             Text("League Name")
         } footer: {
             if let nameError { Text(nameError).foregroundStyle(.red) }
+        }
+    }
+
+    @ViewBuilder private var modeSection: some View {
+        Section {
+            Picker("Mode", selection: $mode) {
+                ForEach(FantasyLeagueMode.allCases) { m in Text(m.displayName).tag(m) }
+            }
+            .onChange(of: mode) { _, m in fantasyLeagueStore.setMode(m, in: leagueId) }
+        } header: {
+            Text("Mode")
+        } footer: {
+            Text(mode == .dreamTeam
+                 ? "Dream Team: any team may roster ANY NBA player. When two or more teams share a player, his counting stats are SPLIT between them (a 30-point night shared by 3 teams = 10 to each)."
+                 : "Standard: each team scores its own roster.")
         }
     }
 

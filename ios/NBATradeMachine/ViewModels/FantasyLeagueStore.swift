@@ -111,6 +111,12 @@ final class FantasyLeagueStore: ObservableObject {
         persist()
     }
 
+    func setMode(_ mode: FantasyLeagueMode, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].mode = mode
+        persist()
+    }
+
     // MARK: Managers (commissioner tools)
     /// Add a manager (caller validates name via FantasyNameRules). Returns the new id.
     @discardableResult

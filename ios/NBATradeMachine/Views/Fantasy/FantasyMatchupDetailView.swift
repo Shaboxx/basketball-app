@@ -13,6 +13,12 @@ struct FantasyMatchupDetailView: View {
     let customCategories: [FantasyLeagueCategory]?
     let nameFor: (UUID) -> String
     let isLive: Bool
+    /// Dream Team leagues score on raw ownership-divided stats (like live) — the bars
+    /// need league-SD normalization, not the projected z-window.
+    var dreamTeam: Bool = false
+
+    /// Raw-scale productions (live OR Dream Team) — normalize bars by the league spread.
+    private var rawScale: Bool { isLive || dreamTeam }
 
     private var result: FantasyMatchupResult {
         FantasyMatchupScoring.score(home: pairing.home, away: pairing.away,
@@ -36,9 +42,7 @@ struct FantasyMatchupDetailView: View {
                 }
 
                 Section {
-                    Text(isLive
-                         ? "Live — season-to-date production; totals are static, so the result is the same every meeting."
-                         : "Projected — this matchup is the same every time these teams meet until live scoring is available.")
+                    Text(footerText)
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -86,16 +90,25 @@ struct FantasyMatchupDetailView: View {
         }
     }
 
-    /// Bar value for one category line. Projected productions are z-sums, so their diff
-    /// already lives on CategoryBarRow's ±3σ window. Live productions are RAW per-game
-    /// rates — normalize the diff by the league's per-category spread so every category
-    /// renders comparably (the flanking numbers stay raw season-to-date rates).
+    /// Bar value for one category line. Projected standard productions are z-sums, so
+    /// their diff already lives on CategoryBarRow's ±3σ window. Raw-scale productions
+    /// (live, or Dream Team's ownership-divided totals) are per-game rates — normalize
+    /// the diff by the league's per-category spread so every category renders comparably.
     private func barValue(_ line: FantasyCategoryLine) -> Double {
         let diff = line.homeZ - line.awayZ
-        guard isLive else { return diff }
+        guard rawScale else { return diff }
         let sd = FantasyCategoryScale.sd(productions: Array(productions.values),
                                          category: line.category)
         return FantasyCategoryScale.normalizedDiff(diff, sd: sd)
+    }
+
+    private var footerText: String {
+        if dreamTeam {
+            return "Dream Team — shared players' counting stats are split by ownership, so these totals already reflect the split. \(isLive ? "Live season-to-date." : "Projected season-long.")"
+        }
+        return isLive
+            ? "Live — season-to-date production; totals are static, so the result is the same every meeting."
+            : "Projected — this matchup is the same every time these teams meet until live scoring is available."
     }
 
     @ViewBuilder private func categoryRow(_ line: FantasyCategoryLine) -> some View {
