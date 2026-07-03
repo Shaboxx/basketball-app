@@ -86,6 +86,59 @@ final class FantasyLeagueStore: ObservableObject {
         persist()
     }
 
+    // MARK: Managers (commissioner tools)
+    /// Add a manager (caller validates name via FantasyNameRules). Returns the new id.
+    @discardableResult
+    func addManager(name: String, to leagueId: UUID) -> UUID? {
+        guard let i = index(of: leagueId) else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let m = FantasyManager(name: trimmed)
+        leagues[i].managers.append(m)
+        persist()
+        return m.id
+    }
+
+    func renameManager(_ managerId: UUID, to name: String, in leagueId: UUID) {
+        guard let i = index(of: leagueId),
+              let m = leagues[i].managers.firstIndex(where: { $0.id == managerId }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        leagues[i].managers[m].name = trimmed
+        persist()
+    }
+
+    /// Remove a manager: also clears the commissioner flag if it was them and drops
+    /// every team assignment pointing at them (the team keeps its last ownerName).
+    func removeManager(_ managerId: UUID, from leagueId: UUID) {
+        guard let i = index(of: leagueId) else { return }
+        leagues[i].managers.removeAll { $0.id == managerId }
+        if leagues[i].commissionerId == managerId { leagues[i].commissionerId = nil }
+        for (teamId, mid) in leagues[i].teamManager where mid == managerId {
+            leagues[i].teamManager[teamId] = nil
+        }
+        persist()
+    }
+
+    /// Designate (or clear with nil) the commissioner. No-op if the manager isn't in the league.
+    func setCommissioner(_ managerId: UUID?, in leagueId: UUID) {
+        guard let i = index(of: leagueId) else { return }
+        if let managerId, !leagues[i].managers.contains(where: { $0.id == managerId }) { return }
+        leagues[i].commissionerId = managerId
+        persist()
+    }
+
+    /// Assign a manager (or clear with nil) to a member team. Returns the manager's
+    /// name to push onto the team's ownerName (the view owns the FantasyTeamStore).
+    @discardableResult
+    func assignManager(_ managerId: UUID?, toTeam teamId: UUID, in leagueId: UUID) -> String? {
+        guard let i = index(of: leagueId) else { return nil }
+        if let managerId, !leagues[i].managers.contains(where: { $0.id == managerId }) { return nil }
+        leagues[i].teamManager[teamId] = managerId
+        persist()
+        return managerId.flatMap { mid in leagues[i].managers.first { $0.id == mid }?.name }
+    }
+
     func setStakes(_ stakes: FantasyLeagueStakes, in id: UUID) {
         guard let i = index(of: id) else { return }
         leagues[i].stakes = stakes
