@@ -131,6 +131,9 @@ struct FantasyLeagueBuilderView: View {
 
     private func persistRules() {
         var rules = FantasyLeagueRules.none
+        // The Schedule editor owns regular-season length; this builder must not wipe
+        // it when it rebuilds rules from its own (scoring/roster/playoff) fields.
+        rules.regularSeasonWeeks = fantasyLeagueStore.league(leagueId)?.rules.regularSeasonWeeks
         switch scoring {
         case .followApp:
             break
@@ -279,7 +282,7 @@ struct FantasyLeagueBuilderView: View {
                         value: $playoffTeams, in: 2...max(2, max(memberIds.count, 2)))
                     .onChange(of: playoffTeams) { _, _ in persistRules() }
                 Stepper("Start week: \(playoffStartWeek)",
-                        value: $playoffStartWeek, in: 1...30)
+                        value: $playoffStartWeek, in: 1...60)
                     .onChange(of: playoffStartWeek) { _, _ in persistRules() }
             }
         } header: {

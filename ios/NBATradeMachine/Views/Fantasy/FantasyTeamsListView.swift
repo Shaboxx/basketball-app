@@ -210,7 +210,21 @@ struct FantasyTeamsListView: View {
         guard let league = fantasyLeagueStore.firstLeague(containing: team.id) else { return nil }
         let members = league.teamIds.compactMap { fantasyTeamStore.team($0) }
         guard members.count >= 2 else { return nil }
+        // Dream Team seeds need the ownership-split productions the league detail view
+        // builds; rather than duplicate that resolution here, defer the seed to that
+        // authoritative screen (the grid shows "—" instead of an un-split, wrong rank).
+        guard league.mode != .dreamTeam else { return nil }
         let fmt = league.rules.effectiveFormat(appDefault: appSettings.fantasyFormat)
+        // Live standings are only trustworthy once EVERY team has season-to-date data —
+        // a zero-resolved team's to=0 poisons raw-rate scoring — so mirror the detail
+        // view, which refuses to compute (shows a note) until then, rather than seed
+        // the grid off garbage.
+        if appSettings.statSource == .live {
+            let unresolved = FantasyLiveResolution.unresolvedTeams(
+                teams: members, actuals: fantasyActualsStore.actualsBySlug,
+                season: fantasyActualsStore.season)
+            guard unresolved.isEmpty else { return nil }
+        }
         // Same stat source the league detail scores with (projected or live).
         let src: FantasyStatSource = appSettings.statSource == .live
             ? ActualsStatSource(actuals: fantasyActualsStore.actualsBySlug,
@@ -219,10 +233,12 @@ struct FantasyTeamsListView: View {
         let prods = Dictionary(members.map { ($0.id, src.production(for: $0, format: fmt)) },
                                uniquingKeysWith: { a, _ in a })
         let ids = members.map(\.id)
-        let rows = FantasyStandings.standings(productions: prods, teamIds: ids,
-                                              schedule: FantasyLeagueSchedule.roundRobin(ids),
-                                              format: fmt,
-                                              customCategories: league.rules.effectiveCustomCategories)
+        let rows = FantasyStandings.standings(
+            productions: prods, teamIds: ids,
+            schedule: FantasyLeagueSchedule.resolved(teamIds: ids,
+                                                     regularSeasonWeeks: league.rules.regularSeasonWeeks),
+            format: fmt,
+            customCategories: league.rules.effectiveCustomCategories)
         return rows.first { $0.teamId == team.id }?.rank
     }
 

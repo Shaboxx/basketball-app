@@ -120,6 +120,30 @@ nonisolated enum FantasyLeagueSchedule {
         }
         return weeks
     }
+
+    /// The league's regular-season schedule for display + standings — the base
+    /// round-robin CYCLED or TRUNCATED to a commissioner-set length. Passing nil
+    /// (or a count equal to the natural length) yields the plain single round-robin;
+    /// a larger count repeats the base rounds (each successive cycle flips home/away
+    /// so a pair alternates sides), a smaller count keeps only the first weeks. The
+    /// output is 0-indexed 0..<count and still a pure function of `teamIds` + the
+    /// count, so it is never stored and can't drift. Byes carry through each cycle.
+    static func resolved(teamIds: [UUID], regularSeasonWeeks weeks: Int?) -> [FantasyScheduleWeek] {
+        let base = roundRobin(teamIds)
+        guard let weeks, weeks >= 1, !base.isEmpty, weeks != base.count else { return base }
+
+        var out: [FantasyScheduleWeek] = []
+        out.reserveCapacity(weeks)
+        for i in 0..<weeks {
+            let src = base[i % base.count]
+            let flip = (i / base.count) % 2 == 1        // alternate home/away each full cycle
+            let pairings = src.pairings.map { p in
+                flip ? FantasyMatchupPairing(home: p.away, away: p.home) : p
+            }
+            out.append(FantasyScheduleWeek(index: i, pairings: pairings, bye: src.bye))
+        }
+        return out
+    }
 }
 
 /// One category line in a head-to-head matchup.

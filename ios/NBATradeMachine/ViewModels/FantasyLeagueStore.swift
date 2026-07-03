@@ -176,6 +176,16 @@ final class FantasyLeagueStore: ObservableObject {
         persist()
     }
 
+    /// Set (or clear with nil) the league's custom regular-season length in matchup
+    /// weeks — the round-robin cycles/truncates to this many weeks; nil restores the
+    /// natural single round-robin. Clamped to a sane [1, 60] so a fat-fingered value
+    /// can't spin up a runaway schedule. No-op if the league is missing.
+    func setRegularSeasonWeeks(_ weeks: Int?, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].rules.regularSeasonWeeks = weeks.map { min(60, max(1, $0)) }
+        persist()
+    }
+
     // MARK: Persistence
     private func index(of id: UUID) -> Int? { leagues.firstIndex { $0.id == id } }
 

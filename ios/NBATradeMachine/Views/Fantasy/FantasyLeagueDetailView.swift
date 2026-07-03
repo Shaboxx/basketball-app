@@ -26,6 +26,7 @@ struct FantasyLeagueDetailView: View {
     @State private var showDraftRoom = false
     @State private var showTrades = false
     @State private var showManagers = false
+    @State private var showSchedule = false
     @State private var confirmResetDraft = false
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
     @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
@@ -116,7 +117,10 @@ struct FantasyLeagueDetailView: View {
         guard appSettings.statSource == .live else { return false }
         return liveUnresolvedTeams.count == memberTeams.count
     }
-    private var schedule: [FantasyScheduleWeek] { FantasyLeagueSchedule.roundRobin(teamIds) }
+    private var schedule: [FantasyScheduleWeek] {
+        FantasyLeagueSchedule.resolved(teamIds: teamIds,
+                                       regularSeasonWeeks: league?.rules.regularSeasonWeeks)
+    }
 
     /// A resolved sample FantasyValue for the collection-empty decision (mirrors
     /// FantasyTeamDetailView — the decider needs a `FantasyValue?`).
@@ -188,6 +192,11 @@ struct FantasyLeagueDetailView: View {
                     } label: {
                         Label("Managers", systemImage: "person.2.badge.gearshape")
                     }
+                    Button {
+                        showSchedule = true
+                    } label: {
+                        Label("Edit Schedule", systemImage: "calendar.badge.clock")
+                    }
                     if fantasyDraftStore.draft(for: leagueId) != nil {
                         Button(role: .destructive) {
                             confirmResetDraft = true
@@ -236,6 +245,12 @@ struct FantasyLeagueDetailView: View {
             FantasyManagersView(leagueId: leagueId)
                 .environmentObject(fantasyLeagueStore)
                 .environmentObject(fantasyTeamStore)
+        }
+        .sheet(isPresented: $showSchedule) {
+            FantasyScheduleEditorView(leagueId: leagueId)
+                .environmentObject(fantasyLeagueStore)
+                .environmentObject(fantasyTeamStore)
+                .environmentObject(appSettings)
         }
         .sheet(item: $selectedPairing) { p in
             FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
