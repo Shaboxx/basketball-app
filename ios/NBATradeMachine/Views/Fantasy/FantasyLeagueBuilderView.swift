@@ -247,7 +247,7 @@ struct FantasyLeagueBuilderView: View {
             Text("Rosters")
         } footer: {
             Text(customRoster
-                 ? "Recorded for this league: \(lineup + bench + ir) players (\(lineup) lineup · \(bench) bench · \(ir) IR). Team building and grading currently use your app-wide limits — full per-league enforcement lands with the commissioner tools."
+                 ? "This league's teams carry \(lineup + bench + ir) players (\(lineup) lineup · \(bench) bench · \(ir) IR). Team building, slots, grading, and the draft ENFORCE these for member teams."
                  : "Uses your app-wide roster limits (Fantasy Settings).")
         }
     }
@@ -367,14 +367,19 @@ struct FantasyLeagueBuilderView: View {
         // Duplicate-name guard: a would-be member whose (normalized) name collides
         // with an existing member's name can't join until one is renamed.
         let nameTaken = !added && FantasyNameRules.isDuplicate(team.name, in: memberNames)
+        // Single-league membership: a team already in ANOTHER league can't join.
+        let otherLeague = added ? nil : fantasyLeagueStore.otherLeague(for: team.id, excluding: leagueId)
+        let blocked = nameTaken || otherLeague != nil
         Button {
-            if !added && !nameTaken { fantasyLeagueStore.addTeam(team.id, to: leagueId) }
+            if !added && !blocked { fantasyLeagueStore.addTeam(team.id, to: leagueId) }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(team.name).font(.subheadline)
                     if nameTaken {
                         Text("Name already used in this league").font(.caption).foregroundStyle(.red)
+                    } else if let other = otherLeague {
+                        Text("Already in \(other.name)").font(.caption).foregroundStyle(.secondary)
                     } else {
                         Text("\(team.playerSlugs.count) player\(team.playerSlugs.count == 1 ? "" : "s")")
                             .font(.caption).foregroundStyle(.secondary)
@@ -382,10 +387,10 @@ struct FantasyLeagueBuilderView: View {
                 }
                 Spacer()
                 Image(systemName: added ? "checkmark.circle.fill" : "plus.circle")
-                    .foregroundStyle(added ? .green : (nameTaken ? .secondary : .accentColor))
+                    .foregroundStyle(added ? .green : (blocked ? .secondary : .accentColor))
             }
         }
         .buttonStyle(.plain)
-        .disabled(added || nameTaken)
+        .disabled(added || blocked)
     }
 }

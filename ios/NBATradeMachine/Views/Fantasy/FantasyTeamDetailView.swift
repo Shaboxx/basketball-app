@@ -34,7 +34,16 @@ struct FantasyTeamDetailView: View {
     }
 
     // MARK: Slots (limits from settings; stored choices + auto-fill)
-    private var limits: FantasyRosterLimits { appSettings.fantasyRosterLimits }
+    /// Enforced limits: the team's governing league override when set, else app-wide.
+    private var limits: FantasyRosterLimits {
+        fantasyLeagueStore.effectiveLimits(for: teamId, appWide: appSettings.fantasyRosterLimits)
+    }
+    /// The scoring format for this team's displays: its governing league's format
+    /// when set, else app-wide — so limits AND format come from one source.
+    private var leagueFormat: FantasyFormat {
+        fantasyLeagueStore.firstLeague(containing: teamId)?
+            .rules.effectiveFormat(appDefault: appSettings.fantasyFormat) ?? appSettings.fantasyFormat
+    }
     private var roster: [String] { team?.playerSlugs ?? [] }
     private var assignments: [String: FantasySlot] {
         FantasyRosterSlots.effectiveAssignments(roster: roster,
@@ -122,7 +131,7 @@ struct FantasyTeamDetailView: View {
     /// (ranks cover only the top of the pool; doc count would inflate grades).
     private var poolCount: Int {
         FantasyGrading.rankedPoolCount(values: fantasyStore.values,
-                                       format: appSettings.fantasyFormat)
+                                       format: leagueFormat)
     }
 
     /// Lineup players whose NBA team has a game today.
@@ -142,13 +151,13 @@ struct FantasyTeamDetailView: View {
                 Spacer()
                 if let p = FantasyGrading.teamPercentile(
                     slugs: lineupSlugs, values: fantasyStore.values,
-                    format: appSettings.fantasyFormat, poolCount: poolCount) {
+                    format: leagueFormat, poolCount: poolCount) {
                     gradeBadge(FantasyGrading.letter(forPercentile: p))
                 } else {
                     Text("—").foregroundStyle(.secondary)
                 }
             }
-            Text("Lineup strength vs the top \(poolCount) ranked players (\(appSettings.fantasyFormat.displayName)).")
+            Text("Lineup strength vs the top \(poolCount) ranked players (\(leagueFormat.displayName)).")
                 .font(.caption2).foregroundStyle(.secondary)
 
             Divider()
@@ -182,7 +191,7 @@ struct FantasyTeamDetailView: View {
                 Text("No games today").font(.caption).foregroundStyle(.secondary)
             } else if let p = FantasyGrading.teamPercentile(
                 slugs: playingToday, values: fantasyStore.values,
-                format: appSettings.fantasyFormat, poolCount: poolCount) {
+                format: leagueFormat, poolCount: poolCount) {
                 gradeBadge(FantasyGrading.letter(forPercentile: p))
             } else {
                 Text("—").foregroundStyle(.secondary)
@@ -193,7 +202,7 @@ struct FantasyTeamDetailView: View {
     @ViewBuilder
     private func forecastRow(_ slug: String) -> some View {
         if let line = FantasyTodayForecast.line(
-            slug: slug, source: appSettings.statSource, format: appSettings.fantasyFormat,
+            slug: slug, source: appSettings.statSource, format: leagueFormat,
             values: fantasyStore.values, actuals: fantasyActualsStore.actualsBySlug,
             actualsSeason: fantasyActualsStore.season) {
             HStack {
@@ -327,7 +336,7 @@ struct FantasyTeamDetailView: View {
 
     @ViewBuilder
     private var profileBody: some View {
-        let format = appSettings.fantasyFormat
+        let format = leagueFormat
         Text("Value above replacement").font(.headline)
         if resolved.isEmpty {
             Text("Add players to see this team's profile.").foregroundStyle(.secondary)

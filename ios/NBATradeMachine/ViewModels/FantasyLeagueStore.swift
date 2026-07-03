@@ -28,6 +28,20 @@ final class FantasyLeagueStore: ObservableObject {
     // MARK: Derived
     func league(_ id: UUID) -> FantasyLeague? { leagues.first { $0.id == id } }
 
+    /// The first league (creation order) a team belongs to, or nil when the team
+    /// is unaffiliated. The single "which league governs this team" convention,
+    /// shared by roster-limit enforcement, standings, and the incomplete flag.
+    func firstLeague(containing teamId: UUID) -> FantasyLeague? {
+        leagues.first { $0.teamIds.contains(teamId) }
+    }
+
+    /// The roster limits ENFORCED for a team: its governing league's override when
+    /// set, else the app-wide default. One source of truth so team-building, slot
+    /// caps, grading, and the incomplete flag all agree.
+    func effectiveLimits(for teamId: UUID, appWide: FantasyRosterLimits) -> FantasyRosterLimits {
+        firstLeague(containing: teamId)?.rules.limits ?? appWide
+    }
+
     // MARK: CRUD — leagues
     @discardableResult
     func createLeague(name: String) -> UUID {
@@ -52,12 +66,23 @@ final class FantasyLeagueStore: ObservableObject {
     }
 
     // MARK: CRUD — member teams
-    /// Append a member team (deduped), preserving order.
+    /// Append a member team (deduped), preserving order. SINGLE-LEAGUE MEMBERSHIP:
+    /// a team belongs to at most one league, so every enforcement site (roster
+    /// limits, slots, grade, incomplete flag, draft) resolves the SAME governing
+    /// league — no ambiguity. A team already in another league is refused here
+    /// (the builder disables its row too).
     func addTeam(_ teamId: UUID, to id: UUID) {
         guard let i = index(of: id) else { return }
         guard !leagues[i].teamIds.contains(teamId) else { return }
+        guard !leagues.contains(where: { $0.id != id && $0.teamIds.contains(teamId) }) else { return }
         leagues[i].teamIds.append(teamId)
         persist()
+    }
+
+    /// The OTHER league a team already belongs to (for the builder's disable +
+    /// caption), or nil when it's free to join.
+    func otherLeague(for teamId: UUID, excluding leagueId: UUID) -> FantasyLeague? {
+        leagues.first { $0.id != leagueId && $0.teamIds.contains(teamId) }
     }
 
     func removeTeam(_ teamId: UUID, from id: UUID) {

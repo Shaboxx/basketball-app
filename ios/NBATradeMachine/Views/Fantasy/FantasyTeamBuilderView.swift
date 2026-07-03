@@ -62,9 +62,24 @@ struct FantasyTeamBuilderView: View {
                                              format: appSettings.fantasyFormat)
     }
 
-    /// Roster cap from the user's limits (lineup + bench + IR).
+    /// The limits ENFORCED for this team: its governing league's override when set,
+    /// else the app-wide default (one source of truth via the league store).
+    private var effectiveLimits: FantasyRosterLimits {
+        fantasyLeagueStore.effectiveLimits(for: teamId, appWide: appSettings.fantasyRosterLimits)
+    }
+    /// Roster cap = lineup + bench + IR of the enforced limits.
     private var rosterFull: Bool {
-        rosterSlugs.count >= appSettings.fantasyRosterLimits.total
+        rosterSlugs.count >= effectiveLimits.total
+    }
+
+    /// Footer names WHERE the cap comes from — the league (per-league enforcement)
+    /// or the app-wide Fantasy Settings.
+    private var rosterLimitFooter: String {
+        let total = effectiveLimits.total
+        if let league = fantasyLeagueStore.firstLeague(containing: teamId), league.rules.limits != nil {
+            return "Roster limit reached (\(total)) for \(league.name). Adjust it in League Settings or remove a player."
+        }
+        return "Roster limit reached (\(total)). Adjust limits in Fantasy Settings or remove a player."
     }
 
     /// Names of every OTHER team sharing a league with this one — the rename
@@ -147,7 +162,7 @@ struct FantasyTeamBuilderView: View {
                     Text("Add Players")
                 } footer: {
                     if rosterFull {
-                        Text("Roster limit reached (\(appSettings.fantasyRosterLimits.total)). Adjust limits in Fantasy Settings or remove a player.")
+                        Text(rosterLimitFooter)
                     }
                 }
             }

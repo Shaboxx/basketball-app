@@ -186,14 +186,14 @@ struct FantasyTeamsListView: View {
     }
 
     /// Red-flag rule: no league affiliation, or roster short of the lineup size —
-    /// the LEAGUE's roster shape when its rules override it (first-league
-    /// convention, matching standing() and the draft room's rounds).
+    /// using the team's ENFORCED limits (governing-league override, else app-wide).
     private func isIncomplete(_ team: FantasyTeam) -> Bool {
-        let league = fantasyLeagueStore.leagues.first { $0.teamIds.contains(team.id) }
-        let lineup = (league?.rules.limits ?? appSettings.fantasyRosterLimits).lineup
+        let inLeague = fantasyLeagueStore.firstLeague(containing: team.id) != nil
+        let lineup = fantasyLeagueStore.effectiveLimits(
+            for: team.id, appWide: appSettings.fantasyRosterLimits).lineup
         return FantasyTeamCompleteness.isIncomplete(
             playerCount: team.playerSlugs.count,
-            inAnyLeague: league != nil,
+            inAnyLeague: inLeague,
             lineupLimit: lineup)
     }
 
@@ -207,8 +207,7 @@ struct FantasyTeamsListView: View {
     }
 
     private func standing(_ team: FantasyTeam) -> Int? {
-        guard let league = fantasyLeagueStore.leagues.first(where: { $0.teamIds.contains(team.id) })
-        else { return nil }
+        guard let league = fantasyLeagueStore.firstLeague(containing: team.id) else { return nil }
         let members = league.teamIds.compactMap { fantasyTeamStore.team($0) }
         guard members.count >= 2 else { return nil }
         let fmt = league.rules.effectiveFormat(appDefault: appSettings.fantasyFormat)
@@ -228,15 +227,19 @@ struct FantasyTeamsListView: View {
     }
 
     private func gradeLetter(_ team: FantasyTeam) -> String? {
+        // Limits AND format come from the team's governing league (single source),
+        // so the grade is fully league-consistent — mirroring standing().
         let assignments = FantasyRosterSlots.effectiveAssignments(
             roster: team.playerSlugs, stored: team.slots,
-            limits: appSettings.fantasyRosterLimits)
+            limits: fantasyLeagueStore.effectiveLimits(
+                for: team.id, appWide: appSettings.fantasyRosterLimits))
         let lineup = FantasyRosterSlots.slugs(in: .lineup, roster: team.playerSlugs,
                                               assignments: assignments)
-        let pool = FantasyGrading.rankedPoolCount(values: fantasyStore.values,
-                                                  format: appSettings.fantasyFormat)
+        let fmt = fantasyLeagueStore.firstLeague(containing: team.id)?
+            .rules.effectiveFormat(appDefault: appSettings.fantasyFormat) ?? appSettings.fantasyFormat
+        let pool = FantasyGrading.rankedPoolCount(values: fantasyStore.values, format: fmt)
         return FantasyGrading.teamPercentile(slugs: lineup, values: fantasyStore.values,
-                                             format: appSettings.fantasyFormat, poolCount: pool)
+                                             format: fmt, poolCount: pool)
             .map(FantasyGrading.letter(forPercentile:))
     }
 }
