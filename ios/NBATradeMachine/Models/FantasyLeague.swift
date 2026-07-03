@@ -32,12 +32,19 @@ nonisolated struct FantasyLeague: Codable, Identifiable, Hashable {
     /// Primary manager per member team (teamId → managerId). Assigning also pushes
     /// the manager's name onto the team's `ownerName` (done in the store).
     var teamManager: [UUID: UUID]
+    /// When this league was IMPORTED from an external host, the reference that fetched
+    /// it — so a re-sync finds and OVERWRITES this same league. nil for hand-built leagues.
+    var externalRef: ExternalLeagueRef?
+    /// external-team-id → local `FantasyTeam.id`, recorded at import so a re-sync can map
+    /// each external team back to its local one. nil for hand-built leagues.
+    var externalTeamMap: [String: UUID]?
 
     init(id: UUID = UUID(), name: String, teamIds: [UUID] = [],
          rules: FantasyLeagueRules = .none, stakes: FantasyLeagueStakes = .none,
          host: FantasyLeagueHost = .thisApp, mode: FantasyLeagueMode = .standard,
          managers: [FantasyManager] = [],
-         commissionerId: UUID? = nil, teamManager: [UUID: UUID] = [:]) {
+         commissionerId: UUID? = nil, teamManager: [UUID: UUID] = [:],
+         externalRef: ExternalLeagueRef? = nil, externalTeamMap: [String: UUID]? = nil) {
         self.id = id
         self.name = name
         self.teamIds = teamIds
@@ -48,6 +55,8 @@ nonisolated struct FantasyLeague: Codable, Identifiable, Hashable {
         self.managers = managers
         self.commissionerId = commissionerId
         self.teamManager = teamManager
+        self.externalRef = externalRef
+        self.externalTeamMap = externalTeamMap
     }
 
     func manager(_ id: UUID?) -> FantasyManager? { id.flatMap { mid in managers.first { $0.id == mid } } }
@@ -58,6 +67,7 @@ nonisolated struct FantasyLeague: Codable, Identifiable, Hashable {
     /// id-keyed maps stay unique.
     enum CodingKeys: String, CodingKey {
         case id, name, teamIds, rules, stakes, host, mode, managers, commissionerId, teamManager
+        case externalRef, externalTeamMap
     }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -73,5 +83,7 @@ nonisolated struct FantasyLeague: Codable, Identifiable, Hashable {
         managers = try c.decodeIfPresent([FantasyManager].self, forKey: .managers) ?? []
         commissionerId = try c.decodeIfPresent(UUID.self, forKey: .commissionerId)
         teamManager = try c.decodeIfPresent([UUID: UUID].self, forKey: .teamManager) ?? [:]
+        externalRef = try c.decodeIfPresent(ExternalLeagueRef.self, forKey: .externalRef)
+        externalTeamMap = try c.decodeIfPresent([String: UUID].self, forKey: .externalTeamMap)
     }
 }

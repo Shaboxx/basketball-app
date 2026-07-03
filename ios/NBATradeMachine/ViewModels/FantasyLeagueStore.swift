@@ -117,6 +117,34 @@ final class FantasyLeagueStore: ObservableObject {
         persist()
     }
 
+    // MARK: External import bookkeeping (set by LeagueImporter)
+    /// Record (or clear with nil) the external reference an imported league was pulled
+    /// from — so a later re-sync can find and overwrite THIS league.
+    func setExternalRef(_ ref: ExternalLeagueRef?, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].externalRef = ref
+        persist()
+    }
+
+    /// Record the external-team-id → local-team-id map captured at import.
+    func setExternalTeamMap(_ map: [String: UUID]?, in id: UUID) {
+        guard let i = index(of: id) else { return }
+        leagues[i].externalTeamMap = map
+        persist()
+    }
+
+    /// The league previously imported from `ref` (matched on host + league id + season),
+    /// or nil. Season is part of the identity so (a) a numeric league id reused across a
+    /// user's leagues/seasons can't falsely overwrite the wrong local league, and (b) a
+    /// new season (Sleeper mints a fresh id each year anyway) becomes its own local league.
+    func league(withExternalRef ref: ExternalLeagueRef) -> FantasyLeague? {
+        leagues.first {
+            $0.externalRef?.host == ref.host
+                && $0.externalRef?.leagueId == ref.leagueId
+                && $0.externalRef?.season == ref.season
+        }
+    }
+
     // MARK: Managers (commissioner tools)
     /// Add a manager (caller validates name via FantasyNameRules). Returns the new id.
     @discardableResult
