@@ -10,12 +10,14 @@ struct FantasyLeaguesListView: View {
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
     @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
+    @EnvironmentObject var teamsVM: TeamsViewModel
 
     @State private var path = NavigationPath()
     @State private var builderLeague: BuilderTarget?
     @State private var renameTarget: FantasyLeague?
     @State private var renameText: String = ""
     @State private var deleteTarget: FantasyLeague?
+    @State private var showImport = false
 
     /// Identifiable wrapper so `.sheet(item:)` builds the builder once a league exists.
     private struct BuilderTarget: Identifiable { let id: UUID }
@@ -29,6 +31,13 @@ struct FantasyLeaguesListView: View {
                         builderLeague = BuilderTarget(id: id)
                     } label: {
                         Label("New League", systemImage: "plus.circle")
+                    }
+                    if AppConfig.leagueImportEnabled {
+                        Button {
+                            showImport = true
+                        } label: {
+                            Label("Import League", systemImage: "arrow.down.circle")
+                        }
                     }
                 }
 
@@ -84,6 +93,12 @@ struct FantasyLeaguesListView: View {
                 .environmentObject(fantasyTeamStore)
                 .environmentObject(fantasyDraftStore)
                 .environmentObject(fantasyTradeStore)
+        }
+        .sheet(isPresented: $showImport) {
+            FantasyLeagueImportView(leagueStore: fantasyLeagueStore, teamStore: fantasyTeamStore) { newId in
+                if let league = fantasyLeagueStore.league(newId) { path.append(league) }
+            }
+            .environmentObject(teamsVM)
         }
         .alert("Rename League", isPresented: renameBinding) {
             TextField("League name", text: $renameText)

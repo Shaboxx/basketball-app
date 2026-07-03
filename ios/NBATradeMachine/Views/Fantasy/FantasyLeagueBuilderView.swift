@@ -203,20 +203,11 @@ struct FantasyLeagueBuilderView: View {
                 }
             }
             .onChange(of: host) { _, h in fantasyLeagueStore.setHost(h, in: leagueId) }
-            if host.supportsSync {
-                Button {
-                    // Connector milestone: Yahoo OAuth / ESPN league-ID / Fantrax export.
-                } label: {
-                    Label("Connect & Sync from \(host.displayName)",
-                          systemImage: "arrow.triangle.2.circlepath")
-                }
-                .disabled(true)
-            }
         } header: {
             Text("Hosting")
         } footer: {
             if host.supportsSync {
-                Text("Sync arrives with the connector milestone (Yahoo: official sign-in; ESPN: league ID or cookie connect; Fantrax: league export). Manual entry works today — syncing will OVERWRITE manually-entered data.")
+                Text("To pull in this league's teams + rosters automatically, use “Import League” on the Leagues screen (Sleeper, ESPN, and Fantrax now; Yahoo soon). Syncing OVERWRITES the imported league's data.")
             }
         }
     }
