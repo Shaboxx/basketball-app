@@ -132,7 +132,7 @@ struct NewsListView: View {
             Text(message).font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Try Again") { Task { await vm.reload() } }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .padding(.top, 4)
         }
         .padding()

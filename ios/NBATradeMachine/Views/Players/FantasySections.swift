@@ -22,6 +22,9 @@ struct FantasyValueSection: View {
     private var content: some View {
         let fv = fantasyStore.value(for: player.slug)
         switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: fv) {
+        case .loading:
+            HStack(spacing: 8) { ProgressView(); Text("Loading fantasy values…").foregroundStyle(.secondary) }
+                .padding(.top, 6)
         case .collectionEmpty, .playerMissing:
             noDataRow
         case .data:

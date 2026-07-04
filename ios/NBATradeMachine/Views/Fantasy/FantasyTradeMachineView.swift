@@ -222,6 +222,11 @@ struct FantasyTradeMachineView: View {
     @ViewBuilder
     private var verdictSection: some View {
         switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: nil) {
+        case .loading:
+            HStack(spacing: 8) { ProgressView(); Text("Loading fantasy values…").foregroundStyle(.secondary) }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
         case .collectionEmpty:
             Text("Fantasy values not available yet.")
                 .foregroundStyle(.secondary)
@@ -295,22 +300,22 @@ struct FantasyTradeMachineView: View {
         }
     }
 
+    /// This is a WHAT-IF sandbox over the free pool — the verdict card above is the live answer and
+    /// nothing is sent anywhere (unlike an in-league proposal, which persists). So instead of a fake
+    /// "Propose" CTA, set that expectation honestly.
     @ViewBuilder
     private var proposeBar: some View {
-        VStack(spacing: 6) {
-            if !isStructurallyValid {
-                Text("Each side must move at least one player.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Button {
-                // Fantasy trades are hypothetical — "Propose" just confirms the structural gate.
-            } label: {
-                Label("Propose Trade", systemImage: "checkmark.seal.fill").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!isStructurallyValid)
+        if isStructurallyValid {
+            Label("What-if trade — the verdict above updates live. Nothing is sent anywhere.",
+                  systemImage: "sparkles")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
+        } else {
+            Text("Each side must move at least one player.")
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(.top, 4)
         }
-        .padding(.top, 4)
     }
 }
 

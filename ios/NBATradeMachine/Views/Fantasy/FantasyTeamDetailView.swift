@@ -318,6 +318,9 @@ struct FantasyTeamDetailView: View {
     private var profileCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: resolved.first) {
+            case .loading:
+                Text("Value above replacement").font(.headline)
+                HStack(spacing: 8) { ProgressView(); Text("Loading fantasy values…").foregroundStyle(.secondary) }
             case .collectionEmpty:
                 Text("Value above replacement").font(.headline)
                 Text("Fantasy values not available yet.").foregroundStyle(.secondary)

@@ -242,19 +242,21 @@ nonisolated enum FantasyFirstUse {
 /// Pure decision for what a fantasy section renders. Three independent triggers over
 /// the top-level `FantasyPhase`, so this stays off the MainActor.
 nonisolated enum FantasyEmptyState {
-    enum Decision: Equatable { case data, collectionEmpty, playerMissing }
+    enum Decision: Equatable { case data, collectionEmpty, playerMissing, loading }
     static func decide(phase: FantasyPhase, value: FantasyValue?) -> Decision {
         decide(phase: phase, hasData: value != nil)
     }
 
-    /// Value-type-agnostic variant: the SAME three triggers for any fantasy
-    /// collection (values, actuals), so the live league branch shares this
-    /// seam instead of re-deriving loading/failed/empty logic in a view.
+    /// Value-type-agnostic variant: the SAME triggers for any fantasy collection (values, actuals),
+    /// so surfaces share this seam instead of re-deriving loading/failed/empty logic in a view.
+    /// `.loading` (first fetch in flight, no data yet) is distinct from `.playerMissing` (loaded but
+    /// this player/collection has nothing) so a cold launch shows a spinner, not "not available".
     static func decide(phase: FantasyPhase, hasData: Bool) -> Decision {
         switch phase {
-        case .empty:  return .collectionEmpty            // whole collection unpopulated (pre-launch)
-        case .failed: return .collectionEmpty            // treat fetch failure as "not available yet"
-        default:      return hasData ? .data : .playerMissing
+        case .empty:          return .collectionEmpty        // whole collection unpopulated (pre-launch)
+        case .failed:         return .collectionEmpty        // fetch failure → "not available yet"
+        case .idle, .loading: return hasData ? .data : .loading
+        case .loaded:         return hasData ? .data : .playerMissing
         }
     }
 }

@@ -38,16 +38,24 @@ struct TeamsListView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 if let err = teamsVM.errorMessage {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill").font(.largeTitle).foregroundStyle(.red)
                         Text("Couldn't load teams").font(.headline)
                         Text(err).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    }.padding()
+                        Button("Try Again") { Task { await teamsVM.reload() } }
+                            .buttonStyle(.borderedProminent)
+                    }.padding().padding(.top, 60)
                 } else if teamsVM.isLoading && teamsVM.teams.isEmpty {
-                    ProgressView().padding(.top, 80)
+                    ProgressView("Loading teams…").padding(.top, 80)
                 } else if teamsVM.teams.isEmpty {
-                    Text("No teams loaded yet — check Xcode console.")
-                        .foregroundStyle(.secondary).padding(.top, 80)
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.3").font(.largeTitle).foregroundStyle(.secondary)
+                        Text("Teams unavailable").font(.headline)
+                        Text("Pull to refresh, or try again in a moment.")
+                            .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Button("Try Again") { Task { await teamsVM.reload() } }
+                            .buttonStyle(.borderedProminent)
+                    }.padding().padding(.top, 60)
                 } else {
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(sortedTeams) { team in

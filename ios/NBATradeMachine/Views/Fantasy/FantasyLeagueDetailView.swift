@@ -140,6 +140,8 @@ struct FantasyLeagueDetailView: View {
                 } else {
                     switch FantasyEmptyState.decide(phase: fantasyActualsStore.phase,
                                                     hasData: !liveNoData) {
+                    case .loading:
+                        Section { loadingRow }
                     case .collectionEmpty:
                         Section { liveUnavailableCard }
                     case .playerMissing:
@@ -154,6 +156,8 @@ struct FantasyLeagueDetailView: View {
                 }
             } else {
                 switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: firstResolvedValue) {
+                case .loading:
+                    Section { loadingRow }
                 case .collectionEmpty:
                     Section { Text("Fantasy values not available yet.").foregroundStyle(.secondary) }
                 default:
@@ -275,9 +279,16 @@ struct FantasyLeagueDetailView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Text(rulesSummary).font(.caption.weight(.semibold))
+            // Inline source control — the banners kept telling people to flip this in Settings.
+            Picker("Scoring source", selection: $appSettings.statSource) {
+                Text("Projected").tag(StatSourceMode.projected)
+                Text("Live").tag(StatSourceMode.live)
+            }
+            .pickerStyle(.segmented)
+            .padding(.vertical, 2)
             switch appSettings.statSource {
             case .projected:
-                Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Switch to Live in Fantasy Settings for real season-to-date scoring.")
+                Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Switch to Live above for real season-to-date scoring.")
                     .font(.caption).foregroundStyle(.secondary)
             case .live:
                 Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
@@ -409,12 +420,15 @@ struct FantasyLeagueDetailView: View {
             HStack {
                 Text("\(row.rank)").frame(width: 24, alignment: .leading)
                 Text(fantasyTeamStore.team(row.teamId)?.name ?? "Removed team")
+                    .lineLimit(1).minimumScaleFactor(0.7)
                 Spacer()
                 Text("\(row.record.wins)-\(row.record.losses)-\(row.record.ties)")
-                    .font(.subheadline.monospacedDigit()).frame(width: 64, alignment: .trailing)
+                    .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: 64, alignment: .trailing)
                 Text(pointsScoring ? String(format: "%.1f", row.pointsPerGame)
                                    : String(format: "%.1f", row.rotoPoints))
-                    .font(.subheadline.monospacedDigit()).frame(width: 52, alignment: .trailing)
+                    .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: 52, alignment: .trailing)
             }
             if !pointsScoring {
                 Text("Cats \(row.record.categoryWins)-\(row.record.categoryLosses)")

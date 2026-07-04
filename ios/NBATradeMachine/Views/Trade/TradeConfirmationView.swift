@@ -43,7 +43,7 @@ struct TradeConfirmationView: View {
                 .padding(.vertical, 10)
                 .background(Color(.secondarySystemBackground))
             }
-            .navigationTitle("Trade Confirmed")
+            .navigationTitle("Trade Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -437,7 +437,7 @@ private struct ChemistryTile: View {
                 Text("Composite \(String(format: "%+.2fσ", score))")
                     .font(.callout)
             } else {
-                Text("Coming with Phase 7f.")
+                Text("Not yet available.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -467,7 +467,7 @@ private struct PeakTimelineTile: View {
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Coming with Phase 7f.")
+                Text("Not yet available.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

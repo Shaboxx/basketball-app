@@ -34,5 +34,9 @@ struct CategoryBarRow: View {
                 .frame(width: 56, alignment: .trailing)
         }
         .padding(.top, 4)
+        // The bar is color-only; give VoiceOver the direction, not just the number.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(String(format: "%+.2f, %@ average", z, z >= 0 ? "above" : "below"))
     }
 }

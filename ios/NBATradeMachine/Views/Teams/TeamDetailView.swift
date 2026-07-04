@@ -18,7 +18,6 @@ struct TeamDetailView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(team.fullName).font(.title2.bold())
                         Text("\(team.conference) · \(team.division)").font(.caption).foregroundStyle(.secondary)
-                        Text("Record: —").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
