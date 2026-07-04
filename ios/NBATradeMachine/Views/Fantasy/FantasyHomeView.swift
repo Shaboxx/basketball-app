@@ -7,22 +7,26 @@ import SwiftUI
 /// one-line swap; `FantasyTeamsListView` is reused unmodified.
 struct FantasyHomeView: View {
     enum Tab: String, CaseIterable, Identifiable {
-        case teams = "Teams", leagues = "Leagues"
+        case teams = "Teams", leagues = "Leagues", pickem = "Pick'em"
         var id: String { rawValue }
     }
     @State private var tab: Tab = .teams
 
+    /// Pick'em only appears when its flag is on (the enum case can't be conditional).
+    private var visibleTabs: [Tab] { Tab.allCases.filter { $0 != .pickem || PickemGate.shouldShow() } }
+
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $tab) {
-                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(visibleTabs) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 12).padding(.vertical, 8)
 
             switch tab {
             case .teams:   FantasyTeamsListView()      // shipped, unmodified (owns its NavigationStack)
-            case .leagues: FantasyLeaguesListView()    // NEW (owns its NavigationStack)
+            case .leagues: FantasyLeaguesListView()    // owns its NavigationStack
+            case .pickem:  PickemHomeView()            // owns its NavigationStack + PickemStore
             }
         }
     }
