@@ -31,13 +31,13 @@ struct PlayersListView: View {
         case .name:
             return vm.filtered.sorted { $0.name < $1.name }
         case .nineCat:
-            return FantasyPlayerOrdering.byValue(vm.filtered, values: fantasyStore.values, format: .nineCat)
+            return vm.fantasyOrdered(sort: "nineCat", values: fantasyStore.values, format: .nineCat)
         case .eightCat:
-            return FantasyPlayerOrdering.byValue(vm.filtered, values: fantasyStore.values, format: .eightCat)
+            return vm.fantasyOrdered(sort: "eightCat", values: fantasyStore.values, format: .eightCat)
         case .points:
             let pointsFormat: FantasyFormat = appSettings.fantasyFormat.isPoints
                 ? appSettings.fantasyFormat : .pointsEspn
-            return FantasyPlayerOrdering.byValue(vm.filtered, values: fantasyStore.values, format: pointsFormat)
+            return vm.fantasyOrdered(sort: "points|\(pointsFormat.rawValue)", values: fantasyStore.values, format: pointsFormat)
         }
     }
 

@@ -33,12 +33,8 @@ struct FantasyTeamBuilderView: View {
         _name = State(initialValue: initialName)
     }
 
-    /// Canonical-slug → Player display index over the loaded league pool.
-    private var playerBySlug: [String: Player] {
-        Dictionary(
-            teamsVM.allRosteredPlayers.map { (FantasyValueStore.canonicalSlug($0.slug), $0) },
-            uniquingKeysWith: { a, _ in a })
-    }
+    /// Canonical-slug → Player display index over the loaded league pool (cached in the VM).
+    private var playerBySlug: [String: Player] { teamsVM.playerByCanonicalSlug }
 
     /// The current (persisted) roster slugs for this team.
     private var rosterSlugs: [String] { fantasyTeamStore.team(teamId)?.playerSlugs ?? [] }

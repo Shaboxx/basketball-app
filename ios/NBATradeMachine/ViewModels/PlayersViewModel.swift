@@ -85,6 +85,22 @@ final class PlayersViewModel: ObservableObject {
         return result
     }
 
+    /// Fantasy-value ordering over `filtered`, memoized on (playersVersion, query, sort,
+    /// values-count). Otherwise `PlayersListView` re-runs it every render on a PRIMARY tab — an
+    /// O(n log n) sort plus a regex `canonicalSlug` per ~500 players — on every keystroke and every
+    /// unrelated store change. `values.count` is a cheap version proxy (the map loads once).
+    private var _fantasyOrdered: [Player]?
+    private var _fantasyOrderedKey: String?
+    func fantasyOrdered(sort: String, values: [String: FantasyValue], format: FantasyFormat) -> [Player] {
+        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let key = "\(playersVersion)|\(q)|\(sort)|\(values.count)"
+        if _fantasyOrderedKey == key, let cached = _fantasyOrdered { return cached }
+        let result = FantasyPlayerOrdering.byValue(filtered, values: values, format: format)
+        _fantasyOrdered = result
+        _fantasyOrderedKey = key
+        return result
+    }
+
     /// Sort sentinel: pick a value missing-σ players will lose to, so they sink
     /// to the bottom under any σ-descending sort.
     private static let missingSigmaSentinel = -Double.infinity

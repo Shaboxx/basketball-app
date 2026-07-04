@@ -30,8 +30,31 @@ final class TeamsViewModel: ObservableObject {
     }
 
     /// Every rostered player, flattened — the Players tab derives from this instead of
-    /// issuing a SECOND whole-collection fetch.
-    var allRosteredPlayers: [Player] { playersByTeamId.values.flatMap { $0 } }
+    /// issuing a SECOND whole-collection fetch. Cached (the flatMap was re-run on every access,
+    /// and several fantasy views hit it per row) and invalidated on `dataVersion`.
+    private var _allRostered: [Player]?
+    private var _allRosteredVersion = -1
+    var allRosteredPlayers: [Player] {
+        if _allRostered == nil || _allRosteredVersion != dataVersion {
+            _allRostered = playersByTeamId.values.flatMap { $0 }
+            _allRosteredVersion = dataVersion
+        }
+        return _allRostered!
+    }
+
+    /// Canonical-slug → Player, cached. The fantasy roster/trade/draft views subscript this per
+    /// row; building it per access (a `Dictionary` over ~500 players, each through the regex-based
+    /// `canonicalSlug`) was a per-render hotspot. Invalidated on `dataVersion`.
+    private var _playerByCanonical: [String: Player]?
+    private var _playerByCanonicalVersion = -1
+    var playerByCanonicalSlug: [String: Player] {
+        if _playerByCanonical == nil || _playerByCanonicalVersion != dataVersion {
+            _playerByCanonical = Dictionary(allRosteredPlayers.map { (FantasyValueStore.canonicalSlug($0.slug), $0) },
+                                            uniquingKeysWith: { a, _ in a })
+            _playerByCanonicalVersion = dataVersion
+        }
+        return _playerByCanonical!
+    }
 
     private let service: FirestoreReading
     init(service: FirestoreReading = FirestoreService.shared) { self.service = service }

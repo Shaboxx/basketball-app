@@ -31,10 +31,7 @@ struct FantasyProposeTradeView: View {
     private var fromTeam: FantasyTeam? { fromTeamId.flatMap { fantasyTeamStore.team($0) } }
     private var toTeam: FantasyTeam? { toTeamId.flatMap { fantasyTeamStore.team($0) } }
 
-    private var playerBySlug: [String: Player] {
-        Dictionary(teamsVM.allRosteredPlayers.map { (FantasyValueStore.canonicalSlug($0.slug), $0) },
-                   uniquingKeysWith: { a, _ in a })
-    }
+    private var playerBySlug: [String: Player] { teamsVM.playerByCanonicalSlug }   // cached in the VM
     private func resolve(_ slugs: [String]) -> [FantasyValue] {
         slugs.compactMap { fantasyStore.value(for: $0) }
     }

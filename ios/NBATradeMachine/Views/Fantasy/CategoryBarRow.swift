@@ -16,7 +16,8 @@ struct CategoryBarRow: View {
                 .frame(width: 44, alignment: .leading)
             GeometryReader { geo in
                 let half = geo.size.width / 2
-                let mag = min(CGFloat(abs(z)) / 3.0, 1.0) * half
+                // Guard non-finite z: a NaN width traps in CoreGraphics.
+                let mag = min(CGFloat(z.isFinite ? abs(z) : 0) / 3.0, 1.0) * half
                 ZStack(alignment: .center) {
                     Capsule().fill(Color(.tertiarySystemFill)).frame(height: 6)
                     Capsule()

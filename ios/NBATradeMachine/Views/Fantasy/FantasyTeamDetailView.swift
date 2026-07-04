@@ -22,11 +22,7 @@ struct FantasyTeamDetailView: View {
     private var team: FantasyTeam? { fantasyTeamStore.team(teamId) }
     private var isMyTeam: Bool { fantasyTeamStore.myTeamId == teamId }
 
-    private var playerBySlug: [String: Player] {
-        Dictionary(
-            teamsVM.allRosteredPlayers.map { (FantasyValueStore.canonicalSlug($0.slug), $0) },
-            uniquingKeysWith: { a, _ in a })
-    }
+    private var playerBySlug: [String: Player] { teamsVM.playerByCanonicalSlug }   // cached in the VM
 
     /// Resolved FantasyValues for the roster (store misses dropped).
     private var resolved: [FantasyValue] {
