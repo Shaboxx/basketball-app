@@ -25,9 +25,36 @@ struct FantasyHomeView: View {
 
             switch tab {
             case .teams:   FantasyTeamsListView()      // shipped, unmodified (owns its NavigationStack)
-            case .leagues: FantasyLeaguesListView()    // owns its NavigationStack
+            case .leagues: LeaguesTab()                // Local | Hosted sub-segment (hosted flag-gated)
             case .pickem:  PickemHomeView()            // owns its NavigationStack + PickemStore
             }
+        }
+    }
+}
+
+/// The Leagues tab. When hosted leagues are off (default), it renders the shipped local
+/// `FantasyLeaguesListView` directly. When `hostedLeaguesEnabled`, it layers a `Local | Hosted`
+/// sub-segment above it so online leagues live beside — never replacing — local ones.
+private struct LeaguesTab: View {
+    enum Scope: String, CaseIterable, Identifiable { case local = "Local", hosted = "Hosted"; var id: String { rawValue } }
+    @State private var scope: Scope = .local
+
+    var body: some View {
+        if HostedLeaguesGate.shouldShow() {
+            VStack(spacing: 0) {
+                Picker("", selection: $scope) {
+                    ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 12).padding(.bottom, 8)
+
+                switch scope {
+                case .local:  FantasyLeaguesListView()   // shipped, unmodified (owns its NavigationStack)
+                case .hosted: HostedLeaguesListView()     // owns its NavigationStack
+                }
+            }
+        } else {
+            FantasyLeaguesListView()
         }
     }
 }
