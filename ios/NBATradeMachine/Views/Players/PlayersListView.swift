@@ -99,7 +99,9 @@ struct PlayersListView: View {
                 }
             }
             .navigationDestination(for: Player.self) { p in
-                PlayerDetailView(player: p)
+                // Pass the current filtered/sorted list so detail shows a
+                // next/prev pager for lateral comparison (NAV-04).
+                PlayerDetailView(player: p, siblings: vm.filtered)
             }
         }
         // Derive from TeamsViewModel's single shared fetch (no second whole-collection

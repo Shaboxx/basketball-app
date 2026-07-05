@@ -1,10 +1,28 @@
 import SwiftUI
 
 struct PlayerDetailView: View {
-    let player: Player
+    /// The player being shown. Mutable so next/prev can swap it in place without
+    /// a back-out-and-re-descend round-trip (NAV-04).
+    @State private var player: Player
+    /// The sibling list to page through (e.g. the filtered Players list). Empty
+    /// by default so every existing push site compiles and simply shows no
+    /// pager — only surfaces I can pass a real ordering opt in.
+    private let siblings: [Player]
+
     @EnvironmentObject private var normsVM: LeagueNormsViewModel
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var fantasyStore: FantasyValueStore
+
+    init(player: Player, siblings: [Player] = []) {
+        _player = State(initialValue: player)
+        self.siblings = siblings
+    }
+
+    /// Index of the current player within `siblings`, when it's a pageable list.
+    private var siblingIndex: Int? {
+        guard siblings.count > 1 else { return nil }
+        return siblings.firstIndex(of: player)
+    }
 
     var body: some View {
         ScrollView {
@@ -56,6 +74,24 @@ struct PlayerDetailView: View {
         }
         .navigationTitle(player.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Page to the adjacent player in the list without backing out
+            // (NAV-04). Only shown when a real sibling ordering was passed in.
+            if let idx = siblingIndex {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        if idx > 0 { player = siblings[idx - 1] }
+                    } label: { Image(systemName: "chevron.up") }
+                        .disabled(idx == 0)
+                        .accessibilityLabel("Previous player")
+                    Button {
+                        if idx < siblings.count - 1 { player = siblings[idx + 1] }
+                    } label: { Image(systemName: "chevron.down") }
+                        .disabled(idx == siblings.count - 1)
+                        .accessibilityLabel("Next player")
+                }
+            }
+        }
     }
 
     @ViewBuilder
