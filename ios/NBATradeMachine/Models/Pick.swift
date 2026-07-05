@@ -122,7 +122,7 @@ enum PickSelectionRule: String, Codable, Hashable {
     }
 }
 
-struct PickMovement: Identifiable, Hashable {
+struct PickMovement: Codable, Identifiable, Hashable {
     let id: UUID
     let pick: Pick
     let fromTeamId: String

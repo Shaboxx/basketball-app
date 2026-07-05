@@ -47,7 +47,9 @@ struct TradeConfirmationView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { onDismiss() }
+                    // "Close" (not "Done"): this is a shareable review summary,
+                    // not a submission — closing returns to editing (NAV-02).
+                    Button("Close") { onDismiss() }
                 }
             }
         }

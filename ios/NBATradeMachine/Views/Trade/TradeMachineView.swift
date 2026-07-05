@@ -32,6 +32,8 @@ struct TradeMachineView: View {
     @State private var legalityDetail: String?
     /// Confirms the destructive "Clear trade" action.
     @State private var showResetConfirm = false
+    /// A recovered in-progress trade offered for resume on reopen (NAV-01).
+    @State private var pendingDraft: TradeDraft?
 
     private struct BalancePresentation: Identifiable {
         let id = UUID()
@@ -72,10 +74,15 @@ struct TradeMachineView: View {
             vm.isOffseason = appSettings.isOffseasonEffective
             if let initialProposal, vm.trade.movements.isEmpty {
                 _ = TradeProposalApplier.apply(initialProposal, to: vm, using: teamsVM)
-            } else if !initialTeams.isEmpty && vm.trade.teams.isEmpty {
-                vm.setTeams(initialTeams)
+            } else if vm.trade.teams.isEmpty {
+                if !initialTeams.isEmpty { vm.setTeams(initialTeams) }
+                // A previous in-progress trade survived a dismiss/kill — offer to
+                // resume it (non-destructive: the just-seeded teams stay unless
+                // the user chooses Resume). NAV-01.
+                if let draft = vm.savedDraft, draft.hasWork { pendingDraft = draft }
             }
         }
+        .onDisappear { vm.persistDraftIfNeeded() }
         .alert(
             "Trade Warning",
             isPresented: Binding(
@@ -168,6 +175,26 @@ struct TradeMachineView: View {
             Button("Keep Editing", role: .cancel) {}
         } message: {
             Text("This removes every player, pick, and cash you've added.")
+        }
+        .confirmationDialog(
+            "Resume your in-progress trade?",
+            isPresented: Binding(
+                get: { pendingDraft != nil },
+                set: { if !$0 { pendingDraft = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDraft
+        ) { draft in
+            Button("Resume previous trade (\(draft.teamCount) team\(draft.teamCount == 1 ? "" : "s"))") {
+                vm.restoreDraft(draft)
+                pendingDraft = nil
+            }
+            Button("Start fresh", role: .destructive) {
+                vm.clearDraft()
+                pendingDraft = nil
+            }
+        } message: { _ in
+            Text("You have an unsaved trade from before. Resume it, or start fresh with your selected teams.")
         }
     }
 

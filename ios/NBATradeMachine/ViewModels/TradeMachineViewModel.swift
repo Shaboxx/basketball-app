@@ -20,7 +20,7 @@ final class TradeMachineViewModel: ObservableObject {
     /// the player's `id` on `signedContracts`. The salary applies to the
     /// active offseason year (offset 1) — extension years past that are
     /// out of scope for this offseason flow.
-    struct ReSignedContract: Hashable {
+    struct ReSignedContract: Codable, Hashable {
         let salary: Int
         let years: Int
     }
@@ -28,7 +28,7 @@ final class TradeMachineViewModel: ObservableObject {
     /// Free agent signed during offseason mode. Tracked per team so the
     /// roster surfaces them like real players, with a salary that flows
     /// through `teamTotalSalary`.
-    struct SignedFreeAgent: Identifiable, Hashable {
+    struct SignedFreeAgent: Codable, Identifiable, Hashable {
         let id: String              // FA slug — also Player.id surrogate
         let name: String
         let position: String
@@ -48,7 +48,7 @@ final class TradeMachineViewModel: ObservableObject {
 
     /// Prospect drafted during offseason mode. The user can only consume a
     /// pick they own; team-before sim removes prospects ahead of their slot.
-    struct DraftedProspect: Identifiable, Hashable {
+    struct DraftedProspect: Codable, Identifiable, Hashable {
         let id: String              // prospect slug
         let name: String
         let position: String
@@ -93,6 +93,7 @@ final class TradeMachineViewModel: ObservableObject {
     private weak var picksVM: PicksViewModel?
     private var cancellables = Set<AnyCancellable>()
     private var isApplyingHistory = false
+    private var draftStore = TradeDraftStore()
 
     var activeYearOffset: Int { isOffseason ? 1 : 0 }
     var canUndo: Bool { !history.isEmpty }
@@ -952,7 +953,45 @@ final class TradeMachineViewModel: ObservableObject {
         draftedProspects.removeAll()
         validation = nil
         alertMessage = nil
+        clearDraft()   // an explicit clear abandons the persisted draft too
     }
+
+    // MARK: - Draft persistence (NAV-01: don't lose an in-progress trade)
+
+    /// Snapshot of the current in-progress trade + offseason overlays.
+    private func snapshot() -> TradeDraft {
+        TradeDraft(
+            trade: trade,
+            isOffseason: isOffseason,
+            signedContracts: signedContracts,
+            signedFreeAgents: signedFreeAgents,
+            draftedProspects: draftedProspects,
+            savedAt: Date()
+        )
+    }
+
+    /// Persist the trade if it holds real work; otherwise clear any stale draft.
+    /// Called when the machine is dismissed (its view is torn down).
+    func persistDraftIfNeeded() {
+        let draft = snapshot()
+        if draft.hasWork { draftStore.save(draft) } else { draftStore.clear() }
+    }
+
+    /// The last persisted in-progress trade, if any.
+    var savedDraft: TradeDraft? { draftStore.load() }
+
+    /// Restore a persisted draft into the live machine (replaces current state).
+    func restoreDraft(_ draft: TradeDraft) {
+        isApplyingHistory = true
+        trade = draft.trade
+        if isOffseason != draft.isOffseason { isOffseason = draft.isOffseason }
+        signedContracts = draft.signedContracts
+        signedFreeAgents = draft.signedFreeAgents
+        draftedProspects = draft.draftedProspects
+        isApplyingHistory = false
+    }
+
+    func clearDraft() { draftStore.clear() }
 
     func undo() {
         guard let last = history.popLast() else { return }

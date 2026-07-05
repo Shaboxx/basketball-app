@@ -1,6 +1,6 @@
 import Foundation
 
-struct Trade {
+struct Trade: Codable {
     static let cashLimit: Int = 8_120_000
 
     var teams: [Team] = []
@@ -40,7 +40,7 @@ struct Trade {
     var teamIds: Set<String> { Set(teams.map(\.teamId)) }
 }
 
-struct PlayerMovement: Identifiable, Hashable {
+struct PlayerMovement: Codable, Identifiable, Hashable {
     let id = UUID()
     let playerId: String
     let fromTeamId: String
@@ -50,7 +50,7 @@ struct PlayerMovement: Identifiable, Hashable {
 /// A waived player whose (guaranteed) salary stays on the cap as dead money.
 /// Carries yearsRemaining + a stretch flag so the stretch provision can be
 /// computed later WITHOUT changing call sites (deadMoneyHit branches on it).
-struct WaivedContract: Identifiable, Hashable {
+struct WaivedContract: Codable, Identifiable, Hashable {
     let id = UUID()
     let playerId: String
     let teamId: String
@@ -59,7 +59,7 @@ struct WaivedContract: Identifiable, Hashable {
     var stretch: Bool = false // future: true → spread over (2*yearsRemaining)+1
 }
 
-struct DismissedPlayer: Identifiable, Hashable {
+struct DismissedPlayer: Codable, Identifiable, Hashable {
     let id = UUID()
     let playerId: String
     let teamId: String
