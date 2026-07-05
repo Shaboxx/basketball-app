@@ -16,6 +16,12 @@ struct FantasyTeamsListView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
     @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
+    // Held only to forward into the pushed detail views (see the navigationDestinations):
+    // a `.navigationDestination` destination does not reliably inherit this stack's
+    // @EnvironmentObjects, so each destination is injected explicitly — mirroring the
+    // sheet-injection pattern used across the app. Without this, opening a team crashed
+    // with "No ObservableObject of type FantasyTeamStore found."
+    @EnvironmentObject var todayGamesStore: TodayGamesStore
 
     @State private var path = NavigationPath()
     @State private var builderTeam: BuilderTarget?
@@ -63,10 +69,25 @@ struct FantasyTeamsListView: View {
             }
             .navigationTitle("Fantasy Teams")
             .navigationDestination(for: FantasyTeam.self) { team in
+                // Explicitly inject every store the detail view reads — the pushed
+                // destination doesn't inherit this stack's environment (fixes the
+                // missing-FantasyTeamStore crash on tapping a team).
                 FantasyTeamDetailView(teamId: team.id)
+                    .environmentObject(fantasyTeamStore)
+                    .environmentObject(fantasyStore)
+                    .environmentObject(teamsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyActualsStore)
+                    .environmentObject(todayGamesStore)
+                    .environmentObject(normsVM)
+                    .environmentObject(fantasyLeagueStore)
+                    .environmentObject(fantasyTradeStore)
             }
             .navigationDestination(for: Player.self) { p in
                 PlayerDetailView(player: p)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
             }
         }
         .sheet(item: $builderTeam) { target in
