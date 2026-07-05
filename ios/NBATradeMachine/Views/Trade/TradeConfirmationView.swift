@@ -21,6 +21,8 @@ struct TradeConfirmationView: View {
     let trade: Trade
     /// Player lookup used by the share-text serializer.
     let playersById: [String: Player]
+    /// Shareable reload code for this trade (NAV-21); nil hides the copy action.
+    var tradeCode: String? = nil
     var onDismiss: () -> Void = {}
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -37,7 +39,8 @@ struct TradeConfirmationView: View {
                 TradeConfirmationShareBar(
                     trade: trade,
                     confirmation: confirmation,
-                    playersById: playersById
+                    playersById: playersById,
+                    tradeCode: tradeCode
                 )
                 .padding(.horizontal)
                 .padding(.vertical, 10)

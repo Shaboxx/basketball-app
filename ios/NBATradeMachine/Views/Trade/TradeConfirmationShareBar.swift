@@ -17,6 +17,8 @@ struct TradeConfirmationShareBar: View {
     let trade: Trade
     let confirmation: TradeConfirmation
     let playersById: [String: Player]
+    /// Reload code for this trade (NAV-21); nil hides the copy action.
+    var tradeCode: String? = nil
 
     /// Display scale, read from the environment so we avoid the deprecated
     /// `UIScreen.main` global and stay correct on multi-window / external
@@ -49,6 +51,20 @@ struct TradeConfirmationShareBar: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 6)
             }
             .buttonStyle(.bordered)
+
+            // Copy a compact code that reloads this exact trade on any device
+            // (NAV-21) — paste it into the Trade Machine's "Paste trade code".
+            if let code = tradeCode {
+                Button {
+                    UIPasteboard.general.string = code
+                } label: {
+                    Label("Code", systemImage: "doc.on.doc")
+                        .padding(.vertical, 6).padding(.horizontal, 4)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Copy trade code")
+                .accessibilityHint("Paste in the Trade Machine to reload this trade")
+            }
         }
         .task(id: snapshotKey) {
             cachedImage = renderImage()

@@ -993,6 +993,35 @@ final class TradeMachineViewModel: ObservableObject {
 
     func clearDraft() { draftStore.clear() }
 
+    /// Load a trade shared as a code (NAV-21). Resolves the referenced teams
+    /// against the loaded roster set; returns false if any team is missing
+    /// (e.g. stale data) or fewer than two teams resolve.
+    @discardableResult
+    func applyTradeCode(_ code: TradeCode) -> Bool {
+        guard let teamsVM else { return false }
+        let resolved: [Team] = code.teamIds.compactMap { id in
+            teamsVM.teams.first { $0.teamId == id }
+        }
+        guard resolved.count == code.teamIds.count, resolved.count >= 2 else { return false }
+        var t = Trade()
+        t.teams = resolved
+        t.movements = code.movements.map {
+            PlayerMovement(playerId: $0.p, fromTeamId: $0.from, toTeamId: $0.to)
+        }
+        t.pickMovements = code.picks.map {
+            PickMovement(pick: $0.pick, fromTeamId: $0.from, toTeamId: $0.to)
+        }
+        t.cashSent = code.cash
+        isApplyingHistory = true
+        if isOffseason != code.offseason { isOffseason = code.offseason }
+        trade = t
+        signedContracts = [:]
+        signedFreeAgents = [:]
+        draftedProspects = [:]
+        isApplyingHistory = false
+        return true
+    }
+
     func undo() {
         guard let last = history.popLast() else { return }
         isApplyingHistory = true

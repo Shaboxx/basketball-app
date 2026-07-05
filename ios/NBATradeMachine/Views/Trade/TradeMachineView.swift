@@ -51,6 +51,7 @@ struct TradeMachineView: View {
         let trade: Trade
         let confirmation: TradeConfirmation
         let playersById: [String: Player]
+        let tradeCode: String?   // shareable reload code (NAV-21)
     }
 
     var body: some View {
@@ -148,6 +149,7 @@ struct TradeMachineView: View {
                 confirmation: snapshot.confirmation,
                 trade: snapshot.trade,
                 playersById: snapshot.playersById,
+                tradeCode: snapshot.tradeCode,
                 onDismiss: { confirmationSnapshot = nil }
             )
         }
@@ -212,7 +214,8 @@ struct TradeMachineView: View {
         confirmationSnapshot = ConfirmationSnapshot(
             trade: vm.trade,
             confirmation: confirmation,
-            playersById: lookup
+            playersById: lookup,
+            tradeCode: TradeCodec.encode(TradeCode(trade: vm.trade, offseason: vm.isOffseason))
         )
     }
 
