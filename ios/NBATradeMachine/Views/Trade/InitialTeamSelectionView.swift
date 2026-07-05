@@ -28,19 +28,22 @@ struct InitialTeamSelectionView: View {
 
                 // NAV-21: reload a trade someone shared as a code. On success the
                 // machine has 2+ teams and swaps to the active trade view.
-                Button {
-                    if let text = UIPasteboard.general.string,
-                       let code = TradeCodec.decode(text),
-                       vm.applyTradeCode(code) {
-                        // handled — parent switches away from this view
-                    } else {
-                        codeError = true
+                // Gated dark until the code format is production-ready.
+                if TradeCodeGate.shouldShow() {
+                    Button {
+                        if let text = UIPasteboard.general.string,
+                           let code = TradeCodec.decode(text),
+                           vm.applyTradeCode(code) {
+                            // handled — parent switches away from this view
+                        } else {
+                            codeError = true
+                        }
+                    } label: {
+                        Label("Paste trade code", systemImage: "doc.on.clipboard")
+                            .frame(maxWidth: .infinity).padding(.vertical, 8)
                     }
-                } label: {
-                    Label("Paste trade code", systemImage: "doc.on.clipboard")
-                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
 
                 Spacer(minLength: 40)
             }

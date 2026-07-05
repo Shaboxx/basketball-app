@@ -215,7 +215,10 @@ struct TradeMachineView: View {
             trade: vm.trade,
             confirmation: confirmation,
             playersById: lookup,
-            tradeCode: TradeCodec.encode(TradeCode(trade: vm.trade, offseason: vm.isOffseason))
+            // nil (feature dark) → the share bar's Copy-code button hides.
+            tradeCode: TradeCodeGate.shouldShow()
+                ? TradeCodec.encode(TradeCode(trade: vm.trade, offseason: vm.isOffseason))
+                : nil
         )
     }
 
