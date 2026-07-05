@@ -5,6 +5,10 @@ struct TeamDetailView: View {
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
     @EnvironmentObject var normsVM: LeagueNormsViewModel
+    // Forwarded into the depth-chart sheet (a sheet does NOT inherit the environment) so the
+    // player rows there can push PlayerDetailView, which needs all four.
+    @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var fantasyStore: FantasyValueStore
     @State private var showingDepthChart = false
 
     var body: some View {
@@ -92,6 +96,13 @@ struct TeamDetailView: View {
                     }
                 }
             }
+            // The sheet strips the environment; re-inject so both the depth-chart's own
+            // player pushes AND DepthChartLayersView's breakdown sub-sheet can present
+            // PlayerDetailView (which reads all four).
+            .environmentObject(teamsVM)
+            .environmentObject(normsVM)
+            .environmentObject(appSettings)
+            .environmentObject(fantasyStore)
         }
     }
 

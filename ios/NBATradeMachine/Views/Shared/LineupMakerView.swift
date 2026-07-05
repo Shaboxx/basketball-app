@@ -58,6 +58,14 @@ enum LineupMakerLogic {
 /// generated `LineupBreakdownView`. Rows reveal progressively as the row above
 /// fills, capped at five.
 struct LineupMakerView: View {
+    // Pushed inside sheet-hosted stacks and opens a breakdown SUB-sheet that pushes
+    // PlayerDetailView; hold its full dependency set to re-inject across that sub-sheet
+    // boundary (inherited from DepthChartLayersView, which supplies all four).
+    @EnvironmentObject private var teamsVM: TeamsViewModel
+    @EnvironmentObject private var normsVM: LeagueNormsViewModel
+    @EnvironmentObject private var appSettings: AppSettings
+    @EnvironmentObject private var fantasyStore: FantasyValueStore
+
     let roster: [Player]
     let league: TeamDepthChartBuilder.LeagueLayerStats
     var norms: LeagueNorms? = nil
@@ -145,6 +153,11 @@ struct LineupMakerView: View {
                     PlayerDetailView(player: p)
                 }
             }
+            // Sub-sheet strips the environment — re-inject PlayerDetailView's dependencies.
+            .environmentObject(teamsVM)
+            .environmentObject(normsVM)
+            .environmentObject(appSettings)
+            .environmentObject(fantasyStore)
         }
     }
 

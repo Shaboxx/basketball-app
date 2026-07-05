@@ -3,6 +3,9 @@ import SwiftUI
 struct TeamTradeTabContent: View {
     let team: Team
     @ObservedObject var vm: TradeMachineViewModel
+    // Forwarded into the AddPick / DraftPlayer sheets below (both read picksVM, and a sheet
+    // does not inherit the environment). Supplied by TradeMachineView, which holds picksVM.
+    @EnvironmentObject private var picksVM: PicksViewModel
     @State private var resignTarget: Player?
     @State private var showingSignFA = false
     @State private var showingDraft = false
@@ -115,6 +118,7 @@ struct TeamTradeTabContent: View {
         .padding(.top, 12)
         .sheet(isPresented: $showingAddPick) {
             AddPickSheet(fromTeam: team, vm: vm)
+                .environmentObject(picksVM)
         }
         .sheet(item: $resignTarget) { player in
             ResignContractSheet(player: player, teamId: team.teamId, vm: vm)
@@ -124,6 +128,7 @@ struct TeamTradeTabContent: View {
         }
         .sheet(isPresented: $showingDraft) {
             DraftPlayerSheet(team: team, vm: vm)
+                .environmentObject(picksVM)
         }
     }
 

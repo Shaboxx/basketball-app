@@ -14,6 +14,10 @@ struct DepthChartSheet: View {
     @ObservedObject var vm: TradeMachineViewModel
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var normsVM: LeagueNormsViewModel
+    // Needed so the inline DepthChartLayersView and this sheet's PlayerDetailView push resolve
+    // them (this whole sheet is presented across a boundary that strips the environment).
+    @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var fantasyStore: FantasyValueStore
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTeamId: String = ""
 

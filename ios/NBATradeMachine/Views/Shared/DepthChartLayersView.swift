@@ -13,6 +13,15 @@ import SwiftUI
 /// Tapping a player cell pushes `PlayerDetailView`; tapping a Lineup cell opens
 /// the generated `LineupBreakdownView` for that layer's five players.
 struct DepthChartLayersView: View {
+    // This view is presented inside sheets (team depth chart, trade depth chart) that strip the
+    // environment, and it opens a breakdown SUB-sheet that pushes PlayerDetailView. Hold
+    // PlayerDetailView's full dependency set so the sub-sheet can re-inject it. Every presenter
+    // (DepthChartSheet, TeamDetailView's depth sheet) supplies all four.
+    @EnvironmentObject private var teamsVM: TeamsViewModel
+    @EnvironmentObject private var normsVM: LeagueNormsViewModel
+    @EnvironmentObject private var appSettings: AppSettings
+    @EnvironmentObject private var fantasyStore: FantasyValueStore
+
     let columns: [String: ColumnResult]
     let league: TeamDepthChartBuilder.LeagueLayerStats
     var cap: Int = 5
@@ -131,6 +140,11 @@ struct DepthChartLayersView: View {
                     PlayerDetailView(player: p)
                 }
             }
+            // Sub-sheet strips the environment — re-inject PlayerDetailView's dependencies.
+            .environmentObject(teamsVM)
+            .environmentObject(normsVM)
+            .environmentObject(appSettings)
+            .environmentObject(fantasyStore)
         }
     }
 

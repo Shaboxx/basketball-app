@@ -10,6 +10,9 @@ struct AdvisorTeamPickerSheet: View {
     @EnvironmentObject var picksVM: PicksViewModel
     @EnvironmentObject var normsVM: LeagueNormsViewModel
     @EnvironmentObject var appSettings: AppSettings
+    // Forwarded into the TradeMachineView cover below (which now requires it for its
+    // PlayerDetailView pushes); supplied by ContentView's Ask-Advisor sheet.
+    @EnvironmentObject var fantasyStore: FantasyValueStore
     @Environment(\.dismiss) private var dismiss
 
     /// The team whose advisor sheet is open (drives `.sheet(item:)`).
@@ -58,6 +61,7 @@ struct AdvisorTeamPickerSheet: View {
                 .environmentObject(picksVM)
                 .environmentObject(normsVM)
                 .environmentObject(appSettings)
+                .environmentObject(fantasyStore)
         }
     }
 }

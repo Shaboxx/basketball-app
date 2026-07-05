@@ -6,6 +6,9 @@ struct TradeMachineView: View {
     @EnvironmentObject var picksVM: PicksViewModel
     @EnvironmentObject var normsVM: LeagueNormsViewModel
     @EnvironmentObject var appSettings: AppSettings
+    // Both presenters (ContentView's trade cover, AdvisorTeamPickerSheet) inject this. Held so the
+    // machine's own PlayerDetailView push and the depth-chart sheet can resolve it in fantasy mode.
+    @EnvironmentObject var fantasyStore: FantasyValueStore
     @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = TradeMachineViewModel()
 
@@ -106,7 +109,12 @@ struct TradeMachineView: View {
         }
         .sheet(isPresented: $showingDepthChart) {
             DepthChartSheet(vm: vm)
+                // The sheet strips the environment; DepthChartSheet reads normsVM and pushes
+                // PlayerDetailView (all four) — inject the full set, not just teamsVM.
                 .environmentObject(teamsVM)
+                .environmentObject(normsVM)
+                .environmentObject(appSettings)
+                .environmentObject(fantasyStore)
         }
         .sheet(item: $balancePresentation) { pres in
             BalanceProposalSheet(vm: vm, initial: pres.result, includePicks: true) { applied in

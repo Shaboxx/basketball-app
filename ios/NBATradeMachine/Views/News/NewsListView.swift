@@ -6,6 +6,12 @@ import SwiftUI
 struct NewsListView: View {
     @StateObject private var vm = NewsFeedViewModel()
     @EnvironmentObject private var teamsVM: TeamsViewModel
+    // Forwarded into the pushed PlayerDetailView: this stack has TWO navigationDestinations,
+    // so the pushed view does NOT inherit the stack's environment (same class of crash as the
+    // fantasy-team fix) — inject PlayerDetailView's full dependency set explicitly.
+    @EnvironmentObject private var normsVM: LeagueNormsViewModel
+    @EnvironmentObject private var appSettings: AppSettings
+    @EnvironmentObject private var fantasyStore: FantasyValueStore
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLoad = false
     @Binding var path: NavigationPath   // owned by ContentView so depth survives tab switches (NAV-19)
@@ -53,7 +59,13 @@ struct NewsListView: View {
                 }
             }
             .navigationTitle("News")
-            .navigationDestination(for: Player.self) { PlayerDetailView(player: $0) }
+            .navigationDestination(for: Player.self) {
+                PlayerDetailView(player: $0)
+                    .environmentObject(teamsVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
+            }
             .navigationDestination(for: NewsItem.self) { NewsDetailView(item: $0) }
         }
         .task {
