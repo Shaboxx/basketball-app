@@ -8,7 +8,7 @@ struct NewsListView: View {
     @EnvironmentObject private var teamsVM: TeamsViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLoad = false
-    @State private var path = NavigationPath()
+    @Binding var path: NavigationPath   // owned by ContentView so depth survives tab switches (NAV-19)
 
     var body: some View {
         NavigationStack(path: $path) {

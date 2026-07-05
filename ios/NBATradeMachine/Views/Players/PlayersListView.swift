@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PlayersListView: View {
+    @Binding var path: NavigationPath   // owned by ContentView so depth survives tab switches (NAV-19)
     @StateObject private var vm = PlayersViewModel()
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var appSettings: AppSettings
@@ -42,7 +43,7 @@ struct PlayersListView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let err = vm.errorMessage, vm.players.isEmpty {
                     errorView(err)

@@ -74,6 +74,10 @@ struct PlayerDetailView: View {
         }
         .navigationTitle(player.name)
         .navigationBarTitleDisplayMode(.inline)
+        // Register here (not just in the News tab) so the value-routed NewsRow
+        // links inside NewsSection resolve in EVERY stack that shows a player
+        // profile — fixes the silent-fail news tap (NAV-06).
+        .navigationDestination(for: NewsItem.self) { NewsDetailView(item: $0) }
         .toolbar {
             // Page to the adjacent player in the list without backing out
             // (NAV-04). Only shown when a real sibling ordering was passed in.
