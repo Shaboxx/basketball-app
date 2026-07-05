@@ -16,7 +16,8 @@ struct TradeTierBadge: View {
         case "B": return .blue
         case "C": return .orange
         case "D": return .red
-        default:  return .secondary   // F / unknown
+        case "F": return .red        // worst tier must not read calmer than D
+        default:  return .secondary   // unknown
         }
     }
 }

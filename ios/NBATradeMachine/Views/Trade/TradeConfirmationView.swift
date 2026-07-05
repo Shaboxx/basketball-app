@@ -55,6 +55,17 @@ struct TradeConfirmationView: View {
 
     @ViewBuilder
     private var contentSurface: some View {
+        VStack(spacing: 16) {
+            // Always render the grade lede — a placeholder when it can't be
+            // computed, mirroring the other tiles' explicit-degradation pattern
+            // rather than silently vanishing.
+            TradeGradeHeader(grade: confirmation.grade)
+            teamsSurface
+        }
+    }
+
+    @ViewBuilder
+    private var teamsSurface: some View {
         if horizontalSizeClass == .regular {
             // Side-by-side columns on iPad / landscape — single tall surface
             // for the screenshot share.
@@ -63,16 +74,11 @@ struct TradeConfirmationView: View {
                     TradeConfirmationTeamSection(package: pkg)
                         .frame(minWidth: 280, idealWidth: 320)
                 }
-                if confirmation.chemistry != nil || confirmation.peakTimeline != nil {
-                    Phase7fColumn(
-                        chemistry: confirmation.chemistry,
-                        peakTimeline: confirmation.peakTimeline
-                    )
-                    .frame(minWidth: 240, idealWidth: 280)
-                } else {
-                    Phase7fColumn(chemistry: nil, peakTimeline: nil)
-                        .frame(minWidth: 240, idealWidth: 280)
-                }
+                Phase7fColumn(
+                    teams: confirmation.teams,
+                    peakTimeline: confirmation.peakTimeline
+                )
+                .frame(minWidth: 240, idealWidth: 280)
             }
         } else {
             VStack(spacing: 18) {
@@ -80,7 +86,7 @@ struct TradeConfirmationView: View {
                     TradeConfirmationTeamSection(package: pkg)
                 }
                 Phase7fColumn(
-                    chemistry: confirmation.chemistry,
+                    teams: confirmation.teams,
                     peakTimeline: confirmation.peakTimeline
                 )
             }
@@ -413,34 +419,53 @@ private struct TrustFlagStrip: View {
 // MARK: - Phase 7f forward-compat tiles
 
 private struct Phase7fColumn: View {
-    let chemistry: ChemistryReport?
+    let teams: [TradeConfirmation.TeamPackage]
     let peakTimeline: PeakTimelineForecast?
 
+    private var hasChemistry: Bool { teams.contains { $0.chemistry != nil } }
+    private var hasPeak: Bool {
+        guard let p = peakTimeline else { return false }
+        return p.peakStartSeason != nil && p.peakEndSeason != nil
+    }
+
     var body: some View {
+        // Only render tiles that actually have data — no permanent
+        // "Not yet available." dead placeholders at the bottom of the sheet.
         VStack(spacing: 12) {
-            ChemistryTile(chemistry: chemistry)
-            PeakTimelineTile(peakTimeline: peakTimeline)
+            if hasChemistry { ChemistryTile(teams: teams) }
+            if hasPeak { PeakTimelineTile(peakTimeline: peakTimeline) }
         }
     }
 }
 
 private struct ChemistryTile: View {
-    let chemistry: ChemistryReport?
+    let teams: [TradeConfirmation.TeamPackage]
+
+    private var lines: [(tricode: String, chem: LineupChemistryDelta)] {
+        teams.compactMap { pkg in
+            pkg.chemistry.map { (pkg.team.tricode, $0) }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label("Role chemistry", systemImage: "person.2.circle")
                 .font(.subheadline.weight(.semibold))
-            if let chemistry, let summary = chemistry.summary {
-                Text(summary).font(.callout)
-            } else if let chemistry, let score = chemistry.score {
-                Text("Composite \(String(format: "%+.2fσ", score))")
-                    .font(.callout)
-            } else {
-                Text("Not yet available.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            ForEach(lines, id: \.tricode) { line in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(line.tricode)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 42, alignment: .leading)
+                    Text(line.chem.summaryLine)
+                        .font(.caption)
+                        .foregroundStyle(chemColor(line.chem.delta))
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(line.tricode) starters: \(line.chem.summaryLine)")
             }
+            Text("Resulting-starters fit vs. today.")
+                .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -448,6 +473,92 @@ private struct ChemistryTile: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemBackground))
         )
+    }
+
+    private func chemColor(_ delta: Double?) -> Color {
+        guard let d = delta else { return .primary }
+        if d > 0.15 { return .green }
+        if d < -0.15 { return .red }
+        return .primary
+    }
+}
+
+// MARK: - Trade Grade header
+
+private struct TradeGradeHeader: View {
+    /// nil → the grade couldn't be computed (renders an explicit placeholder
+    /// rather than vanishing).
+    let grade: TradeGrade?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(grade?.letter ?? "—")
+                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .foregroundStyle(letterColor)
+                .frame(minWidth: 56)
+                .padding(.vertical, 6).padding(.horizontal, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(letterColor.opacity(0.18))
+                )
+                .accessibilityHidden(true)   // spoken in the combined label
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Fairness Grade")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(grade?.verdict ?? "Grade unavailable")
+                    .font(.headline)
+                Text(caption)
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.tertiarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(letterColor.opacity(0.25), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(a11yLabel)
+    }
+
+    private var letterColor: Color {
+        guard let g = grade else { return .secondary }
+        return Self.color(for: g.letter)
+    }
+
+    /// Monotone good→bad ramp, distinct from the per-player `TradeTierBadge`
+    /// palette so A→F reads as one worsening gradient and F is the most
+    /// alarming (never calmer than D).
+    private static func color(for letter: String) -> Color {
+        switch letter.first {
+        case "A": return .green
+        case "B": return .mint
+        case "C": return .orange
+        case "D": return Color(red: 0.85, green: 0.30, blue: 0.10)   // deep orange
+        default:  return .red                                         // F
+        }
+    }
+
+    private var caption: String {
+        guard let g = grade else {
+            return "Player values not loaded for this trade."
+        }
+        return g.approximate
+            ? "Comp-Z asset balance · excludes picks, cash & unpriced players."
+            : "Comp-Z asset balance across both sides."
+    }
+
+    private var a11yLabel: String {
+        guard let g = grade else {
+            return "Fairness grade unavailable — player values not loaded."
+        }
+        let spoken = g.letter == "A+" ? "A plus" : g.letter
+        return "Fairness grade \(spoken). \(g.verdict)."
     }
 }
 

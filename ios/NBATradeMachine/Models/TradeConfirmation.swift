@@ -22,6 +22,9 @@ struct TradeConfirmation: Equatable {
         let cashIncoming: Int
         let cashOutgoing: Int
         let rollup: Rollup
+        /// Resulting-roster role-chemistry readout (post-trade starters vs
+        /// pre-trade). Nil when norms/features aren't available to evaluate.
+        let chemistry: LineupChemistryDelta?
 
         var id: String { team.teamId }
     }
@@ -88,7 +91,8 @@ extension TradeConfirmation {
         trade: Trade,
         playersById: [String: Player],
         chemistry: ChemistryReport? = nil,
-        peakTimeline: PeakTimelineForecast? = nil
+        peakTimeline: PeakTimelineForecast? = nil,
+        chemistryByTeam: [String: LineupChemistryDelta] = [:]
     ) -> TradeConfirmation {
         let packages: [TeamPackage] = trade.teams.map { team in
             let inIds = trade.incomingPlayerIds(to: team.teamId)
@@ -108,7 +112,8 @@ extension TradeConfirmation {
                     .filter { $0.key != team.teamId }
                     .values.reduce(0, +),
                 cashOutgoing: trade.cash(from: team.teamId),
-                rollup: rollup
+                rollup: rollup,
+                chemistry: chemistryByTeam[team.teamId]
             )
         }
         return TradeConfirmation(

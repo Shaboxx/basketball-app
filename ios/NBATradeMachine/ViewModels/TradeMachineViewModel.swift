@@ -60,7 +60,6 @@ final class TradeMachineViewModel: ObservableObject {
 
     @Published var trade = Trade()
     @Published var validation: TradeValidation?
-    @Published var fitWarnings: [PositionFitWarning] = []
     @Published var alertMessage: String?
     @Published private(set) var history: [HistoryEntry] = []
 
@@ -85,7 +84,6 @@ final class TradeMachineViewModel: ObservableObject {
             guard isOffseason != oldValue else { return }
             pruneSelectionsForActiveYear()
             validation = nil
-            fitWarnings = []
             alertMessage = nil
         }
     }
@@ -137,7 +135,6 @@ final class TradeMachineViewModel: ObservableObject {
         trade.movements.removeAll()
         trade.cashSent.removeAll()
         validation = nil
-        fitWarnings = []
         alertMessage = nil
     }
 
@@ -149,7 +146,6 @@ final class TradeMachineViewModel: ObservableObject {
         reset()
         trade.teams = Array(teams.prefix(Self.maxTeams))
         validation = nil
-        fitWarnings = []
         alertMessage = nil
     }
 
@@ -288,7 +284,6 @@ final class TradeMachineViewModel: ObservableObject {
         draftedProspects.removeValue(forKey: teamId)
         signedContracts = signedContracts.filter { !rosterIds.contains($0.key) }
         validation = nil
-        fitWarnings = []
         alertMessage = nil
     }
 
@@ -643,6 +638,10 @@ final class TradeMachineViewModel: ObservableObject {
             }
         }
         validate()
+        // A successful balance is legal — don't also pop the advisory alert.
+        // The pinned live-status pill already reflects the new legality; only
+        // surface the alert when balancing couldn't fully legalize the trade.
+        if validation?.isValid == true { alertMessage = nil }
     }
 
     func validate() {
@@ -670,17 +669,94 @@ final class TradeMachineViewModel: ObservableObject {
             validation = TradeValidation(isValid: true, reason: "")
         }
 
-        var warnings: [PositionFitWarning] = []
-        for team in trade.teams {
-            warnings += TradeAnalyzer.fitWarnings(
+        alertMessage = buildAlertMessage(issues: issues)
+    }
+
+    /// Position-fit soft warnings, recomputed live from the current trade so
+    /// the build tab surfaces them without waiting for a Validate tap.
+    var fitWarnings: [PositionFitWarning] {
+        trade.teams.flatMap { team in
+            TradeAnalyzer.fitWarnings(
                 incoming: incomingPlayers(to: team.teamId),
                 receivingRoster: roster(for: team.teamId),
                 teamId: team.teamId
             )
         }
-        fitWarnings = warnings
+    }
 
-        alertMessage = buildAlertMessage(issues: issues)
+    /// Always-on legality summary for the status pill — pure and side-effect
+    /// free, so it can be read on every render as the builder mutates. Mirrors
+    /// `validate()`'s decision (structural guard → first CBA block) without
+    /// touching `validation` / `alertMessage`.
+    enum LiveTradeStatus: Equatable {
+        /// Nothing to validate yet (fewer than two teams, or no assets moving).
+        case empty
+        case valid
+        /// `extraIssues` = additional blocking issues beyond `reason`.
+        case invalid(reason: String, extraIssues: Int)
+
+        var isValid: Bool { if case .valid = self { return true }; return false }
+    }
+
+    var liveStatus: LiveTradeStatus {
+        guard trade.teams.count >= 2 else { return .empty }
+        let hasMovement = !trade.movements.isEmpty
+            || !trade.pickMovements.isEmpty
+            || trade.cashSent.values.contains { $0 > 0 }
+        guard hasMovement else { return .empty }
+
+        let flows = trade.teams.map {
+            TradeAnalyzer.TeamFlow(
+                teamId: $0.teamId, teamName: $0.fullName,
+                outgoing: outgoingSalary(from: $0.teamId),
+                incoming: incomingSalary(to: $0.teamId)
+            )
+        }
+        // Structural: every team must move salary in or out. Surface ALL
+        // uninvolved teams as the count (not just the first) so multi-team
+        // trades get an honest "(+N more)".
+        let uninvolved = flows.filter { $0.outgoing == 0 && $0.incoming == 0 }
+        if let firstBad = uninvolved.first {
+            return .invalid(
+                reason: "\(firstBad.teamName) isn't sending or receiving salary in this trade.",
+                extraIssues: uninvolved.count - 1)
+        }
+
+        let blocks = complianceIssues(in: trade).filter { $0.severity == .block }
+        if let first = blocks.first {
+            return .invalid(reason: first.message, extraIssues: max(0, blocks.count - 1))
+        }
+        return .valid
+    }
+
+    /// Full detail for the status pill's tap-through. Leads with the
+    /// authoritative live blocking `reason` (which may be structural — and thus
+    /// absent from the CBA issue list) and appends CBA violations / warnings /
+    /// cap-tier bumps. Independent of the stored `validation`, so it never goes
+    /// stale. Side-effect free.
+    func statusDetail(reason: String) -> String {
+        let issues = complianceIssues()
+        var sections: [String] = []
+        let blocks = issues.filter { $0.severity == .block }
+        // Lead with the reason unless a CBA block already states it verbatim
+        // (then it appears under "CBA violations" below).
+        if !blocks.contains(where: { $0.message == reason }) {
+            sections.append(reason)
+        }
+        if !blocks.isEmpty {
+            sections.append("CBA violations:\n"
+                + blocks.map { "• \($0.message)" }.joined(separator: "\n"))
+        }
+        let warns = issues.filter { $0.severity == .warn }
+        if !warns.isEmpty {
+            sections.append("CBA warnings:\n"
+                + warns.map { "• \($0.message)" }.joined(separator: "\n"))
+        }
+        if let capLines = buildCapWarningLines(), !capLines.isEmpty {
+            sections.append("This trade pushes a team into a worse cap tier:\n"
+                + capLines.joined(separator: "\n"))
+        }
+        return sections.joined(separator: "\n\n")
     }
 
     /// Run the CBA compliance engine for every team in the trade.
@@ -875,7 +951,6 @@ final class TradeMachineViewModel: ObservableObject {
         signedFreeAgents.removeAll()
         draftedProspects.removeAll()
         validation = nil
-        fitWarnings = []
         alertMessage = nil
     }
 
@@ -891,7 +966,6 @@ final class TradeMachineViewModel: ObservableObject {
         }
         isApplyingHistory = false
         validation = nil
-        fitWarnings = []
         alertMessage = nil
     }
 
@@ -909,7 +983,6 @@ final class TradeMachineViewModel: ObservableObject {
         }
         isApplyingHistory = false
         validation = nil
-        fitWarnings = []
         alertMessage = nil
     }
 

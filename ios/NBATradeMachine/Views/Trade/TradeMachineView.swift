@@ -4,6 +4,7 @@ struct TradeMachineView: View {
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var rulesVM: LeagueRulesViewModel
     @EnvironmentObject var picksVM: PicksViewModel
+    @EnvironmentObject var normsVM: LeagueNormsViewModel
     @EnvironmentObject var appSettings: AppSettings
     @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = TradeMachineViewModel()
@@ -27,6 +28,10 @@ struct TradeMachineView: View {
     @State private var showReplaceConfirm = false
     @State private var confirmationSnapshot: ConfirmationSnapshot?
     @State private var balancePresentation: BalancePresentation?
+    /// Full legality breakdown shown when the red status pill is tapped.
+    @State private var legalityDetail: String?
+    /// Confirms the destructive "Clear trade" action.
+    @State private var showResetConfirm = false
 
     private struct BalancePresentation: Identifiable {
         let id = UUID()
@@ -139,10 +144,30 @@ struct TradeMachineView: View {
                 onDismiss: { confirmationSnapshot = nil }
             )
         }
-        .onChange(of: vm.validation?.isValid) { _, isValid in
-            if isValid == true {
-                presentConfirmation()
+        .alert(
+            "Why this trade isn't legal yet",
+            isPresented: Binding(
+                get: { legalityDetail != nil },
+                set: { if !$0 { legalityDetail = nil } }
+            ),
+            presenting: legalityDetail
+        ) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { detail in
+            Text(detail)
+        }
+        .confirmationDialog(
+            "Clear this trade?",
+            isPresented: $showResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear Trade", role: .destructive) {
+                vm.reset()
+                selectedTeamId = ""
             }
+            Button("Keep Editing", role: .cancel) {}
+        } message: {
+            Text("This removes every player, pick, and cash you've added.")
         }
     }
 
@@ -153,13 +178,33 @@ struct TradeMachineView: View {
             for p in vm.outgoingPlayers(from: team.teamId) { lookup[p.id] = p }
         }
         let confirmation = TradeConfirmation.build(
-            trade: vm.trade, playersById: lookup
+            trade: vm.trade,
+            playersById: lookup,
+            chemistryByTeam: chemistryByTeam()
         )
         confirmationSnapshot = ConfirmationSnapshot(
             trade: vm.trade,
             confirmation: confirmation,
             playersById: lookup
         )
+    }
+
+    /// Post-trade role-chemistry per team, computed from each team's resulting
+    /// starters (current roster ± the moving players). Empty when norms aren't
+    /// loaded yet — the confirmation tile degrades to "not yet available".
+    private func chemistryByTeam() -> [String: LineupChemistryDelta] {
+        guard let norms = normsVM.norms else { return [:] }
+        var out: [String: LineupChemistryDelta] = [:]
+        for team in vm.trade.teams {
+            // roster(for:) already excludes outgoing/waived players.
+            let base = vm.roster(for: team.teamId)
+            let post = base + vm.incomingPlayers(to: team.teamId)
+            let pre = base + vm.outgoingPlayers(from: team.teamId)
+            if let chem = TradeChemistry.evaluate(preRoster: pre, postRoster: post, norms: norms) {
+                out[team.teamId] = chem
+            }
+        }
+        return out
     }
 
     private var activeTradeView: some View {
@@ -215,14 +260,97 @@ struct TradeMachineView: View {
 
             ScrollView {
                 if let team = currentTeam {
-                    VStack(spacing: 16) {
-                        TeamTradeTabContent(team: team, vm: vm)
-                        actionButtons.padding(.horizontal)
-                    }
-                    .padding(.bottom, 24)
+                    TeamTradeTabContent(team: team, vm: vm)
+                        .padding(.bottom, 8)
                 }
             }
+            // Pin status + actions so the always-on legality read stays visible
+            // while the user scrolls/edits the roster above it.
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 10) {
+                    statusPill
+                    actionButtons
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+                .background(.bar)
+            }
         }
+    }
+
+    /// Always-on legality status, pinned above the actions. Empty trade → a
+    /// neutral "how to start" hint; legal → green; illegal → red, leading with
+    /// the actual blocking reason and tappable for the full breakdown.
+    @ViewBuilder
+    private var statusPill: some View {
+        switch vm.liveStatus {
+        case .empty:
+            pillShell(tint: Color(.tertiarySystemFill)) {
+                HStack(spacing: 8) {
+                    Image(systemName: "hand.tap")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    Text("Tap a player on either roster to start building the trade.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        case .valid:
+            pillShell(tint: Color.green.opacity(0.18)) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                        .accessibilityHidden(true)
+                    Text("Trade is legal")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 0)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Trade is legal")
+        case let .invalid(reason, extra):
+            Button {
+                legalityDetail = vm.statusDetail(reason: reason)
+            } label: {
+                pillShell(tint: Color.red.opacity(0.18)) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            // Lead with the actionable reason, not a generic header.
+                            Text(reason)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+                            Text(extra > 0
+                                 ? "+\(extra) more issue\(extra == 1 ? "" : "s") · tap for details"
+                                 : "Tap for details")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2).foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Not legal: \(reason)")
+            .accessibilityHint("Shows all blocking issues")
+        }
+    }
+
+    /// Shared pill chrome (padding, shape, house 0.18 tint).
+    private func pillShell<Content: View>(tint: Color,
+                                          @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(tint))
     }
 
     /// Cross-team roster diff: each team's net OFF/DEF Δσ, side by side,
@@ -299,53 +427,63 @@ struct TradeMachineView: View {
     }
 
     private var actionButtons: some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 8) {
+            // Primary gets its own full-width row so it dominates and is never
+            // adjacent to the destructive Clear.
             Button {
-                vm.validate()
+                presentConfirmation()
             } label: {
-                Label("Validate", systemImage: "checkmark.seal")
-                    .frame(maxWidth: .infinity).padding(.vertical, 6)
+                Label("Review Trade", systemImage: "checkmark.seal")
+                    .frame(maxWidth: .infinity).padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(!vm.liveStatus.isValid)
 
-            if vm.canBalance {
-                Button {
-                    if let r = vm.balanceTrade(includePicks: true) {
-                        balancePresentation = BalancePresentation(result: r)
+            HStack(spacing: 10) {
+                if vm.canBalance {
+                    Button {
+                        if let r = vm.balanceTrade(includePicks: true) {
+                            balancePresentation = BalancePresentation(result: r)
+                        }
+                    } label: {
+                        Label("Balance", systemImage: "scalemass")
+                            .frame(maxWidth: .infinity).padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if vm.canRemoveTeam {
+                    Button(role: .destructive) {
+                        vm.removeTeam(effectiveSelection)
+                        selectedTeamId = ""
+                    } label: {
+                        Label("Remove", systemImage: "minus.circle")
+                            .frame(maxWidth: .infinity).padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button(role: .destructive) {
+                    // Confirm only when there's work to lose.
+                    if vm.hasUncommittedWork {
+                        showResetConfirm = true
+                    } else {
+                        vm.reset()
+                        selectedTeamId = ""
                     }
                 } label: {
-                    Label("Balance", systemImage: "scalemass")
+                    Label("Clear", systemImage: "xmark.circle")
                         .frame(maxWidth: .infinity).padding(.vertical, 6)
                 }
                 .buttonStyle(.bordered)
-            }
-
-            if vm.canRemoveTeam {
-                Button(role: .destructive) {
-                    vm.removeTeam(effectiveSelection)
-                    selectedTeamId = ""
-                } label: {
-                    Label("Remove Team", systemImage: "minus.circle")
-                        .frame(maxWidth: .infinity).padding(.vertical, 6)
+                .contextMenu {
+                    Button {
+                        showingHistory = true
+                    } label: {
+                        Label("View History (\(vm.history.count))", systemImage: "clock.arrow.circlepath")
+                    }
+                    .disabled(vm.history.isEmpty)
                 }
-                .buttonStyle(.bordered)
-            }
-
-            Button(role: .destructive) {
-                vm.reset()
-                selectedTeamId = ""
-            } label: {
-                Label("Cancel", systemImage: "xmark.circle")
-                    .frame(maxWidth: .infinity).padding(.vertical, 6)
-            }
-            .buttonStyle(.bordered)
-            .contextMenu {
-                Button {
-                    showingHistory = true
-                } label: {
-                    Label("View History (\(vm.history.count))", systemImage: "clock.arrow.circlepath")
-                }
-                .disabled(vm.history.isEmpty)
             }
         }
     }
