@@ -10,7 +10,8 @@ struct FantasyHomeView: View {
         case teams = "Teams", leagues = "Leagues", pickem = "Pick'em"
         var id: String { rawValue }
     }
-    @State private var tab: Tab = .teams
+    // SceneStorage so the segment survives a bottom-tab switch / re-mount (NAV-07).
+    @SceneStorage("fantasyHomeTab") private var tab: Tab = .teams
 
     /// Pick'em only appears when its flag is on (the enum case can't be conditional).
     private var visibleTabs: [Tab] { Tab.allCases.filter { $0 != .pickem || PickemGate.shouldShow() } }
@@ -37,7 +38,7 @@ struct FantasyHomeView: View {
 /// sub-segment above it so online leagues live beside — never replacing — local ones.
 private struct LeaguesTab: View {
     enum Scope: String, CaseIterable, Identifiable { case local = "Local", hosted = "Hosted"; var id: String { rawValue } }
-    @State private var scope: Scope = .local
+    @SceneStorage("fantasyLeaguesScope") private var scope: Scope = .local   // NAV-07
 
     var body: some View {
         if HostedLeaguesGate.shouldShow() {

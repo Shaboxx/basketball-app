@@ -25,12 +25,22 @@ final class PlayersViewModel: ObservableObject {
     @Published var players: [Player] = []
     @Published var searchText = ""
     /// Default NBA sort is Total σ (alphabetical is a menu option, not the default).
-    @Published var sortMode: SortMode = .totalSigmaDesc
+    /// Persisted so the user's sort survives tab switches / relaunches (NAV-05).
+    @Published var sortMode: SortMode = .totalSigmaDesc {
+        didSet { UserDefaults.standard.set(sortMode.rawValue, forKey: Self.sortKey) }
+    }
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    private static let sortKey = "playersSortMode"
     private let service: FirestoreReading
-    init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
+    init(service: FirestoreReading = FirestoreService.shared) {
+        self.service = service
+        if let raw = UserDefaults.standard.string(forKey: Self.sortKey),
+           let saved = SortMode(rawValue: raw) {
+            sortMode = saved
+        }
+    }
 
     /// Bumped whenever `players` is reassigned — part of the `filtered` cache key
     /// so a roster reload invalidates the memoized result.

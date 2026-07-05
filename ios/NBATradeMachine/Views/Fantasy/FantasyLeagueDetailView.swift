@@ -20,7 +20,7 @@ struct FantasyLeagueDetailView: View {
         case standings = "Standings", schedule = "Schedule"
         var id: String { rawValue }
     }
-    @State private var segment: Segment = .standings
+    @SceneStorage("fantasyLeagueSegment") private var segment: Segment = .standings   // NAV-07
     @State private var selectedPairing: FantasyMatchupPairing?
     @State private var showLeagueSettings = false
     @State private var showDraftRoom = false

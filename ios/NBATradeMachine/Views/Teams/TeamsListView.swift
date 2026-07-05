@@ -30,7 +30,8 @@ struct TeamsListView: View {
     /// "6 or less teams" alert.
     var onMaxTeamsReached: () -> Void = {}
 
-    @State private var sortMode: SortMode = .name
+    // Remember the user's sort across tab switches / launches (NAV-05).
+    @AppStorage("teamsSortMode") private var sortMode: SortMode = .name
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
 
