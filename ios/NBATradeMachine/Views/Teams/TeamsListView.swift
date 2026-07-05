@@ -35,6 +35,9 @@ struct TeamsListView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
 
+    /// Live search query — parity with the Players tab (NAV-47).
+    @State private var query = ""
+
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
@@ -59,7 +62,7 @@ struct TeamsListView: View {
                     }.padding().padding(.top, 60)
                 } else {
                     LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(sortedTeams) { team in
+                        ForEach(displayedTeams) { team in
                             if selection.isSelecting {
                                 Button {
                                     if selection.toggle(team.teamId) == .rejectedMax {
@@ -81,6 +84,7 @@ struct TeamsListView: View {
                 }
             }
             .refreshable { await teamsVM.reload() }
+            .searchable(text: $query, prompt: "Search teams")
             .navigationTitle("Teams")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -145,6 +149,18 @@ struct TeamsListView: View {
 
     /// Apply the chosen sort. Un-rated teams (no roster has Rev-2 z fields)
     /// fall to the bottom on σ-desc sorts via a -inf sentinel.
+    /// Search filter applied over the sorted list (NAV-47).
+    private var displayedTeams: [Team] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return sortedTeams }
+        return sortedTeams.filter {
+            $0.fullName.lowercased().contains(q)
+                || $0.city.lowercased().contains(q)
+                || $0.name.lowercased().contains(q)
+                || $0.tricode.lowercased().contains(q)
+        }
+    }
+
     private var sortedTeams: [Team] {
         let teams = teamsVM.teams
         let channel: SortChannel

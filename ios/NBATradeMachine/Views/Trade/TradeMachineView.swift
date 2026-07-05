@@ -246,6 +246,18 @@ struct TradeMachineView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
 
+                // Visible Undo — was only reachable via a long-press on Clear
+                // (NAV-23). Full step-history stays in Clear's context menu.
+                Button {
+                    vm.undo()
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                        .font(.caption2)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!vm.canUndo)
+
                 Spacer()
                 if AppConfig.aiAdvisorEnabled {
                     Button {
