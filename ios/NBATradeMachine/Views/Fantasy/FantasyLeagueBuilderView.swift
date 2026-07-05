@@ -72,6 +72,7 @@ struct FantasyLeagueBuilderView: View {
                 membersSection
                 addTeamsSection
             }
+            .scrollDismissesKeyboard(.interactively)   // decimalPad has no Return — drag to dismiss
             .navigationTitle("Edit League")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear(perform: adoptFromStore)
@@ -79,6 +80,7 @@ struct FantasyLeagueBuilderView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Delete", role: .destructive) { confirmDelete = true }
                 }
+                ToolbarItem(placement: .primaryAction) { EditButton() }   // enables drag-to-reorder (= draft order)
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }

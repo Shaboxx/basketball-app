@@ -321,6 +321,14 @@ struct TeamTradeTabContent: View {
                     .textFieldStyle(.roundedBorder)
                     .focused($cashFocused)
                     .frame(maxWidth: 130)
+                    // numberPad has no Return; a Done button dismisses (which commits the amount —
+                    // otherwise tapping away without stealing focus silently drops it).
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { cashFocused = false }
+                        }
+                    }
                 Text(amount > 0 ? Money.display(amount) : "—")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -371,7 +379,7 @@ struct TeamTradeTabContent: View {
         .padding()
         .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
         .overlay(
-            RoundedRectangle(cornerRadius: 12).stroke(Color.black.opacity(0.06), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12).stroke(Color(.separator), lineWidth: 0.5)   // adapts in dark mode
         )
     }
 

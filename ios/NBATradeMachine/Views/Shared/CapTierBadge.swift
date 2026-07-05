@@ -4,12 +4,13 @@ struct CapTierBadge: View {
     let tier: LeagueRules.CapTier
 
     var body: some View {
+        // Tinted style (like TradeTierBadge): white-on-saturated-green/orange failed WCAG contrast.
         Text(tier.rawValue)
             .font(.caption2.bold())
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .foregroundStyle(.white)
-            .background(color, in: Capsule())
+            .foregroundStyle(color)
+            .background(color.opacity(0.18), in: Capsule())
     }
 
     private var color: Color {

@@ -261,7 +261,7 @@ struct DepthChartLayersView: View {
             .frame(width: cellWidth, alignment: .top)
             .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.black.opacity(0.06), lineWidth: 0.5))
+                .stroke(Color(.separator), lineWidth: 0.5))   // adapts in dark mode
     }
 
     private let cellWidth: CGFloat = 66

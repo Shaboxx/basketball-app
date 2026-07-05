@@ -181,6 +181,7 @@ struct ResignContractSheet: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)   // numberPad has no Return — drag to dismiss
             .navigationTitle("Re-sign")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

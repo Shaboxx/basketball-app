@@ -9,7 +9,7 @@ struct DataHealthView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     ForEach(vm.feeds) { feed in

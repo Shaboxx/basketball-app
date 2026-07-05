@@ -46,7 +46,7 @@ struct TradeTabBar: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 4)
             .background(bg, in: shape)
-            .overlay(shape.stroke(Color.black.opacity(0.05), lineWidth: 0.5))
+            .overlay(shape.stroke(Color(.separator), lineWidth: 0.5))   // adapts in dark mode
     }
 
     private func addTab() -> some View {
@@ -58,6 +58,6 @@ struct TradeTabBar: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.gray.opacity(0.18), in: shape)
-            .overlay(shape.stroke(Color.black.opacity(0.05), lineWidth: 0.5))
+            .overlay(shape.stroke(Color(.separator), lineWidth: 0.5))   // adapts in dark mode
     }
 }

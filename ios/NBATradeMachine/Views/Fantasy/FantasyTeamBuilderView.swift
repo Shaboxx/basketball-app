@@ -182,6 +182,7 @@ struct FantasyTeamBuilderView: View {
             }
             .toolbar {
                 // Delete lives on the team's MAIN page (with confirmation), not here.
+                ToolbarItem(placement: .primaryAction) { EditButton() }   // enables roster drag-to-reorder
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }

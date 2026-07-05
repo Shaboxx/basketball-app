@@ -321,6 +321,7 @@ struct SignFreeAgentDetail: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)   // numberPad has no Return — drag to dismiss
             .navigationTitle("Sign")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

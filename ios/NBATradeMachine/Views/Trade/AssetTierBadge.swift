@@ -8,11 +8,13 @@ struct AssetTierBadge: View {
     let tier: CompZValuation.AssetSummary.Tier
 
     var body: some View {
+        // Tinted style (like TradeTierBadge): white-on-saturated-green/teal/gray/orange fills
+        // failed WCAG contrast.
         Text(Self.label(for: tier))
             .font(.caption2.weight(.bold))
             .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Self.color(for: tier), in: Capsule())
-            .foregroundStyle(.white)
+            .background(Self.color(for: tier).opacity(0.18), in: Capsule())
+            .foregroundStyle(Self.color(for: tier))
     }
 
     /// Human-readable label for each tier. Pure mapping kept static so it can

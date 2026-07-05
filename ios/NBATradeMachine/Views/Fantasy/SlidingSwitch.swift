@@ -50,20 +50,23 @@ struct SlidingSwitch<Left: View, Right: View>: View {
             HStack(spacing: 0) {
                 left
                     .foregroundStyle(isRight ? Color.secondary : activeColor)
-                    .frame(width: width / 2)
+                    .frame(width: width / 2, height: height)
+                    .contentShape(Rectangle())
+                    .onTapGesture { isRight = false }   // tap-to-select: active side is a no-op
                 right
                     .foregroundStyle(isRight ? activeColor : Color.secondary)
-                    .frame(width: width / 2)
+                    .frame(width: width / 2, height: height)
+                    .contentShape(Rectangle())
+                    .onTapGesture { isRight = true }
             }
             .font(.subheadline.weight(.semibold))
         }
         .frame(width: width, height: height)
         .animation(.snappy, value: isRight)
-        .contentShape(Capsule())
-        .onTapGesture { isRight.toggle() }
         .accessibilityElement()
         .accessibilityLabel(accessibilityName)
         .accessibilityValue(isRight ? rightName : leftName)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { isRight.toggle() }   // VoiceOver double-tap still toggles
     }
 }
