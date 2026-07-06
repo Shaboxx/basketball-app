@@ -121,10 +121,23 @@ struct FantasyLeaguesListView: View {
     @ViewBuilder
     private func leagueRow(_ league: FantasyLeague) -> some View {
         let count = league.teamIds.filter { fantasyTeamStore.team($0) != nil }.count
-        VStack(alignment: .leading, spacing: 2) {
-            Text(league.name).font(.subheadline.bold())
-            Text("\(count) team\(count == 1 ? "" : "s")")
-                .font(.caption).foregroundStyle(.secondary)
+        let pending = fantasyTradeStore.trades(for: league.id).filter { !$0.status.isTerminal }.count
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(league.name).font(.subheadline.bold())
+                Text("\(count) team\(count == 1 ? "" : "s")")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if pending > 0 {
+                // A trade is mid-flight in this league (proposed/accepted, not yet settled).
+                Text("\(pending)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Color.accentColor, in: Capsule())
+                    .foregroundStyle(.white)
+                    .accessibilityLabel("\(pending) pending trade\(pending == 1 ? "" : "s")")
+            }
         }
     }
 }
