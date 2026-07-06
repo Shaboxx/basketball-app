@@ -70,6 +70,10 @@ struct TradeMachineView: View {
             }
             .navigationDestination(for: Player.self) { player in
                 PlayerDetailView(player: player)
+                    .environmentObject(teamsVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
             }
         }
         .onAppear {

@@ -19,6 +19,13 @@ struct TeamsListView: View {
     }
 
     @EnvironmentObject var teamsVM: TeamsViewModel
+    // Forwarded into the pushed TeamDetailView: a `.navigationDestination` destination
+    // does not reliably inherit this stack's @EnvironmentObjects (same crash class as
+    // the fantasy-team fix), so each is injected explicitly at the destination.
+    @EnvironmentObject var rulesVM: LeagueRulesViewModel
+    @EnvironmentObject var normsVM: LeagueNormsViewModel
+    @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var fantasyStore: FantasyValueStore
 
     /// Selection mode shared with `ContentView`. When `selection.isSelecting`
     /// tiles toggle membership instead of navigating to a team's detail.
@@ -103,6 +110,11 @@ struct TeamsListView: View {
             }
             .navigationDestination(for: Team.self) { team in
                 TeamDetailView(team: team)
+                    .environmentObject(teamsVM)
+                    .environmentObject(rulesVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
             }
         }
         .task { await teamsVM.load() }

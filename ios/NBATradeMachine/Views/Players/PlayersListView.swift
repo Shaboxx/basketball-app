@@ -6,6 +6,9 @@ struct PlayersListView: View {
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var fantasyStore: FantasyValueStore
+    // Held to forward into the pushed PlayerDetailView — a `.navigationDestination`
+    // destination does not inherit this stack's @EnvironmentObjects (crash class).
+    @EnvironmentObject var normsVM: LeagueNormsViewModel
 
     private var fantasyMode: Bool { AppConfig.fantasyEnabled && appSettings.fantasyModeOn }
 
@@ -103,6 +106,10 @@ struct PlayersListView: View {
                 // Pass the current filtered/sorted list so detail shows a
                 // next/prev pager for lateral comparison (NAV-04).
                 PlayerDetailView(player: p, siblings: vm.filtered)
+                    .environmentObject(teamsVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
             }
         }
         // Derive from TeamsViewModel's single shared fetch (no second whole-collection

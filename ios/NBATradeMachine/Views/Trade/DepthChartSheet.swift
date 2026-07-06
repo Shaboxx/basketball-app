@@ -46,6 +46,10 @@ struct DepthChartSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Player.self) { p in
                 PlayerDetailView(player: p)
+                    .environmentObject(teamsVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

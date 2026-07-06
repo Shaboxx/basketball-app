@@ -179,6 +179,10 @@ struct FantasyTeamBuilderView: View {
                 // Pushed INSIDE the sheet's own stack, so popping back lands on this
                 // roster list with the search text and every add/remove intact.
                 PlayerDetailView(player: p)
+                    .environmentObject(teamsVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
             }
             .toolbar {
                 // Delete lives on the team's MAIN page (with confirmation), not here.

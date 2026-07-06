@@ -151,6 +151,10 @@ struct LineupMakerView: View {
                 )
                 .navigationDestination(for: Player.self) { p in
                     PlayerDetailView(player: p)
+                        .environmentObject(teamsVM)
+                        .environmentObject(normsVM)
+                        .environmentObject(appSettings)
+                        .environmentObject(fantasyStore)
                 }
             }
             // Sub-sheet strips the environment — re-inject PlayerDetailView's dependencies.

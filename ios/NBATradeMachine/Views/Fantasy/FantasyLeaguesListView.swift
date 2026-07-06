@@ -11,6 +11,11 @@ struct FantasyLeaguesListView: View {
     @EnvironmentObject var fantasyDraftStore: FantasyDraftStore
     @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
     @EnvironmentObject var teamsVM: TeamsViewModel
+    // Forwarded into the pushed FantasyLeagueDetailView (a navigationDestination
+    // doesn't inherit this stack's environment — the team-detail crash class).
+    @EnvironmentObject var fantasyStore: FantasyValueStore
+    @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
+    @EnvironmentObject var appSettings: AppSettings
 
     @State private var path = NavigationPath()
     @State private var builderLeague: BuilderTarget?
@@ -85,6 +90,14 @@ struct FantasyLeaguesListView: View {
             .navigationTitle("Leagues")
             .navigationDestination(for: FantasyLeague.self) { league in
                 FantasyLeagueDetailView(leagueId: league.id)
+                    .environmentObject(fantasyLeagueStore)
+                    .environmentObject(fantasyTeamStore)
+                    .environmentObject(fantasyStore)
+                    .environmentObject(fantasyActualsStore)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyDraftStore)
+                    .environmentObject(fantasyTradeStore)
+                    .environmentObject(teamsVM)
             }
         }
         .sheet(item: $builderLeague) { target in
