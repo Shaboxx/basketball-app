@@ -234,12 +234,32 @@ struct FantasyTradeMachineView: View {
                 .padding()
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
         default:
-            verdictCard(title: "My Side", swing: mySwing)
-            if let opp = opponentSwing {
-                verdictCard(title: "Opponent (\(opponentTeam?.name ?? ""))", swing: opp)
+            // Don't show an authoritative-looking verdict for a trade that doesn't exist yet:
+            // gate the card on a real (both-sides) trade, else prompt to build one.
+            if isStructurallyValid {
+                verdictCard(title: "My Side", swing: mySwing)
+                if let opp = opponentSwing {
+                    verdictCard(title: "Opponent (\(opponentTeam?.name ?? ""))", swing: opp)
+                }
+                proposeBar
+            } else {
+                emptyVerdictPrompt
             }
-            proposeBar
         }
+    }
+
+    @ViewBuilder
+    private var emptyVerdictPrompt: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "arrow.left.arrow.right.circle")
+                .font(.title2).foregroundStyle(.secondary)
+            Text("Add a player to each side to see the trade verdict.")
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder
@@ -305,17 +325,13 @@ struct FantasyTradeMachineView: View {
     /// "Propose" CTA, set that expectation honestly.
     @ViewBuilder
     private var proposeBar: some View {
-        if isStructurallyValid {
-            Label("What-if trade — the verdict above updates live. Nothing is sent anywhere.",
-                  systemImage: "sparkles")
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 4)
-        } else {
-            Text("Each side must move at least one player.")
-                .font(.caption).foregroundStyle(.secondary)
-                .padding(.top, 4)
-        }
+        // Only shown once the trade is structurally valid (see verdictSection); the
+        // empty state is handled by emptyVerdictPrompt.
+        Label("What-if trade — the verdict above updates live. Nothing is sent anywhere.",
+              systemImage: "sparkles")
+            .font(.caption).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 4)
     }
 }
 
