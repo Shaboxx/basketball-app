@@ -132,6 +132,22 @@ struct FantasyLeagueDetailView: View {
         List {
             Section { banner }
 
+            // Trading is a core manager activity — surface it as a top-level section
+            // (mirroring the hosted league view) instead of burying it in the
+            // Commissioner menu.
+            if memberTeams.count >= 2 {
+                Section("Trades") {
+                    Button { showTrades = true } label: {
+                        Label("Propose or Review Trades", systemImage: "arrow.left.arrow.right")
+                    }
+                    let pending = fantasyTradeStore.trades(for: leagueId).filter { !$0.status.isTerminal }.count
+                    if pending > 0 {
+                        Text("\(pending) pending trade\(pending == 1 ? "" : "s")")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             if memberTeams.count < 2 {
                 Section { guardCard }
             } else if appSettings.statSource == .live {
@@ -186,11 +202,7 @@ struct FantasyLeagueDetailView: View {
                     } label: {
                         Label("Draft Room", systemImage: "list.number")
                     }
-                    Button {
-                        showTrades = true
-                    } label: {
-                        Label("Trades", systemImage: "arrow.left.arrow.right")
-                    }
+                    // Trades moved to a top-level section in the body (above).
                     Button {
                         showManagers = true
                     } label: {
