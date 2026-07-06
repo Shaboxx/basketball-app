@@ -7,13 +7,19 @@ import SwiftUI
 struct CategoryBarRow: View {
     let label: String
     let z: Double
+    // Fixed columns clipped the load-bearing numbers at large Dynamic Type; scale
+    // the widths with the text size and let the labels shrink as a last resort.
+    @ScaledMetric(relativeTo: .caption) private var labelWidth: CGFloat = 44
+    @ScaledMetric(relativeTo: .caption) private var valueWidth: CGFloat = 56
 
     var body: some View {
         HStack(spacing: 8) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 44, alignment: .leading)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: labelWidth, alignment: .leading)
             GeometryReader { geo in
                 let half = geo.size.width / 2
                 // Guard non-finite z: a NaN width traps in CoreGraphics.
@@ -31,7 +37,9 @@ struct CategoryBarRow: View {
             Text(String(format: "%+.2f", z))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(z >= 0 ? .green : .red)
-                .frame(width: 56, alignment: .trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: valueWidth, alignment: .trailing)
         }
         .padding(.top, 4)
         // The bar is color-only; give VoiceOver the direction, not just the number.
