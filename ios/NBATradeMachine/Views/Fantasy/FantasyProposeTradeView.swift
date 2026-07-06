@@ -30,6 +30,12 @@ struct FantasyProposeTradeView: View {
     @State private var toTeamId: UUID?
     @State private var fromSlugs: [String] = []       // proposer SENDS (canonical)
     @State private var toSlugs: [String] = []         // recipient SENDS (canonical)
+    @State private var fromAssets: [FantasyTradeAsset] = []   // proposer's picks/FAAB
+    @State private var toAssets: [FantasyTradeAsset] = []     // receiver's picks/FAAB
+    @State private var assetTarget: AssetTarget?              // drives the add-asset sheet
+
+    /// Which side the add-asset sheet is filling.
+    private struct AssetTarget: Identifiable { let id = UUID(); let isProposer: Bool }
 
     // MARK: Derived
     private var league: FantasyLeague? { fantasyLeagueStore.league(leagueId) }
@@ -80,8 +86,8 @@ struct FantasyProposeTradeView: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             teamPickers
-                            if fromTeam != nil { sidePanel(team: fromTeam!, sending: $fromSlugs, title: "Proposer sends") }
-                            if toTeam != nil { sidePanel(team: toTeam!, sending: $toSlugs, title: "Receiver sends") }
+                            if fromTeam != nil { sidePanel(team: fromTeam!, sending: $fromSlugs, assets: $fromAssets, title: "Proposer sends", isProposer: true) }
+                            if toTeam != nil { sidePanel(team: toTeam!, sending: $toSlugs, assets: $toAssets, title: "Receiver sends", isProposer: false) }
                             verdicts
                         }
                         .padding()
@@ -96,7 +102,8 @@ struct FantasyProposeTradeView: View {
                     Button(replacingTradeId == nil ? "Propose" : "Send Counter") {
                         fantasyTradeStore.propose(
                             leagueId: leagueId, fromTeamId: fromTeamId!, toTeamId: toTeamId!,
-                            fromSlugs: fromSlugs, toSlugs: toSlugs)
+                            fromSlugs: fromSlugs, toSlugs: toSlugs,
+                            fromAssets: fromAssets, toAssets: toAssets)
                         if let rid = replacingTradeId { fantasyTradeStore.markCountered(rid) }
                         onProposed(toTeam?.name ?? "the other team")
                         dismiss()
@@ -105,6 +112,11 @@ struct FantasyProposeTradeView: View {
                 }
             }
             .onAppear(perform: seedTeams)
+            .sheet(item: $assetTarget) { target in
+                AddAssetSheet { asset in
+                    if target.isProposer { fromAssets.append(asset) } else { toAssets.append(asset) }
+                }
+            }
         }
     }
 
@@ -131,8 +143,8 @@ struct FantasyProposeTradeView: View {
 
     @ViewBuilder private var teamPickers: some View {
         VStack(spacing: 10) {
-            teamMenu("From (proposer)", selection: $fromTeamId, exclude: toTeamId) { fromSlugs = [] }
-            teamMenu("To (receiver)", selection: $toTeamId, exclude: fromTeamId) { toSlugs = [] }
+            teamMenu("From (proposer)", selection: $fromTeamId, exclude: toTeamId) { fromSlugs = []; fromAssets = [] }
+            teamMenu("To (receiver)", selection: $toTeamId, exclude: fromTeamId) { toSlugs = []; toAssets = [] }
         }
     }
 
@@ -161,7 +173,8 @@ struct FantasyProposeTradeView: View {
     // MARK: Roster side panel
 
     @ViewBuilder
-    private func sidePanel(team: FantasyTeam, sending: Binding<[String]>, title: String) -> some View {
+    private func sidePanel(team: FantasyTeam, sending: Binding<[String]>,
+                           assets: Binding<[FantasyTradeAsset]>, title: String, isProposer: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(team.name) — \(title)").font(.headline)
             if team.playerSlugs.isEmpty {
@@ -171,10 +184,35 @@ struct FantasyProposeTradeView: View {
                     sendRow(slug, sending: sending)
                 }
             }
+            assetEditor(assets: assets, isProposer: isProposer)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Draft-pick / FAAB chips for a side, plus an Add entry (picks/FAAB ride along).
+    @ViewBuilder
+    private func assetEditor(assets: Binding<[FantasyTradeAsset]>, isProposer: Bool) -> some View {
+        if !assets.wrappedValue.isEmpty {
+            Divider()
+            ForEach(assets.wrappedValue) { asset in
+                HStack(spacing: 8) {
+                    Image(systemName: asset.kind == .pick ? "sportscourt" : "dollarsign.circle")
+                        .foregroundStyle(.secondary)
+                    Text(asset.display).font(.caption)
+                    Spacer()
+                    Button {
+                        assets.wrappedValue.removeAll { $0.id == asset.id }
+                    } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+        Button { assetTarget = AssetTarget(isProposer: isProposer) } label: {
+            Label("Add pick / FAAB", systemImage: "plus.circle")
+        }
+        .font(.caption).padding(.top, 2)
     }
 
     @ViewBuilder
@@ -207,6 +245,10 @@ struct FantasyProposeTradeView: View {
             FantasyTradeVerdictCard(title: fromTeam?.name ?? "Proposer", swing: fs, format: format)
             FantasyTradeVerdictCard(title: toTeam?.name ?? "Receiver", swing: ts, format: format)
             rosterAdvisories
+            if !fromAssets.isEmpty || !toAssets.isEmpty {
+                Text("Draft picks and FAAB ride along but aren't valued yet.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
         }
         if fromSlugs.isEmpty || toSlugs.isEmpty {
             Text("Each side must send at least one player.")
@@ -227,6 +269,45 @@ struct FantasyProposeTradeView: View {
             teamName: to.name, current: to.playerSlugs, sends: toSlugs, receives: fromSlugs,
             limits: fantasyLeagueStore.effectiveLimits(for: to.id, appWide: appSettings.fantasyRosterLimits)) {
             RosterAdvisoryRow(note: note)
+        }
+    }
+}
+
+/// A tiny form to add one draft pick or FAAB amount to a trade side.
+private struct AddAssetSheet: View {
+    let onAdd: (FantasyTradeAsset) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var kind: FantasyTradeAsset.Kind = .pick
+    @State private var year = 2027
+    @State private var round = 1
+    @State private var amount = 10
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Type", selection: $kind) {
+                    Text("Draft pick").tag(FantasyTradeAsset.Kind.pick)
+                    Text("FAAB").tag(FantasyTradeAsset.Kind.faab)
+                }
+                .pickerStyle(.segmented)
+                if kind == .pick {
+                    Stepper("Year: \(String(year))", value: $year, in: 2025...2035)
+                    Stepper("Round: \(round)", value: $round, in: 1...15)
+                } else {
+                    Stepper("FAAB: $\(amount)", value: $amount, in: 1...1000, step: 5)
+                }
+            }
+            .navigationTitle("Add Asset")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        onAdd(kind == .pick ? .pick(year: year, round: round) : .faab(amount))
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

@@ -33,11 +33,15 @@ final class FantasyTradeStore: ObservableObject {
     /// FantasyTradeEngine); this stores what it's given.
     @discardableResult
     func propose(leagueId: UUID, fromTeamId: UUID, toTeamId: UUID,
-                 fromSlugs: [String], toSlugs: [String], note: String = "") -> FantasyTrade {
+                 fromSlugs: [String], toSlugs: [String],
+                 fromAssets: [FantasyTradeAsset] = [], toAssets: [FantasyTradeAsset] = [],
+                 note: String = "") -> FantasyTrade {
         let trade = FantasyTrade(
             leagueId: leagueId, fromTeamId: fromTeamId, toTeamId: toTeamId,
             fromSlugs: fromSlugs.map(FantasyValueStore.canonicalSlug),
             toSlugs: toSlugs.map(FantasyValueStore.canonicalSlug),
+            fromAssets: fromAssets.isEmpty ? nil : fromAssets,
+            toAssets: toAssets.isEmpty ? nil : toAssets,
             note: note.trimmingCharacters(in: .whitespacesAndNewlines))
         trades.append(trade)
         persist()

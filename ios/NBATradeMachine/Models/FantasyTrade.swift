@@ -43,11 +43,20 @@ nonisolated struct FantasyTrade: Codable, Equatable, Identifiable {
     let fromSlugs: [String]
     /// Players the receiver SENDS (canonical slugs).
     let toSlugs: [String]
+    /// Non-player assets (draft picks / FAAB) each side includes. Optional so trades
+    /// persisted before this feature decode cleanly (missing key → nil → []).
+    let fromAssets: [FantasyTradeAsset]?
+    let toAssets: [FantasyTradeAsset]?
     var status: FantasyTradeStatus
     var note: String
 
+    /// Non-optional accessors so callers never juggle nil.
+    var fromAssetList: [FantasyTradeAsset] { fromAssets ?? [] }
+    var toAssetList: [FantasyTradeAsset] { toAssets ?? [] }
+
     init(id: UUID = UUID(), leagueId: UUID, fromTeamId: UUID, toTeamId: UUID,
          fromSlugs: [String], toSlugs: [String],
+         fromAssets: [FantasyTradeAsset]? = nil, toAssets: [FantasyTradeAsset]? = nil,
          status: FantasyTradeStatus = .proposed, note: String = "") {
         self.id = id
         self.leagueId = leagueId
@@ -55,12 +64,14 @@ nonisolated struct FantasyTrade: Codable, Equatable, Identifiable {
         self.toTeamId = toTeamId
         self.fromSlugs = fromSlugs
         self.toSlugs = toSlugs
+        self.fromAssets = fromAssets
+        self.toAssets = toAssets
         self.status = status
         self.note = note
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, leagueId, fromTeamId, toTeamId, fromSlugs, toSlugs, status, note
+        case id, leagueId, fromTeamId, toTeamId, fromSlugs, toSlugs, fromAssets, toAssets, status, note
     }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -70,6 +81,8 @@ nonisolated struct FantasyTrade: Codable, Equatable, Identifiable {
         toTeamId = try c.decode(UUID.self, forKey: .toTeamId)
         fromSlugs = try c.decodeIfPresent([String].self, forKey: .fromSlugs) ?? []
         toSlugs = try c.decodeIfPresent([String].self, forKey: .toSlugs) ?? []
+        fromAssets = try c.decodeIfPresent([FantasyTradeAsset].self, forKey: .fromAssets)
+        toAssets = try c.decodeIfPresent([FantasyTradeAsset].self, forKey: .toAssets)
         status = try c.decodeIfPresent(FantasyTradeStatus.self, forKey: .status) ?? .proposed
         note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
     }

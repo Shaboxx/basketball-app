@@ -114,8 +114,14 @@ struct FantasyTradeReviewView: View {
                 }
                 Text("\(teamName(t.fromTeamId)) sends: \(names(t.fromSlugs))")
                     .font(.caption).foregroundStyle(.secondary)
+                if let a = FantasyTradeAsset.summary(t.fromAssetList) {
+                    Text("＋ \(a)").font(.caption2).foregroundStyle(.secondary)
+                }
                 Text("\(teamName(t.toTeamId)) sends: \(names(t.toSlugs))")
                     .font(.caption).foregroundStyle(.secondary)
+                if let a = FantasyTradeAsset.summary(t.toAssetList) {
+                    Text("＋ \(a)").font(.caption2).foregroundStyle(.secondary)
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture { detailTrade = t }
