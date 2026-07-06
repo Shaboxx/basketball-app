@@ -19,6 +19,7 @@ struct FantasyTradeReviewView: View {
     @State private var showPropose = false
     @State private var detailTrade: FantasyTrade?
     @State private var executeError: String?
+    @State private var toast: ToastMessage?
 
     // MARK: Derived
     private var league: FantasyLeague? { fantasyLeagueStore.league(leagueId) }
@@ -70,7 +71,9 @@ struct FantasyTradeReviewView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .sheet(isPresented: $showPropose) {
-                FantasyProposeTradeView(leagueId: leagueId)
+                FantasyProposeTradeView(leagueId: leagueId, onProposed: { name in
+                    toast = .success("Trade proposed to \(name)")
+                })
                     .environmentObject(fantasyLeagueStore)
                     .environmentObject(fantasyTeamStore)
                     .environmentObject(fantasyTradeStore)
@@ -87,6 +90,7 @@ struct FantasyTradeReviewView: View {
             } message: {
                 Text(executeError ?? "")
             }
+            .toast($toast)
         }
     }
 
@@ -113,6 +117,12 @@ struct FantasyTradeReviewView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { detailTrade = t }
+            // Make the two-step model legible: accepting only flips status; Execute
+            // is what actually swaps the rosters.
+            if t.status == .accepted {
+                Text("Accepted — tap Execute to apply to rosters.")
+                    .font(.caption2).foregroundStyle(.orange)
+            }
             actionRow(t)
         }
     }

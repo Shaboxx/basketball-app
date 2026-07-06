@@ -14,6 +14,9 @@ struct FantasyProposeTradeView: View {
     @Environment(\.dismiss) private var dismiss
 
     let leagueId: UUID
+    /// Called with the receiver's team name after a successful propose, so the
+    /// presenter can confirm the (otherwise silent) dismiss with a toast.
+    var onProposed: (String) -> Void = { _ in }
 
     @State private var fromTeamId: UUID?
     @State private var toTeamId: UUID?
@@ -86,6 +89,7 @@ struct FantasyProposeTradeView: View {
                         fantasyTradeStore.propose(
                             leagueId: leagueId, fromTeamId: fromTeamId!, toTeamId: toTeamId!,
                             fromSlugs: fromSlugs, toSlugs: toSlugs)
+                        onProposed(toTeam?.name ?? "the other team")
                         dismiss()
                     }
                     .disabled(!canPropose)
