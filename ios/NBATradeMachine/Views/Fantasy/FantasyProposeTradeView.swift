@@ -17,6 +17,14 @@ struct FantasyProposeTradeView: View {
     /// Called with the receiver's team name after a successful propose, so the
     /// presenter can confirm the (otherwise silent) dismiss with a toast.
     var onProposed: (String) -> Void = { _ in }
+    /// Optional pre-seed used by "Counter": the recipient becomes the proposer with
+    /// the original terms, which they then tweak. When `replacingTradeId` is set, a
+    /// successful propose marks that original trade `.countered`.
+    var initialFromTeamId: UUID? = nil
+    var initialToTeamId: UUID? = nil
+    var initialFromSlugs: [String] = []
+    var initialToSlugs: [String] = []
+    var replacingTradeId: UUID? = nil
 
     @State private var fromTeamId: UUID?
     @State private var toTeamId: UUID?
@@ -85,10 +93,11 @@ struct FantasyProposeTradeView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Propose") {
+                    Button(replacingTradeId == nil ? "Propose" : "Send Counter") {
                         fantasyTradeStore.propose(
                             leagueId: leagueId, fromTeamId: fromTeamId!, toTeamId: toTeamId!,
                             fromSlugs: fromSlugs, toSlugs: toSlugs)
+                        if let rid = replacingTradeId { fantasyTradeStore.markCountered(rid) }
                         onProposed(toTeam?.name ?? "the other team")
                         dismiss()
                     }
@@ -100,6 +109,14 @@ struct FantasyProposeTradeView: View {
     }
 
     private func seedTeams() {
+        // Counter pre-seed: adopt the (swapped) original terms once, then let the user tweak.
+        if fromTeamId == nil, let seedFrom = initialFromTeamId {
+            fromTeamId = seedFrom
+            toTeamId = initialToTeamId
+            fromSlugs = initialFromSlugs
+            toSlugs = initialToSlugs
+            return
+        }
         // Default the proposer to My Team if it's in this league, else the first member.
         if fromTeamId == nil {
             let my = fantasyTeamStore.myTeamId

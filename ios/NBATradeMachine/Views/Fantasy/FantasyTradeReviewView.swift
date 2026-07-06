@@ -18,6 +18,7 @@ struct FantasyTradeReviewView: View {
 
     @State private var showPropose = false
     @State private var detailTrade: FantasyTrade?
+    @State private var counterOf: FantasyTrade?      // countering this proposal
     @State private var executeError: String?
     @State private var toast: ToastMessage?
 
@@ -84,6 +85,7 @@ struct FantasyTradeReviewView: View {
             .sheet(item: $detailTrade) { t in
                 tradeDetail(t)
             }
+            .sheet(item: $counterOf) { t in counterSheet(t) }
             .alert("Trade can't be executed",
                    isPresented: Binding(get: { executeError != nil }, set: { if !$0 { executeError = nil } })) {
                 Button("OK", role: .cancel) { executeError = nil }
@@ -134,6 +136,7 @@ struct FantasyTradeReviewView: View {
             case .proposed:
                 actionButton("Accept", .green) { fantasyTradeStore.accept(t.id) }
                 actionButton("Reject", .red) { fantasyTradeStore.reject(t.id) }
+                actionButton("Counter", .accentColor) { counterOf = t }
                 actionButton("Cancel", .secondary) { fantasyTradeStore.cancel(t.id) }
             case .accepted:
                 actionButton("Execute", .green) {
@@ -171,6 +174,7 @@ struct FantasyTradeReviewView: View {
         case .rejected, .vetoed, .cancelled: return .red
         case .proposed:            return .accentColor
         case .accepted:            return .orange
+        case .countered:           return .secondary
         }
     }
 
@@ -205,6 +209,24 @@ struct FantasyTradeReviewView: View {
             incoming: resolve(receives), outgoing: resolve(sends),
             teamProfile: FantasyTeamProfile.categoryTotals(resolve(preTrade)),
             meta: fantasyStore.meta, format: format, dynastyOn: appSettings.dynastyOn)
+    }
+
+    /// Countering a proposal: open Propose with the recipient as proposer and the
+    /// original terms swapped in; sending marks the original `.countered`.
+    @ViewBuilder
+    private func counterSheet(_ t: FantasyTrade) -> some View {
+        FantasyProposeTradeView(
+            leagueId: leagueId,
+            onProposed: { name in toast = .success("Counter proposed to \(name)") },
+            initialFromTeamId: t.toTeamId, initialToTeamId: t.fromTeamId,
+            initialFromSlugs: t.toSlugs, initialToSlugs: t.fromSlugs,
+            replacingTradeId: t.id)
+            .environmentObject(fantasyLeagueStore)
+            .environmentObject(fantasyTeamStore)
+            .environmentObject(fantasyTradeStore)
+            .environmentObject(fantasyStore)
+            .environmentObject(teamsVM)
+            .environmentObject(appSettings)
     }
 
     @ViewBuilder

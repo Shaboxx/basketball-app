@@ -49,6 +49,8 @@ final class FantasyTradeStore: ObservableObject {
     func reject(_ id: UUID) { apply(id, FantasyTradeEngine.rejecting) }
     func cancel(_ id: UUID) { apply(id, FantasyTradeEngine.cancelling) }
     func veto(_ id: UUID)   { apply(id, FantasyTradeEngine.vetoing) }
+    /// Close a proposal because the recipient sent back a counter (a new proposal).
+    func markCountered(_ id: UUID) { apply(id, FantasyTradeEngine.countering) }
 
     private func apply(_ id: UUID, _ transition: (FantasyTrade) -> FantasyTrade?) {
         guard let i = index(of: id), let next = transition(trades[i]) else { return }

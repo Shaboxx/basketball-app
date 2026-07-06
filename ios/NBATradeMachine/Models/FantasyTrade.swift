@@ -4,16 +4,16 @@ import Foundation
 /// proposes → the other manager accepts (or rejects) → the commissioner
 /// executes (or vetoes). The proposer can cancel while it's still pending.
 ///
-///   proposed → accepted | rejected | cancelled
+///   proposed → accepted | rejected | cancelled | countered
 ///   accepted → executed | vetoed
-///   rejected / cancelled / vetoed / executed  are terminal
+///   rejected / cancelled / vetoed / executed / countered  are terminal
 nonisolated enum FantasyTradeStatus: String, Codable, Equatable {
-    case proposed, accepted, rejected, cancelled, vetoed, executed
+    case proposed, accepted, rejected, cancelled, vetoed, executed, countered
 
     var isTerminal: Bool {
         switch self {
-        case .rejected, .cancelled, .vetoed, .executed: return true
-        case .proposed, .accepted:                      return false
+        case .rejected, .cancelled, .vetoed, .executed, .countered: return true
+        case .proposed, .accepted:                                  return false
         }
     }
     var displayName: String {
@@ -24,6 +24,7 @@ nonisolated enum FantasyTradeStatus: String, Codable, Equatable {
         case .cancelled: return "Cancelled"
         case .vetoed:    return "Vetoed"
         case .executed:  return "Executed"
+        case .countered: return "Countered"
         }
     }
 }
@@ -151,6 +152,8 @@ nonisolated enum FantasyTradeEngine {
     static func accepting(_ t: FantasyTrade) -> FantasyTrade? { transition(t, from: .proposed, to: .accepted) }
     static func rejecting(_ t: FantasyTrade) -> FantasyTrade? { transition(t, from: .proposed, to: .rejected) }
     static func cancelling(_ t: FantasyTrade) -> FantasyTrade? { transition(t, from: .proposed, to: .cancelled) }
+    /// The recipient answered a proposal with a counter — the original is closed.
+    static func countering(_ t: FantasyTrade) -> FantasyTrade? { transition(t, from: .proposed, to: .countered) }
     static func vetoing(_ t: FantasyTrade) -> FantasyTrade? { transition(t, from: .accepted, to: .vetoed) }
     static func executing(_ t: FantasyTrade) -> FantasyTrade? { transition(t, from: .accepted, to: .executed) }
 
