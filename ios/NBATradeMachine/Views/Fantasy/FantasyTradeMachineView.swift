@@ -9,6 +9,10 @@ struct FantasyTradeMachineView: View {
     @EnvironmentObject var fantasyStore: FantasyValueStore
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var appSettings: AppSettings
+    // Used to graduate a what-if into a real in-league proposal when the opponent
+    // is a saved team sharing a league with My Side.
+    @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
+    @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var myTeamId: UUID?
@@ -18,6 +22,8 @@ struct FantasyTradeMachineView: View {
     @State private var showAddIncoming = false
     @State private var showMyTeamPicker = false
     @State private var showOpponentPicker = false
+    @State private var toast: ToastMessage?
+    @State private var didPropose = false          // proposed this assembled trade (resets on edit)
 
     // MARK: Derived
 
@@ -58,6 +64,21 @@ struct FantasyTradeMachineView: View {
 
     /// Structural gate: each side must move at least one player.
     private var isStructurallyValid: Bool { !incomingSlugs.isEmpty && !outgoingSlugs.isEmpty }
+
+    /// A league containing BOTH My Side and the chosen opponent — required to send a
+    /// real proposal from the what-if machine.
+    private var sharedLeague: FantasyLeague? {
+        guard let my = myTeamId, let opp = opponentTeamId else { return nil }
+        return fantasyLeagueStore.leagues.first { $0.teamIds.contains(my) && $0.teamIds.contains(opp) }
+    }
+
+    /// The assembled sides form a legal in-league proposal.
+    private var canProposeReal: Bool {
+        guard let my = myTeamId, let opp = opponentTeamId else { return false }
+        return FantasyTradeEngine.isValid(
+            fromTeamId: my, toTeamId: opp, fromSlugs: outgoingSlugs, toSlugs: incomingSlugs,
+            fromRoster: myTeam?.playerSlugs ?? [], toRoster: opponentTeam?.playerSlugs ?? [])
+    }
 
     // MARK: Body
 
@@ -100,6 +121,10 @@ struct FantasyTradeMachineView: View {
         .onAppear {
             if myTeamId == nil { myTeamId = fantasyTeamStore.myTeamId }
         }
+        // Editing either side means the proposal no longer matches — re-arm the CTA.
+        .onChange(of: incomingSlugs) { _, _ in didPropose = false }
+        .onChange(of: outgoingSlugs) { _, _ in didPropose = false }
+        .toast($toast)
     }
 
     // MARK: My side
@@ -331,13 +356,40 @@ struct FantasyTradeMachineView: View {
     /// "Propose" CTA, set that expectation honestly.
     @ViewBuilder
     private var proposeBar: some View {
-        // Only shown once the trade is structurally valid (see verdictSection); the
-        // empty state is handled by emptyVerdictPrompt.
-        Label("What-if trade — the verdict above updates live. Nothing is sent anywhere.",
-              systemImage: "sparkles")
-            .font(.caption).foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
+        // Only shown once the trade is structurally valid (see verdictSection). If the
+        // Other Side is a saved team sharing a league with My Side, the what-if can
+        // graduate into a REAL proposal; otherwise it stays an honest sandbox.
+        if let league = sharedLeague, let opp = opponentTeam, canProposeReal {
+            VStack(spacing: 6) {
+                if didPropose {
+                    Label("Proposed to \(opp.name) — find it in \(league.name) → Trades.",
+                          systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(.green)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    Button {
+                        _ = fantasyTradeStore.propose(
+                            leagueId: league.id, fromTeamId: myTeamId!, toTeamId: opp.id,
+                            fromSlugs: outgoingSlugs, toSlugs: incomingSlugs)
+                        didPropose = true
+                        toast = .success("Proposed to \(opp.name)")
+                    } label: {
+                        Label("Propose to \(opp.name)", systemImage: "paperplane.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Text("Sends a real trade in \(league.name).")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
             .padding(.top, 4)
+        } else {
+            Label("What-if trade — the verdict above updates live. Nothing is sent anywhere.",
+                  systemImage: "sparkles")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
+        }
     }
 }
 
