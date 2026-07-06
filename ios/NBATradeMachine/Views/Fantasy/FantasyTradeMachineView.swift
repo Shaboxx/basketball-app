@@ -272,10 +272,28 @@ struct FantasyTradeMachineView: View {
                 if let opp = opponentSwing {
                     verdictCard(title: "Opponent (\(opponentTeam?.name ?? ""))", swing: opp)
                 }
+                machineRosterAdvisories
                 proposeBar
             } else {
                 emptyVerdictPrompt
             }
+        }
+    }
+
+    /// Non-blocking warnings if either side would end up over its roster limit
+    /// (limits fall back to the app-wide default when a team isn't in a league).
+    @ViewBuilder private var machineRosterAdvisories: some View {
+        if let my = myTeamId, let team = myTeam,
+           let note = FantasyRosterAdvisory.overLimitNote(
+            teamName: team.name, current: myRosterSlugs, sends: outgoingSlugs, receives: incomingSlugs,
+            limits: fantasyLeagueStore.effectiveLimits(for: my, appWide: appSettings.fantasyRosterLimits)) {
+            RosterAdvisoryRow(note: note)
+        }
+        if let oppId = opponentTeamId, let opp = opponentTeam,
+           let note = FantasyRosterAdvisory.overLimitNote(
+            teamName: opp.name, current: opp.playerSlugs, sends: incomingSlugs, receives: outgoingSlugs,
+            limits: fantasyLeagueStore.effectiveLimits(for: oppId, appWide: appSettings.fantasyRosterLimits)) {
+            RosterAdvisoryRow(note: note)
         }
     }
 

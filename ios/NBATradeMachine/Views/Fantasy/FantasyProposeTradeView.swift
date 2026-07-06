@@ -189,10 +189,27 @@ struct FantasyProposeTradeView: View {
         if let fs = fromSwing, let ts = toSwing, !fromSlugs.isEmpty || !toSlugs.isEmpty {
             FantasyTradeVerdictCard(title: fromTeam?.name ?? "Proposer", swing: fs, format: format)
             FantasyTradeVerdictCard(title: toTeam?.name ?? "Receiver", swing: ts, format: format)
+            rosterAdvisories
         }
         if fromSlugs.isEmpty || toSlugs.isEmpty {
             Text("Each side must send at least one player.")
                 .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Non-blocking warnings if either side would end up over its roster limit.
+    @ViewBuilder private var rosterAdvisories: some View {
+        if let from = fromTeam,
+           let note = FantasyRosterAdvisory.overLimitNote(
+            teamName: from.name, current: from.playerSlugs, sends: fromSlugs, receives: toSlugs,
+            limits: fantasyLeagueStore.effectiveLimits(for: from.id, appWide: appSettings.fantasyRosterLimits)) {
+            RosterAdvisoryRow(note: note)
+        }
+        if let to = toTeam,
+           let note = FantasyRosterAdvisory.overLimitNote(
+            teamName: to.name, current: to.playerSlugs, sends: toSlugs, receives: fromSlugs,
+            limits: fantasyLeagueStore.effectiveLimits(for: to.id, appWide: appSettings.fantasyRosterLimits)) {
+            RosterAdvisoryRow(note: note)
         }
     }
 }

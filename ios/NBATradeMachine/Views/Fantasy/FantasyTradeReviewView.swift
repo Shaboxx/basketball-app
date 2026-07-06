@@ -186,6 +186,14 @@ struct FantasyTradeReviewView: View {
 
     private func resolve(_ slugs: [String]) -> [FantasyValue] { slugs.compactMap { fantasyStore.value(for: $0) } }
 
+    /// Over-limit advisory for one side of a pending trade (nil if it fits / team gone).
+    private func rosterNote(teamId: UUID, sends: [String], receives: [String]) -> String? {
+        guard let team = fantasyTeamStore.team(teamId) else { return nil }
+        return FantasyRosterAdvisory.overLimitNote(
+            teamName: team.name, current: team.playerSlugs, sends: sends, receives: receives,
+            limits: fantasyLeagueStore.effectiveLimits(for: teamId, appWide: appSettings.fantasyRosterLimits))
+    }
+
     private func swing(sender: UUID, sends: [String], receives: [String]) -> FantasyTradeSwing {
         // Profile must reflect the PRE-trade roster ("addresses a weakness" vs
         // "adds to a strength"). For an executed trade the current roster is
@@ -212,6 +220,16 @@ struct FantasyTradeReviewView: View {
                         title: teamName(t.toTeamId),
                         swing: swing(sender: t.toTeamId, sends: t.toSlugs, receives: t.fromSlugs),
                         format: format)
+                    // Advisory only for a not-yet-applied trade (an executed roster is
+                    // already post-swap, so re-applying sends/receives would be wrong).
+                    if !t.status.isTerminal {
+                        if let note = rosterNote(teamId: t.fromTeamId, sends: t.fromSlugs, receives: t.toSlugs) {
+                            RosterAdvisoryRow(note: note)
+                        }
+                        if let note = rosterNote(teamId: t.toTeamId, sends: t.toSlugs, receives: t.fromSlugs) {
+                            RosterAdvisoryRow(note: note)
+                        }
+                    }
                     if !t.note.isEmpty {
                         Text("“\(t.note)”").font(.caption).italic()
                             .frame(maxWidth: .infinity, alignment: .leading)
