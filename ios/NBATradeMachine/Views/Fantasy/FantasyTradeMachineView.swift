@@ -151,6 +151,8 @@ struct FantasyTradeMachineView: View {
                 Text(sending ? "Sending" : "Send")
                     .font(.caption.bold())
                     .foregroundStyle(sending ? .red : .accentColor)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)   // HIG tap target
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -164,6 +166,8 @@ struct FantasyTradeMachineView: View {
             Spacer()
             Button { incomingSlugs.removeAll { $0 == slug } } label: {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)   // HIG tap target
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -212,6 +216,8 @@ struct FantasyTradeMachineView: View {
                 Text(receiving ? "Receiving" : "Send to me")
                     .font(.caption.bold())
                     .foregroundStyle(receiving ? .green : .accentColor)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)   // HIG tap target
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
