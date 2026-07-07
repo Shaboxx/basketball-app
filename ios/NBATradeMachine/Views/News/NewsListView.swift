@@ -22,7 +22,8 @@ struct NewsListView: View {
                 if let err = vm.errorMessage, vm.items.isEmpty {
                     errorView(err)
                 } else if vm.isLoading && vm.items.isEmpty {
-                    ProgressView().padding(.top, 80)
+                    // Fill the content region so the header/footer don't shift while loading.
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if vm.items.isEmpty {
                     ContentUnavailableView(
                         "No news yet",
@@ -58,7 +59,9 @@ struct NewsListView: View {
                     .refreshable { await vm.reload() }
                 }
             }
-            .navigationTitle("News")
+            // No large title — the app header row already reads "News" (avoid the duplicate).
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Player.self) {
                 PlayerDetailView(player: $0)
                     .environmentObject(teamsVM)

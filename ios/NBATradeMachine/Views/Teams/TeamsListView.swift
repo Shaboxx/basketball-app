@@ -92,7 +92,8 @@ struct TeamsListView: View {
             }
             .refreshable { await teamsVM.reload() }
             .searchable(text: $query, prompt: "Search teams")
-            .navigationTitle("Teams")
+            .navigationTitle("")   // app header row already reads "Teams" (avoid the duplicate)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

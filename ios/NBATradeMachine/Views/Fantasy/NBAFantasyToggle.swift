@@ -9,9 +9,11 @@ struct NBAFantasyToggle: View {
     @EnvironmentObject var appSettings: AppSettings
 
     var body: some View {
+        // Light mode: match the prominent Trade button — accent-filled thumb, white active label.
         SlidingSwitch(isRight: $appSettings.fantasyModeOn,
                       accessibilityName: "NBA Fantasy mode",
-                      leftName: "NBA", rightName: "Fantasy") {
+                      leftName: "NBA", rightName: "Fantasy",
+                      dayThumbColor: .accentColor, dayActiveColor: .white) {
             Text("NBA")
         } right: {
             Text("Fantasy")

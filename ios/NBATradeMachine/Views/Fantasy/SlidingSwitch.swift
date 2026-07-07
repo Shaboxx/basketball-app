@@ -17,10 +17,16 @@ struct SlidingSwitch<Left: View, Right: View>: View {
     /// (incl. icon-only slots) from VoiceOver, so the value must be explicit.
     var leftName: String = "Left"
     var rightName: String = "Right"
+    /// Optional DAY-mode overrides. Defaults preserve the navy/light-blue Appearance-toggle
+    /// look; the NBA/Fantasy toggle passes the accent scheme so its thumb matches the
+    /// prominent Trade button (accent fill + white active label).
+    var dayThumbColor: Color? = nil
+    var dayActiveColor: Color? = nil
 
     init(isRight: Binding<Bool>, width: CGFloat = 168, height: CGFloat = 32,
          accessibilityName: String = "Switch",
          leftName: String = "Left", rightName: String = "Right",
+         dayThumbColor: Color? = nil, dayActiveColor: Color? = nil,
          @ViewBuilder left: () -> Left, @ViewBuilder right: () -> Right) {
         self._isRight = isRight
         self.width = width
@@ -28,15 +34,17 @@ struct SlidingSwitch<Left: View, Right: View>: View {
         self.accessibilityName = accessibilityName
         self.leftName = leftName
         self.rightName = rightName
+        self.dayThumbColor = dayThumbColor
+        self.dayActiveColor = dayActiveColor
         self.left = left()
         self.right = right()
     }
 
     private var thumbColor: Color {
-        scheme == .dark ? .white : Color(red: 0.07, green: 0.16, blue: 0.38)   // navy in day mode
+        scheme == .dark ? .white : (dayThumbColor ?? Color(red: 0.07, green: 0.16, blue: 0.38))   // navy default
     }
     private var activeColor: Color {
-        scheme == .dark ? Color.accentColor : Color(red: 0.55, green: 0.78, blue: 1.0)
+        scheme == .dark ? Color.accentColor : (dayActiveColor ?? Color(red: 0.55, green: 0.78, blue: 1.0))
     }
 
     var body: some View {

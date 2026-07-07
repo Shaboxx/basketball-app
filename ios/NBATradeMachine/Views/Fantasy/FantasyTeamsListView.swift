@@ -67,7 +67,8 @@ struct FantasyTeamsListView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Fantasy Teams")
+            .navigationTitle("")   // app header row already reads "Fantasy" (avoid the duplicate)
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: FantasyTeam.self) { team in
                 // Explicitly inject every store the detail view reads — the pushed
                 // destination doesn't inherit this stack's environment (fixes the

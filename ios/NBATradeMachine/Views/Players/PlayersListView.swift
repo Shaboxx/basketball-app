@@ -77,7 +77,8 @@ struct PlayersListView: View {
                     }
                 }
             }
-            .navigationTitle("Players")
+            .navigationTitle("")   // app header row already reads "Players" (avoid the duplicate)
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $vm.searchText, prompt: "Search players")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
