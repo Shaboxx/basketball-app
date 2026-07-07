@@ -16,6 +16,7 @@ struct FantasyLeaguesListView: View {
     @EnvironmentObject var fantasyStore: FantasyValueStore
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
     @EnvironmentObject var appSettings: AppSettings
+    @EnvironmentObject var footerState: FooterState
 
     @State private var path = NavigationPath()
     @State private var builderLeague: BuilderTarget?
@@ -87,6 +88,7 @@ struct FantasyLeaguesListView: View {
                     }
                 }
             }
+            .reportsFooterScroll(footerState)
             .navigationTitle("Leagues")
             .navigationDestination(for: FantasyLeague.self) { league in
                 FantasyLeagueDetailView(leagueId: league.id)

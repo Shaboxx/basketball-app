@@ -26,6 +26,8 @@ struct TeamsListView: View {
     @EnvironmentObject var normsVM: LeagueNormsViewModel
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var fantasyStore: FantasyValueStore
+    @EnvironmentObject var footerState: FooterState
+    @EnvironmentObject var searchState: SearchState
 
     /// Selection mode shared with `ContentView`. When `selection.isSelecting`
     /// tiles toggle membership instead of navigating to a team's detail.
@@ -41,9 +43,6 @@ struct TeamsListView: View {
     @AppStorage("teamsSortMode") private var sortMode: SortMode = .name
 
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
-
-    /// Live search query — parity with the Players tab (NAV-47).
-    @State private var query = ""
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -91,7 +90,7 @@ struct TeamsListView: View {
                 }
             }
             .refreshable { await teamsVM.reload() }
-            .searchable(text: $query, prompt: "Search teams")
+            .reportsFooterScroll(footerState)
             .navigationTitle("")   // app header row already reads "Teams" (avoid the duplicate)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -164,7 +163,7 @@ struct TeamsListView: View {
     /// fall to the bottom on σ-desc sorts via a -inf sentinel.
     /// Search filter applied over the sorted list (NAV-47).
     private var displayedTeams: [Team] {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let q = searchState.text.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return sortedTeams }
         return sortedTeams.filter {
             $0.fullName.lowercased().contains(q)

@@ -12,6 +12,7 @@ struct NewsListView: View {
     @EnvironmentObject private var normsVM: LeagueNormsViewModel
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var fantasyStore: FantasyValueStore
+    @EnvironmentObject private var footerState: FooterState
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLoad = false
     @Binding var path: NavigationPath   // owned by ContentView so depth survives tab switches (NAV-19)
@@ -56,6 +57,7 @@ struct NewsListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .reportsFooterScroll(footerState)
                     .refreshable { await vm.reload() }
                 }
             }

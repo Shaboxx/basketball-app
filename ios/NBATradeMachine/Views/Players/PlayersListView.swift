@@ -9,6 +9,8 @@ struct PlayersListView: View {
     // Held to forward into the pushed PlayerDetailView — a `.navigationDestination`
     // destination does not inherit this stack's @EnvironmentObjects (crash class).
     @EnvironmentObject var normsVM: LeagueNormsViewModel
+    @EnvironmentObject var footerState: FooterState
+    @EnvironmentObject var searchState: SearchState
 
     private var fantasyMode: Bool { AppConfig.fantasyEnabled && appSettings.fantasyModeOn }
 
@@ -71,6 +73,7 @@ struct PlayersListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .reportsFooterScroll(footerState)
                     .refreshable {
                         await teamsVM.reload()                  // refresh the shared source
                         vm.adopt(teamsVM.allRosteredPlayers)
@@ -79,7 +82,6 @@ struct PlayersListView: View {
             }
             .navigationTitle("")   // app header row already reads "Players" (avoid the duplicate)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $vm.searchText, prompt: "Search players")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -124,6 +126,8 @@ struct PlayersListView: View {
         .onChange(of: teamsVM.dataVersion) { _, _ in
             vm.adopt(teamsVM.allRosteredPlayers)
         }
+        // Drive the VM's filter from the app-level search bar (above the header).
+        .onChange(of: searchState.text, initial: true) { _, new in vm.searchText = new }
     }
 
     @ViewBuilder

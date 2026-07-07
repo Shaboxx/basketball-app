@@ -16,6 +16,7 @@ struct FantasyTeamsListView: View {
     @EnvironmentObject var fantasyLeagueStore: FantasyLeagueStore
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
     @EnvironmentObject var fantasyTradeStore: FantasyTradeStore
+    @EnvironmentObject var footerState: FooterState
     // Held only to forward into the pushed detail views (see the navigationDestinations):
     // a `.navigationDestination` destination does not reliably inherit this stack's
     // @EnvironmentObjects, so each destination is injected explicitly — mirroring the
@@ -67,6 +68,7 @@ struct FantasyTeamsListView: View {
                 }
                 .padding()
             }
+            .reportsFooterScroll(footerState)
             .navigationTitle("")   // app header row already reads "Fantasy" (avoid the duplicate)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: FantasyTeam.self) { team in
