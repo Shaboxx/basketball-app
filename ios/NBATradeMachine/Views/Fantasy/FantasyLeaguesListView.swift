@@ -131,7 +131,7 @@ struct FantasyLeaguesListView: View {
         Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })
     }
 
-    @ViewBuilder
+    // Single explicit `return` — not a @ViewBuilder (which the return would disable anyway).
     private func leagueRow(_ league: FantasyLeague) -> some View {
         let count = league.teamIds.filter { fantasyTeamStore.team($0) != nil }.count
         let pending = fantasyTradeStore.trades(for: league.id).filter { !$0.status.isTerminal }.count

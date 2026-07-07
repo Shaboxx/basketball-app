@@ -41,28 +41,31 @@ struct Trade: Codable {
 }
 
 struct PlayerMovement: Codable, Identifiable, Hashable {
-    let id = UUID()
+    let id = UUID()   // local list identity only — intentionally not (de)coded
     let playerId: String
     let fromTeamId: String
     let toTeamId: String
+    private enum CodingKeys: String, CodingKey { case playerId, fromTeamId, toTeamId }
 }
 
 /// A waived player whose (guaranteed) salary stays on the cap as dead money.
 /// Carries yearsRemaining + a stretch flag so the stretch provision can be
 /// computed later WITHOUT changing call sites (deadMoneyHit branches on it).
 struct WaivedContract: Codable, Identifiable, Hashable {
-    let id = UUID()
+    let id = UUID()           // local list identity only — intentionally not (de)coded
     let playerId: String
     let teamId: String
     let salary: Int           // current-season salary at waive time (full dead money for now)
     let yearsRemaining: Int   // retained for future stretch math
     var stretch: Bool = false // future: true → spread over (2*yearsRemaining)+1
+    private enum CodingKeys: String, CodingKey { case playerId, teamId, salary, yearsRemaining, stretch }
 }
 
 struct DismissedPlayer: Codable, Identifiable, Hashable {
-    let id = UUID()
+    let id = UUID()   // local list identity only — intentionally not (de)coded
     let playerId: String
     let teamId: String
+    private enum CodingKeys: String, CodingKey { case playerId, teamId }
 }
 
 struct TradeValidation {
