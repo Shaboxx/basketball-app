@@ -67,20 +67,36 @@ final class TeamsViewModel: ObservableObject {
     func reload() async {
         isLoading = true
         defer { isLoading = false }
-        do {
-            async let teamsTask = service.fetchTeams()
-            async let playersTask = service.fetchPlayers()
-            let (teams, players) = try await (teamsTask, playersTask)
-            self.teams = teams.sorted { $0.fullName < $1.fullName }
-            // Sort each roster ONCE here (salary desc) so players(for:) is an O(1) lookup
-            // — it funnels all trade/cap/sort/depth math and was re-sorting on every call.
-            self.playersByTeamId = Dictionary(grouping: players, by: { $0.teamId })
-                .mapValues { $0.sorted { $0.currentSalary > $1.currentSalary } }
-            self.playerBySlug = Dictionary(players.map { ($0.slug, $0) }, uniquingKeysWith: { a, _ in a })
-            self.dataVersion += 1
-        } catch {
-            errorMessage = error.localizedDescription
+        // Stale-while-revalidate: paint the on-disk cache INSTANTLY (skip a cache miss), then
+        // overwrite from the SERVER. On a flaky network the cache shows immediately instead of
+        // blocking on a slow server round-trip; ContentView's ConnectivityMonitor re-runs this
+        // on reconnect so the fresh server value still lands.
+        if let cached = try? await fetchRosters(source: .cache), !cached.players.isEmpty {
+            apply(cached)
         }
+        do {
+            apply(try await fetchRosters(source: .server))
+            errorMessage = nil
+        } catch {
+            // Keep whatever we already painted (cache); only surface an error with nothing to show.
+            if teams.isEmpty { errorMessage = error.localizedDescription }
+        }
+    }
+
+    private func fetchRosters(source: FetchSource) async throws -> (teams: [Team], players: [Player]) {
+        async let teamsTask = service.fetchTeams(source: source)
+        async let playersTask = service.fetchPlayers(source: source)
+        return try await (teams: teamsTask, players: playersTask)
+    }
+
+    private func apply(_ rosters: (teams: [Team], players: [Player])) {
+        self.teams = rosters.teams.sorted { $0.fullName < $1.fullName }
+        // Sort each roster ONCE here (salary desc) so players(for:) is an O(1) lookup
+        // — it funnels all trade/cap/sort/depth math and was re-sorting on every call.
+        self.playersByTeamId = Dictionary(grouping: rosters.players, by: { $0.teamId })
+            .mapValues { $0.sorted { $0.currentSalary > $1.currentSalary } }
+        self.playerBySlug = Dictionary(rosters.players.map { ($0.slug, $0) }, uniquingKeysWith: { a, _ in a })
+        self.dataVersion += 1
     }
 
     func players(for teamId: String) -> [Player] {
