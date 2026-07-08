@@ -21,6 +21,9 @@ final class TeamsViewModel: ObservableObject {
     @Published var playersByTeamId: [String: [Player]] = [:]   // each roster pre-sorted salary desc
     @Published var isLoading = false
     @Published var errorMessage: String?
+    /// Bumped each time a refresh fails while rosters are ALREADY loaded — drives a transient
+    /// "couldn't refresh" banner instead of wiping the visible content (Apple News convention).
+    @Published private(set) var refreshFailures = 0
     /// Bumped on each successful load — a cheap signal other tabs can observe to
     /// re-derive from the shared player set without diffing the whole dictionary.
     @Published private(set) var dataVersion = 0
@@ -93,7 +96,7 @@ final class TeamsViewModel: ObservableObject {
             errorMessage = nil
         } catch {
             // Keep whatever we already painted (cache); only surface an error with nothing to show.
-            if teams.isEmpty { errorMessage = error.localizedDescription }
+            if teams.isEmpty { errorMessage = error.localizedDescription } else { refreshFailures += 1 }
         }
     }
 

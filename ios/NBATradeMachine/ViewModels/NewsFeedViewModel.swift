@@ -11,6 +11,9 @@ final class NewsFeedViewModel: ObservableObject {
     @Published var sort: NewsSort = .top
     @Published var isLoading = false
     @Published var errorMessage: String?
+    /// Bumped when a refresh fails while the feed is ALREADY loaded — drives a transient banner
+    /// instead of wiping the feed.
+    @Published private(set) var refreshFailures = 0
 
     /// Hot players the user has tapped to filter the feed. Empty -> full feed.
     @Published private(set) var selectedSlugs: Set<String> = []
@@ -67,7 +70,9 @@ final class NewsFeedViewModel: ObservableObject {
             items = try await service.fetchLeagueNews(sort: sort, limit: 30)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            // Full-screen error only with NOTHING to show; otherwise keep the loaded feed and
+            // surface a transient "couldn't refresh" banner (non-destructive, Apple News style).
+            if items.isEmpty { errorMessage = error.localizedDescription } else { refreshFailures += 1 }
         }
         // Hot Players is best-effort: a failure here must not blank the feed.
         hotPlayers = (try? await service.fetchHotPlayers()) ?? hotPlayers

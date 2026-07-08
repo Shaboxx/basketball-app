@@ -83,6 +83,7 @@ struct PlayersListView: View {
                     }
                     .listStyle(.plain)
                     .reportsFooterScroll(footerState)
+                    .refreshFailureBanner(teamsVM.refreshFailures)   // pull-refresh goes through teamsVM
                     .refreshable {
                         await teamsVM.reload()                  // refresh the shared source
                         vm.adopt(teamsVM.allRosteredPlayers)

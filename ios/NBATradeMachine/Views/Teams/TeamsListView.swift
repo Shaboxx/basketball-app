@@ -42,7 +42,7 @@ struct TeamsListView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                if let err = teamsVM.errorMessage {
+                if let err = teamsVM.errorMessage, teamsVM.teams.isEmpty {   // full-screen error only when empty
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill").font(.largeTitle).foregroundStyle(.red)
                         Text("Couldn't load teams").font(.headline)
@@ -86,6 +86,7 @@ struct TeamsListView: View {
             }
             .refreshable { await teamsVM.reload() }
             .reportsFooterScroll(footerState)
+            .refreshFailureBanner(teamsVM.refreshFailures)
             .navigationTitle("")   // app header row already reads "Teams" (avoid the duplicate)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

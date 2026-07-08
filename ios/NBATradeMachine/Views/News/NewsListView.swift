@@ -58,6 +58,7 @@ struct NewsListView: View {
                     }
                     .listStyle(.plain)
                     .reportsFooterScroll(footerState)
+                    .refreshFailureBanner(vm.refreshFailures)
                     .refreshable { await vm.reload() }
                 }
             }
