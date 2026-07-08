@@ -11,8 +11,10 @@ import os
 /// All state is touched only on the main thread (begin/end from launch + ContentView), so the
 /// `nonisolated(unsafe)` statics are safe.
 enum Perf {
-    private static let subsystem = "com.nbatrademachine.perf"
-    private static let signposter = OSSignposter(subsystem: subsystem, category: "Perf")
+    // `nonisolated` so the background hitch watchdog (also nonisolated) can read them; both are
+    // immutable Sendable constants, so this is safe off the main actor.
+    nonisolated private static let subsystem = "com.nbatrademachine.perf"
+    nonisolated private static let signposter = OSSignposter(subsystem: subsystem, category: "Perf")
 
     nonisolated(unsafe) private static var launchState: OSSignpostIntervalState?
     nonisolated(unsafe) private static var launchStart: DispatchTime?
@@ -38,7 +40,14 @@ enum Perf {
 
     /// Start a 1 Hz main-thread stall watchdog: a background timer pings the main queue and,
     /// when the ping was delayed beyond `threshold`, logs + emits a signpost event. Idempotent.
-    static func startHitchWatchdog(threshold: TimeInterval = 0.25) {
+    ///
+    /// `nonisolated` is load-bearing: the enum is `@MainActor` by default (MainActor-default
+    /// isolation), so a plain method here would make the `setEventHandler` closure inherit
+    /// MainActor isolation. The dispatch timer then runs that closure on the background
+    /// `perf.hitch` queue, the Swift runtime asserts it's on the main executor, and traps
+    /// (`EXC_BREAKPOINT` at launch). Marking the method `nonisolated` keeps the handler
+    /// closures off the main executor, which is exactly where the timer fires them.
+    nonisolated static func startHitchWatchdog(threshold: TimeInterval = 0.25) {
         guard watchdog == nil else { return }
         let log = Logger(subsystem: subsystem, category: "Hitch")
         let sp = signposter
