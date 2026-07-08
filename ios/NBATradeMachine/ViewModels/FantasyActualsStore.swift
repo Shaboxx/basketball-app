@@ -14,7 +14,9 @@ final class FantasyActualsStore: ObservableObject {
     init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
 
     func load() async {
-        guard case .idle = phase else { return }          // idempotent load-once
+        // Load-once, but retry after a failed fetch (see FantasyValueStore) — lazy loading
+        // defers the first fetch to the fantasy toggle, so failures must be recoverable.
+        guard phase == .idle || phase == .failed else { return }
         phase = .loading
         do {
             let (a, m) = try await service.fetchFantasyActuals()
