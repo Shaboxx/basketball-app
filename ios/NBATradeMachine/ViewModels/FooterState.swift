@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UIKit
 
 /// Shared expand/collapse state for `AppFooter`, driven independently by scroll
 /// (up → expand, down → collapse) and tap (collapsed basketball → expand), plus the
@@ -59,7 +60,11 @@ final class FooterState: ObservableObject {
 
     private func setExpanded(_ value: Bool) {
         guard isExpanded != value else { return }
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { isExpanded = value }
+        // Honor Reduce Motion — a quick fade instead of the spring for users who opted out.
+        let anim: Animation = UIAccessibility.isReduceMotionEnabled
+            ? .easeOut(duration: 0.15)
+            : .spring(response: 0.34, dampingFraction: 0.82)
+        withAnimation(anim) { isExpanded = value }
     }
 }
 

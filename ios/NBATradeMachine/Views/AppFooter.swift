@@ -15,6 +15,7 @@ extension View {
 
 private struct AppFooterModifier<Bar: View>: ViewModifier {
     @ObservedObject var state: FooterState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion   // honor Reduce Motion
     @ViewBuilder var bar: () -> Bar
 
     func body(content: Content) -> some View {
@@ -26,13 +27,13 @@ private struct AppFooterModifier<Bar: View>: ViewModifier {
                         bar()
                     }
                     .background(.ultraThinMaterial)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .overlay(alignment: .bottomLeading) {
                 if !state.isExpanded {
                     CollapsedFooterButton(state: state)
-                        .transition(.scale(scale: 0.4, anchor: .bottomLeading).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.4, anchor: .bottomLeading).combined(with: .opacity))
                 }
             }
     }
@@ -59,19 +60,15 @@ private struct CollapsedFooterButton: View {
             .contentShape(Circle())
             // Tap is a first-class way to re-open the footer.
             .onTapGesture { state.expand() }
-            // Hold, then drag, to reposition — the long-press disambiguates from the tap.
+            // IMMEDIATE drag disambiguated by movement (≥10pt) — matches AssistiveTouch / PiP; no
+            // hold latency. A tap (no movement) falls through to the tap gesture above.
             .gesture(
-                LongPressGesture(minimumDuration: 0.25)
-                    .sequenced(before: DragGesture())
-                    .updating($dragTranslation) { value, out, _ in
-                        if case .second(true, let drag?) = value { out = drag.translation }
-                    }
-                    .onEnded { value in
-                        if case .second(true, let drag?) = value { state.commitDrag(drag.translation) }
-                    }
+                DragGesture(minimumDistance: 10)
+                    .updating($dragTranslation) { value, out, _ in out = value.translation }
+                    .onEnded { value in state.commitDrag(value.translation) }
             )
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel("Open menu")
-            .accessibilityHint("Double-tap to expand the footer; touch and hold to move it")
+            .accessibilityHint("Double-tap to expand the footer; drag to move it")
     }
 }

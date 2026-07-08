@@ -6,6 +6,7 @@ import SwiftUI
 /// in light blue; NIGHT mode uses a white thumb with the accent label.
 struct SlidingSwitch<Left: View, Right: View>: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding var isRight: Bool
     let left: Left
@@ -70,7 +71,7 @@ struct SlidingSwitch<Left: View, Right: View>: View {
             .font(.subheadline.weight(.semibold))
         }
         .frame(width: width, height: height)
-        .animation(.snappy, value: isRight)
+        .animation(reduceMotion ? .easeOut(duration: 0.12) : .snappy, value: isRight)
         .accessibilityElement()
         .accessibilityLabel(accessibilityName)
         .accessibilityValue(isRight ? rightName : leftName)

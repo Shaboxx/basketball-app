@@ -5,7 +5,7 @@ struct TradeTierBadge: View {
     let tier: String
     var body: some View {
         Text(tier)
-            .font(.system(size: 10, weight: .bold))
+            .font(.caption2.weight(.bold))   // scales with Dynamic Type (was fixed 10pt)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Self.color(tier).opacity(0.18), in: Capsule())
             .foregroundStyle(Self.color(tier))
@@ -32,7 +32,7 @@ struct EngineChips: View {
         }
     }
     private func chip(_ s: String, _ c: Color) -> some View {
-        Text(s).font(.system(size: 8, weight: .bold))
+        Text(s).font(.caption2.weight(.bold))   // scales with Dynamic Type (was fixed 8pt)
             .padding(.horizontal, 4).padding(.vertical, 1)
             .background(c.opacity(0.18), in: Capsule()).foregroundStyle(c)
     }

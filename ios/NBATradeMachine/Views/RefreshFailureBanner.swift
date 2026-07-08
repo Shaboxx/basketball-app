@@ -13,6 +13,7 @@ extension View {
 private struct RefreshFailureBanner: ViewModifier {
     let trigger: Int
     @State private var showing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
@@ -25,13 +26,13 @@ private struct RefreshFailureBanner: ViewModifier {
                         .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 0.5))
                         .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
                         .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                         .accessibilityAddTraits(.isStaticText)
                 }
             }
             // A counter (not a Bool) so repeated failures each re-trigger the banner.
             .onChange(of: trigger) { _, _ in
-                withAnimation(.spring(response: 0.3)) { showing = true }
+                withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3)) { showing = true }
                 Task {
                     try? await Task.sleep(for: .seconds(3))
                     withAnimation(.easeOut) { showing = false }
