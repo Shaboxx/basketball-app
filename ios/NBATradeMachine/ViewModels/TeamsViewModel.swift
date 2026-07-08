@@ -3,6 +3,20 @@ import Combine
 
 @MainActor
 final class TeamsViewModel: ObservableObject {
+    /// How the Teams grid is sorted (persisted by the view via @AppStorage).
+    enum SortMode: String, CaseIterable, Identifiable {
+        case name, totalSigmaDesc, offSigmaDesc, defSigmaDesc
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .name:           return "Name"
+            case .totalSigmaDesc: return "Total σ"
+            case .offSigmaDesc:   return "OFF σ"
+            case .defSigmaDesc:   return "DEF σ"
+            }
+        }
+    }
+
     @Published var teams: [Team] = []
     @Published var playersByTeamId: [String: [Player]] = [:]   // each roster pre-sorted salary desc
     @Published var isLoading = false
@@ -175,5 +189,51 @@ final class TeamsViewModel: ObservableObject {
             rated += 1
         }
         return (off, def, rated, roster.count)
+    }
+
+    // MARK: - Sorted / filtered grid (memoized)
+
+    // Recomputed only when (dataVersion, sort, query) changes — NOT on every render (mirrors
+    // PlayersViewModel.filtered). Private + non-@Published so writing the cache from
+    // displayedTeams(sort:query:) doesn't trigger objectWillChange.
+    private var _displayed: [Team]?
+    private var _displayedKey: String?
+
+    /// Teams sorted by `sort` and search-filtered by `query`, memoized on (dataVersion, sort, query).
+    func displayedTeams(sort: SortMode, query: String) -> [Team] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let key = "\(dataVersion)|\(sort.rawValue)|\(q)"
+        if _displayedKey == key, let cached = _displayed { return cached }
+        let sorted = sortedTeams(sort)
+        let result = q.isEmpty ? sorted : sorted.filter {
+            $0.fullName.lowercased().contains(q) || $0.city.lowercased().contains(q)
+                || $0.name.lowercased().contains(q) || $0.tricode.lowercased().contains(q)
+        }
+        _displayed = result
+        _displayedKey = key
+        return result
+    }
+
+    private func sortedTeams(_ sort: SortMode) -> [Team] {
+        let channel: SortChannel
+        switch sort {
+        case .name:           return teams.sorted { $0.fullName < $1.fullName }
+        case .totalSigmaDesc: channel = .total
+        case .offSigmaDesc:   channel = .off
+        case .defSigmaDesc:   channel = .def
+        }
+        // Schwartzian: compute each team's sort key ONCE (sortKey loops the roster), then sort.
+        return teams.map { ($0, sortKey($0, channel)) }.sorted { $0.1 > $1.1 }.map(\.0)
+    }
+
+    private enum SortChannel { case off, def, total }
+    private func sortKey(_ team: Team, _ channel: SortChannel) -> Double {
+        let r = latentValueRollup(for: team.teamId)
+        guard r.rated > 0 else { return -Double.infinity }
+        switch channel {
+        case .off:   return r.off
+        case .def:   return r.def
+        case .total: return r.off + r.def
+        }
     }
 }

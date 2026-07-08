@@ -1,22 +1,8 @@
 import SwiftUI
 
 struct TeamsListView: View {
-    enum SortMode: String, CaseIterable, Identifiable {
-        case name
-        case totalSigmaDesc
-        case offSigmaDesc
-        case defSigmaDesc
-
-        var id: String { rawValue }
-        var label: String {
-            switch self {
-            case .name: return "Name"
-            case .totalSigmaDesc: return "Total σ"
-            case .offSigmaDesc: return "OFF σ"
-            case .defSigmaDesc: return "DEF σ"
-            }
-        }
-    }
+    // Sort/filter now lives (memoized) in TeamsViewModel; alias keeps the @AppStorage + Picker terse.
+    private typealias SortMode = TeamsViewModel.SortMode
 
     @EnvironmentObject var teamsVM: TeamsViewModel
     // Forwarded into the pushed TeamDetailView: a `.navigationDestination` destination
@@ -68,7 +54,7 @@ struct TeamsListView: View {
                     }.padding().padding(.top, 60)
                 } else {
                     LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(displayedTeams) { team in
+                        ForEach(teamsVM.displayedTeams(sort: sortMode, query: searchState.text)) { team in
                             if selection.isSelecting {
                                 Button {
                                     if selection.toggle(team.teamId) == .rejectedMax {
@@ -156,50 +142,6 @@ struct TeamsListView: View {
                     .foregroundStyle(.white, .green)
                     .padding(4)
             }
-        }
-    }
-
-    /// Apply the chosen sort. Un-rated teams (no roster has Rev-2 z fields)
-    /// fall to the bottom on σ-desc sorts via a -inf sentinel.
-    /// Search filter applied over the sorted list (NAV-47).
-    private var displayedTeams: [Team] {
-        let q = searchState.text.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return sortedTeams }
-        return sortedTeams.filter {
-            $0.fullName.lowercased().contains(q)
-                || $0.city.lowercased().contains(q)
-                || $0.name.lowercased().contains(q)
-                || $0.tricode.lowercased().contains(q)
-        }
-    }
-
-    private var sortedTeams: [Team] {
-        let teams = teamsVM.teams
-        let channel: SortChannel
-        switch sortMode {
-        case .name:
-            return teams.sorted { $0.fullName < $1.fullName }
-        case .totalSigmaDesc: channel = .total
-        case .offSigmaDesc:   channel = .off
-        case .defSigmaDesc:   channel = .def
-        }
-        // Schwartzian: compute each team's sort key ONCE (sortKey loops the roster
-        // via latentValueRollup), then sort by the precomputed key — instead of
-        // recomputing the rollup inside every O(n log n) comparison.
-        return teams.map { ($0, sortKey($0, channel)) }
-                    .sorted { $0.1 > $1.1 }
-                    .map(\.0)
-    }
-
-    private enum SortChannel { case off, def, total }
-
-    private func sortKey(_ team: Team, _ channel: SortChannel) -> Double {
-        let r = teamsVM.latentValueRollup(for: team.teamId)
-        guard r.rated > 0 else { return -Double.infinity }
-        switch channel {
-        case .off: return r.off
-        case .def: return r.def
-        case .total: return r.off + r.def
         }
     }
 }
