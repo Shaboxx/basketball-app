@@ -9,9 +9,6 @@ final class FooterState: ObservableObject {
     @Published var isExpanded = true
     /// Offset of the collapsed button from its default bottom-leading spot (drag-to-move).
     @Published var collapsedOffset: CGSize = .zero
-    /// Measured height of the expanded bar — used as the scroll views' bottom inset so
-    /// their last rows clear the footer (kept constant so toggling doesn't reflow content).
-    @Published var expandedHeight: CGFloat = 96
     /// Size of the region the collapsed button may be dragged within (for clamping).
     var containerSize: CGSize = .zero
     /// While true (e.g. trade-selection mode) the footer never collapses.
@@ -67,13 +64,12 @@ final class FooterState: ObservableObject {
 }
 
 extension View {
-    /// Report a scroll view's vertical offset to the footer state (expand on scroll-up,
-    /// collapse on scroll-down) and reserve bottom space so its last rows clear the bar.
+    /// Report a scroll view's vertical offset to the footer state so it expands on scroll-up
+    /// and collapses on scroll-down. Clearance for the expanded bar is handled centrally by
+    /// `.appFooter` via `safeAreaInset` (no per-scroll-view inset needed here).
     func reportsFooterScroll(_ state: FooterState) -> some View {
-        self
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { old, new in
-                state.onScroll(old: old, new: new)
-            }
-            .contentMargins(.bottom, state.expandedHeight, for: .scrollContent)
+        onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { old, new in
+            state.onScroll(old: old, new: new)
+        }
     }
 }
