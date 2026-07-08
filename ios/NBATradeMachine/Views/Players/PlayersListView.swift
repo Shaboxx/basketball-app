@@ -62,7 +62,9 @@ struct PlayersListView: View {
                 if let err = vm.errorMessage, vm.players.isEmpty {
                     errorView(err)
                 } else if (vm.isLoading || teamsVM.isLoading) && vm.players.isEmpty {
-                    ProgressView()
+                    PlayerListSkeleton()   // content-shaped placeholder instead of a bare spinner
+                } else if displayed.isEmpty {
+                    emptyResultsView
                 } else {
                     List(displayed) { p in
                         NavigationLink(value: p) {
@@ -142,15 +144,29 @@ struct PlayersListView: View {
 
     @ViewBuilder
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.largeTitle).foregroundStyle(.red)
-            Text("Couldn't load players").font(.headline)
-            Text(message).font(.caption).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center).padding(.horizontal)
+        ContentUnavailableView {
+            Label("Couldn't load players", systemImage: "exclamationmark.triangle.fill")
+        } description: {
+            Text(message)
+        } actions: {
             Button("Try Again") { Task { await vm.reload() } }
                 .buttonStyle(.borderedProminent)
-        }.padding()
+        }
+    }
+
+    /// Shown once data has loaded but the current filter/search yields nothing — distinguishes
+    /// "no matches" from the loading and error states (mirrors News's empty placeholder).
+    @ViewBuilder
+    private var emptyResultsView: some View {
+        if searchState.text.isEmpty {
+            ContentUnavailableView(
+                "No players",
+                systemImage: "person.crop.circle.badge.questionmark",
+                description: Text("Pull to refresh, or try again in a moment.")
+            )
+        } else {
+            ContentUnavailableView.search(text: searchState.text)
+        }
     }
 
     private func fmtF(_ v: Double) -> String { String(format: "%.1f", v) }

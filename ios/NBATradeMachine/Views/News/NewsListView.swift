@@ -23,8 +23,8 @@ struct NewsListView: View {
                 if let err = vm.errorMessage, vm.items.isEmpty {
                     errorView(err)
                 } else if vm.isLoading && vm.items.isEmpty {
-                    // Fill the content region so the header/footer don't shift while loading.
-                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Content-shaped placeholder — fills the region so the header/footer don't shift.
+                    ScrollView { NewsListSkeleton() }
                 } else if vm.items.isEmpty {
                     ContentUnavailableView(
                         "No news yet",

@@ -51,7 +51,7 @@ struct TeamsListView: View {
                             .buttonStyle(.borderedProminent)
                     }.padding().padding(.top, 60)
                 } else if teamsVM.isLoading && teamsVM.teams.isEmpty {
-                    ProgressView("Loading teams…").padding(.top, 80)
+                    TeamGridSkeleton()   // content-shaped placeholder instead of a bare spinner
                 } else if teamsVM.teams.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "person.3").font(.largeTitle).foregroundStyle(.secondary)
