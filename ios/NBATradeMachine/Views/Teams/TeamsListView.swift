@@ -28,6 +28,15 @@ struct TeamsListView: View {
     // Remember the user's sort across tab switches / launches (NAV-05).
     @AppStorage("teamsSortMode") private var sortMode: SortMode = .name
 
+    /// Value channel the grade badge reflects, so its number is monotonic with the sort.
+    private var teamChannel: TeamsViewModel.ValueChannel {
+        switch sortMode {
+        case .offSigmaDesc: return .off
+        case .defSigmaDesc: return .def
+        default:            return .total
+        }
+    }
+
     private let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
 
     var body: some View {
@@ -119,13 +128,12 @@ struct TeamsListView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            if rollup.rated > 0 {
-                VStack(spacing: 1) {
-                    Text("OFF \(Player.fmtVal(rollup.off))")
-                    Text("DEF \(Player.fmtVal(rollup.def))")
-                }
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+            if let grade = teamsVM.teamGrade(for: team.teamId, channel: teamChannel) {
+                ValueGradeBadge(grade: grade, caption: teamChannel.label)   // OFF/DEF σ lives on the team detail
+            } else if rollup.rated > 0 {
+                Text("OFF \(Player.fmtVal(rollup.off)) · DEF \(Player.fmtVal(rollup.def))")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 8)

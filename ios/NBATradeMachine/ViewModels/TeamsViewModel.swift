@@ -10,9 +10,9 @@ final class TeamsViewModel: ObservableObject {
         var label: String {
             switch self {
             case .name:           return "Name"
-            case .totalSigmaDesc: return "Total σ"
-            case .offSigmaDesc:   return "OFF σ"
-            case .defSigmaDesc:   return "DEF σ"
+            case .totalSigmaDesc: return "Overall"
+            case .offSigmaDesc:   return "Offense"
+            case .defSigmaDesc:   return "Defense"
             }
         }
     }
@@ -169,6 +169,75 @@ final class TeamsViewModel: ObservableObject {
             else if v == value { below += 0.5 }
         }
         return Int((below / n * 100).rounded())
+    }
+
+    // MARK: - 0-100 value grades (percentile) — memoized on dataVersion
+
+    /// Which value channel a grade reflects, so the badge stays MONOTONIC with the active sort
+    /// (sorting by Offense shows the offense grade, etc.).
+    enum ValueChannel: Hashable {
+        case total, off, def
+        var label: String { switch self { case .total: "OVR"; case .off: "OFF"; case .def: "DEF" } }
+    }
+
+    private var _playerGrades: [ValueChannel: [String: Int]] = [:]
+    private var _teamGrades: [ValueChannel: [String: Int]] = [:]
+    private var _gradesVersion = -1
+
+    /// A player's value as a 0-100 grade (percentile of `channel` among rated players) — a legible
+    /// anchor for the raw σ. Nil until enough players are rated.
+    func playerGrade(for player: Player, channel: ValueChannel = .total) -> Int? {
+        rebuildGradesIfNeeded()
+        return _playerGrades[channel]?[player.slug]
+    }
+
+    /// A team's value as a 0-100 grade (percentile of `channel` among rated teams).
+    func teamGrade(for teamId: String, channel: ValueChannel = .total) -> Int? {
+        rebuildGradesIfNeeded()
+        return _teamGrades[channel]?[teamId]
+    }
+
+    /// Build every grade map ONCE per load — percentile is O(n) per entry, so a grade per row
+    /// would be O(n²) on every render. Cached, keyed on dataVersion.
+    private func rebuildGradesIfNeeded() {
+        guard _gradesVersion != dataVersion else { return }
+        _gradesVersion = dataVersion
+
+        let players = allRosteredPlayers
+        _playerGrades = [
+            .total: Self.gradeMap(players, \.dispTotal),
+            .off:   Self.gradeMap(players, \.dispOff),
+            .def:   Self.gradeMap(players, \.dispDef),
+        ]
+
+        let rated = teams.compactMap { t -> (id: String, off: Double, def: Double)? in
+            let r = latentValueRollup(for: t.teamId)
+            return r.rated > 0 ? (t.teamId, r.off, r.def) : nil
+        }
+        _teamGrades = [
+            .total: Self.teamGradeMap(rated) { $0.off + $0.def },
+            .off:   Self.teamGradeMap(rated) { $0.off },
+            .def:   Self.teamGradeMap(rated) { $0.def },
+        ]
+    }
+
+    /// Percentile grade per player for one value channel (≥10 rated, else empty).
+    private static func gradeMap(_ players: [Player], _ key: KeyPath<Player, Double?>) -> [String: Int] {
+        let vals = players.compactMap { $0[keyPath: key] }
+        guard vals.count >= 10 else { return [:] }
+        var map: [String: Int] = [:]
+        for p in players { if let v = p[keyPath: key] { map[p.slug] = percentile(of: v, in: vals) } }
+        return map
+    }
+
+    /// Percentile grade per team for one value function (≥4 rated, else empty).
+    private static func teamGradeMap(_ teams: [(id: String, off: Double, def: Double)],
+                                     _ value: ((id: String, off: Double, def: Double)) -> Double) -> [String: Int] {
+        guard teams.count >= 4 else { return [:] }
+        let pop = teams.map(value)
+        var map: [String: Int] = [:]
+        for t in teams { map[t.id] = percentile(of: value(t), in: pop) }
+        return map
     }
 
     /// Sum of OFF/DEF display value across the rated roster, plus how many

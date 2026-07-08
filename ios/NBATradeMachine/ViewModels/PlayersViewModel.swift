@@ -14,9 +14,9 @@ final class PlayersViewModel: ObservableObject {
         var label: String {
             switch self {
             case .name: return "Name"
-            case .totalSigmaDesc: return "Total σ"
-            case .offSigmaDesc: return "OFF σ"
-            case .defSigmaDesc: return "DEF σ"
+            case .totalSigmaDesc: return "Overall"
+            case .offSigmaDesc: return "Offense"
+            case .defSigmaDesc: return "Defense"
             case .salaryDesc: return "Salary"
             }
         }

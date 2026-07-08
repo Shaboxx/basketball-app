@@ -14,6 +14,15 @@ struct PlayersListView: View {
 
     private var fantasyMode: Bool { AppConfig.fantasyEnabled && appSettings.fantasyModeOn }
 
+    /// Value channel the grade badge should reflect, so its number is monotonic with the sort.
+    private var valueChannel: TeamsViewModel.ValueChannel {
+        switch vm.sortMode {
+        case .offSigmaDesc: return .off
+        case .defSigmaDesc: return .def
+        default:            return .total
+        }
+    }
+
     /// Fantasy-mode sort menu (9-Cat is the default; alphabetical is an option).
     enum FantasySortMode: String, CaseIterable, Identifiable {
         case nineCat, eightCat, points, name
@@ -165,33 +174,14 @@ struct PlayersListView: View {
                     Text("—").font(.caption).foregroundStyle(.secondary)
                 }
             } else {
+                let channel = valueChannel                       // matches the active sort
+                let grade = teamsVM.playerGrade(for: p, channel: channel)
+                if let grade { ValueGradeBadge(grade: grade, caption: channel.label) }
+                let salaryFont: Font = grade != nil ? .caption2 : .caption
                 Text(Money.display(p.currentSalary))
-                    .font(.caption.monospacedDigit())
+                    .font(salaryFont.monospacedDigit())
                     .foregroundStyle(.secondary)
-                if let valueLine = valueLine(for: p) {
-                    Text(valueLine)
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
             }
-        }
-    }
-
-    /// One-line value summary appended to the row — picks the channel matching
-    /// the current sort, or shows the joint OFF/DEF pair under name/salary
-    /// sorts. Returns nil for players without a display value so the row
-    /// degrades cleanly.
-    private func valueLine(for p: Player) -> String? {
-        guard p.hasDisplayValue else { return nil }
-        switch vm.sortMode {
-        case .offSigmaDesc:
-            return p.dispOff.map { "OFF \(Player.fmtVal($0))" }
-        case .defSigmaDesc:
-            return p.dispDef.map { "DEF \(Player.fmtVal($0))" }
-        case .totalSigmaDesc:
-            return p.dispTotal.map { "TOT \(Player.fmtVal($0))" }
-        case .name, .salaryDesc:
-            return "OFF \(Player.fmtVal(p.dispOff)) · DEF \(Player.fmtVal(p.dispDef))"
         }
     }
 }
