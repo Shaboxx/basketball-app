@@ -62,8 +62,9 @@ final class PlayersViewModel: ObservableObject {
             let p = try await service.fetchPlayers()
             self.players = p.sorted { $0.name < $1.name }
             self.playersVersion += 1
+            errorMessage = nil   // clear a prior failure on success (matches Teams/News reload())
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyError.message(error)
         }
     }
 

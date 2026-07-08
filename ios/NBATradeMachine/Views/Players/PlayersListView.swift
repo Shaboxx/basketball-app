@@ -59,7 +59,10 @@ struct PlayersListView: View {
     var body: some View {
         NavigationStack(path: $path) {
             Group {
-                if let err = vm.errorMessage, vm.players.isEmpty {
+                // The Players tab derives from TeamsViewModel's shared fetch, so a failed shared
+                // load surfaces via teamsVM.errorMessage (adopt() clears vm's own). Show the same
+                // actionable error the Teams tab does instead of a misleading "No players".
+                if let err = vm.errorMessage ?? teamsVM.errorMessage, vm.players.isEmpty {
                     errorView(err)
                 } else if (vm.isLoading || teamsVM.isLoading) && vm.players.isEmpty {
                     PlayerListSkeleton()   // content-shaped placeholder instead of a bare spinner
@@ -149,8 +152,12 @@ struct PlayersListView: View {
         } description: {
             Text(message)
         } actions: {
-            Button("Try Again") { Task { await vm.reload() } }
-                .buttonStyle(.borderedProminent)
+            // Recover through the SHARED source (the tab derives from teamsVM), not vm's
+            // divergent second fetch — so a successful retry actually repopulates the list.
+            Button("Try Again") {
+                Task { await teamsVM.reload(); vm.adopt(teamsVM.allRosteredPlayers) }
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 

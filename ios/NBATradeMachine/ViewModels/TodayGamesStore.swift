@@ -34,6 +34,12 @@ final class TodayGamesStore: ObservableObject {
             phase = teamsPlayingToday.isEmpty ? .empty : .loaded
             loadedDate = today
         } catch {
+            // A failed fetch means we have no valid slate for `today`. The load-once guard only
+            // re-fetches on a DAY ROLLOVER (or a .failed retry), so any slate still held here is
+            // for a PREVIOUS date — it must NOT be presented as tonight's games (a stale "playing
+            // today" signal is worse than an honest "Schedule unavailable"). Clear it and surface
+            // .failed; `loadedDate` stays stale so the next foreground/reconnect retries.
+            teamsPlayingToday = []
             phase = .failed
         }
     }

@@ -72,7 +72,7 @@ final class NewsFeedViewModel: ObservableObject {
         } catch {
             // Full-screen error only with NOTHING to show; otherwise keep the loaded feed and
             // surface a transient "couldn't refresh" banner (non-destructive, Apple News style).
-            if items.isEmpty { errorMessage = error.localizedDescription } else { refreshFailures += 1 }
+            if items.isEmpty { errorMessage = FriendlyError.message(error) } else { refreshFailures += 1 }
         }
         // Hot Players is best-effort: a failure here must not blank the feed.
         hotPlayers = (try? await service.fetchHotPlayers()) ?? hotPlayers

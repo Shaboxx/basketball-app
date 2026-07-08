@@ -96,7 +96,7 @@ final class TeamsViewModel: ObservableObject {
             errorMessage = nil
         } catch {
             // Keep whatever we already painted (cache); only surface an error with nothing to show.
-            if teams.isEmpty { errorMessage = error.localizedDescription } else { refreshFailures += 1 }
+            if teams.isEmpty { errorMessage = FriendlyError.message(error) } else { refreshFailures += 1 }
         }
     }
 
