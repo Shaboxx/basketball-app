@@ -246,6 +246,11 @@ extension LineupShotGeography {
             guard tallied > 0, let z = c.zones[zoneKey] else { return nil }
             return Double(z.fga) / Double(tallied)
         }
+        // CE-6: resolve the claimant slug (deterministic selection) to its member DISPLAY NAME for all copy.
+        func claimantName(_ slug: String?) -> String? {
+            guard let slug else { return nil }
+            return cornerMembers.first(where: { $0.slug == slug })?.name
+        }
 
         // side skew.
         let (skew, sideAttempts) = SpatialLineupMetrics.sideSkew(membersPoints: usablePoints)
@@ -279,6 +284,7 @@ extension LineupShotGeography {
             rimHeavyCount: rimHeavy.count, rimHeavyMaxPct: rimHeavyMaxPct, rimHeavyNames: rimHeavy.map { ($0.name, $0.pct) },
             cornerCoverage: corner, leftClaimantShare: claimantShare(corner.leftClaimant, SpatialLineupMetrics.LEFT_CORNER),
             rightClaimantShare: claimantShare(corner.rightClaimant, SpatialLineupMetrics.RIGHT_CORNER),
+            leftClaimantName: claimantName(corner.leftClaimant), rightClaimantName: claimantName(corner.rightClaimant),
             sideSkew: skew, sideAttempts: sideAttempts, dominantSideIsLeft: dominantLeft,
             lonePerimeterName: loneName, memberPercentiles: percentiles)
         return SpatialLineupEngine.make(from: ctx)

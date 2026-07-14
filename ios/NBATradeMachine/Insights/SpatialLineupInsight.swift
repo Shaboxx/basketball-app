@@ -58,6 +58,10 @@ nonisolated struct SpatialLineupContext {
     let cornerCoverage: SpatialLineupMetrics.CornerCoverage
     let leftClaimantShare: Double?            // claimant's zone share (for the "{pct}% of their shots" bullet)
     let rightClaimantShare: Double?
+    // CE-6: the slug in cornerCoverage drives DETERMINISTIC selection; these resolve to the member's
+    // display NAME for ALL user-facing copy (rule 8). nil when the corner has no claimant.
+    let leftClaimantName: String?
+    let rightClaimantName: String?
 
     // side skew
     let sideSkew: Double?
@@ -91,11 +95,14 @@ nonisolated enum SpatialLineupEngine {
             // rule 3 requires its own min-threeShare guard; data-absence blocks only rules 1/2.
             add(3, r)
         }
-        add(4, rule4(c))
+        add(4, rule4(c))   // CE-3: rule4 self-suppresses via SHARED_OVERLAP_ENABLED (returns nil while false)
         add(5, rule5(c))
         add(6, rule6(c))
         // Corners class: 7 vs 8, coverage==1 fires neither.
-        add(7, rule7(c)); add(8, rule8(c))
+        // CE-7: rule 8 (twoCornerCoverage) is demoted to the LOWEST display rank (11, below sideAsymmetry's
+        // 10). It fires on 26/30 real lineups (near-universal), so it must never crowd distinctive reads
+        // out of the top-4. rule 7 (emptyCorners) keeps its natural rank 7.
+        add(7, rule7(c)); add(11, rule8(c))
         add(9, rule9(c))
         add(10, rule10(c))
 
@@ -105,7 +112,6 @@ nonisolated enum SpatialLineupEngine {
     // MARK: - Copy helpers
 
     private static func pct(_ f: Double) -> String { "\(Int((f * 100).rounded()))%" }
-    private static func pctOfHundred(_ p: Double) -> String { "\(Int(p.rounded()))" }
     private static func exclPhrase(_ names: [String]) -> String {
         names.isEmpty ? "" : " Excludes \(names.joined(separator: ", ")) — thin/no sample."
     }
@@ -144,7 +150,7 @@ nonisolated enum SpatialLineupEngine {
               let name = c.lonePerimeterName else { return nil }
         var ev = ["\u{2022} \(name) supplies \(pct(lone)) of the lineup's plotted 3-point attempts (named threshold 55%)."]
         if let mp = c.memberPercentiles[name] {
-            ev.append("\u{2022} \(name)'s 3-point share sits in the \(pctOfHundred(mp.threeSharePct))th percentile of \(mp.bucket) (A's positional norm).")
+            ev.append("\u{2022} \(name)'s 3-point share sits in the \(M.ordinal(mp.threeSharePct)) percentile of \(mp.bucket) (A's positional norm).")
         }
         ev.append("\u{2022} The other usable members clear no spacer filter, so perimeter looks may concentrate on \(name).")
         return I(family: .lonePerimeter, headline: "Perimeter volume leans on \(name)",
@@ -168,7 +174,11 @@ nonisolated enum SpatialLineupEngine {
     }
 
     // Rule 4 — Shared-area overlap. overlapIndex>=OVERLAP_HIGH with >=2 contributors. Geometric cap.
+    // CE-3: GATED OFF behind SHARED_OVERLAP_ENABLED — the calibrated overlapIndex has no discriminating
+    // range over real lineups (fires on nearly all), so the verbal "overlap ⇒ compress" read would mislead.
+    // Code retained (visual layer + a future on-court baseline in V2 revive it); simply does not fire.
     private static func rule4(_ c: SpatialLineupContext) -> I? {
+        guard M.SHARED_OVERLAP_ENABLED else { return nil }
         guard let ov = c.overlapIndex, ov >= M.OVERLAP_HIGH, c.overlapContributorCount >= 2 else { return nil }
         return I(family: .sharedOverlap, headline: "Shot areas overlap — may compress operating space",
                  confidence: .moderate,
@@ -183,11 +193,15 @@ nonisolated enum SpatialLineupEngine {
     private static func rule5(_ c: SpatialLineupContext) -> I? {
         guard let disp = c.centroidDispersion, disp <= M.DISPERSION_TIGHT,
               let ov = c.overlapIndex, ov >= M.OVERLAP_MID else { return nil }
+        // CE-4(a): court units are tenths of feet, so feet = DISPERSION_TIGHT / 10 (31.3 units ≈ 3.1 ft).
+        let tightFeet = String(format: "%.1f", M.DISPERSION_TIGHT / 10.0)
         return I(family: .packedGeometry, headline: "Shot centroids cluster — spacing tends to pack in",
                  confidence: .moderate,
                  evidence: [
-                    "\u{2022} Mean pairwise centroid distance is \(Int(disp.rounded())) court units (named threshold \(Int(M.DISPERSION_TIGHT.rounded())), ~9 ft).",
-                    "\u{2022} Overlap index \(pct(ov)) clears the \(pct(M.OVERLAP_MID)) packing floor, so the tight centroids coincide with shared area.",
+                    "\u{2022} Mean pairwise centroid distance is \(Int(disp.rounded())) court units (named threshold \(Int(M.DISPERSION_TIGHT.rounded())), ~\(tightFeet) ft).",
+                    // CE-4(b): OVERLAP_MID is the SAMPLE MEDIAN, not a cleared floor — cite it as a supporting
+                    // value, not a threshold the lineup "clears". Dispersion (above) is the driving citation.
+                    "\u{2022} The tight centroids coincide with broadly shared shot area (overlap \(pct(ov))).",
                     "\u{2022} \(noBaseline) Absolute geometry only."],
                  basis: "Basis: individual season shot centroids + composited mass. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
@@ -205,7 +219,7 @@ nonisolated enum SpatialLineupEngine {
         }
         for (name, pctVal) in c.rimHeavyNames.prefix(2) {
             let bucket = c.memberPercentiles[name]?.bucket ?? "their position"
-            ev.append("\u{2022} \(name)'s rim share is in the \(pctOfHundred(pctVal))th percentile of \(bucket).")
+            ev.append("\u{2022} \(name)'s rim share is in the \(M.ordinal(pctVal)) percentile of \(bucket).")
         }
         return I(family: .rimCrowding, headline: headline, confidence: conf, evidence: ev,
                  basis: "Basis: individual season rim shares vs A's positional norms + composited paint mass. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
@@ -224,9 +238,13 @@ nonisolated enum SpatialLineupEngine {
     }
 
     // Rule 8 — Two-corner coverage. cornerCoverage==2. Cap .moderate.
+    // CE-6: slug drives deterministic selection (in cornerCoverage), but ALL user-facing copy uses the
+    // member's display NAME — leftClaimantName/rightClaimantName (resolved slug→name in the context builder).
     private static func rule8(_ c: SpatialLineupContext) -> I? {
         guard c.cornerCoverage.count == 2,
-              let left = c.cornerCoverage.leftClaimant, let right = c.cornerCoverage.rightClaimant else { return nil }
+              let left = c.leftClaimantName, let right = c.rightClaimantName else { return nil }
+        // distinctClaimants compares the underlying SLUGS (correct member identity even if two members
+        // share a display name); the copy renders the resolved display names.
         let headline = c.cornerCoverage.distinctClaimants
             ? "Both corners claimed by different members"
             : "Both corners claimed in the profile"
@@ -240,29 +258,35 @@ nonisolated enum SpatialLineupEngine {
                  basis: "Basis: individual season corner-zone tallies from each member's shot profile. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 
-    // Rule 9 — Mid-range-heavy. lineupMidShare>=MIDHEAVY_MIN AND lineup3Share<MIDHEAVY_MAX_3SHARE. Cap .moderate.
+    // Rule 9 — Mid-range-heavy. lineupMidShare>=max(MIDHEAVY_MIN, MIDHEAVY_ABS_MIN) AND lineup3Share<MIDHEAVY_MAX_3SHARE.
+    // CE-2: the effective threshold is the MAX of the calibrated pin and the absolute honesty floor; the bullet
+    // cites that effective threshold (not the bare calibrated pin, which can be below a genuinely mid-heavy diet).
     private static func rule9(_ c: SpatialLineupContext) -> I? {
-        guard let mid = c.lineupMidShare, mid >= M.MIDHEAVY_MIN,
+        let midThreshold = max(M.MIDHEAVY_MIN, M.MIDHEAVY_ABS_MIN)
+        guard let mid = c.lineupMidShare, mid >= midThreshold,
               let three = c.lineup3Share, three < M.MIDHEAVY_MAX_3SHARE else { return nil }
         return I(family: .midRangeHeavy, headline: "Mid-range-tilted shot diet — spacing tends to stay tighter",
                  confidence: .moderate,
                  evidence: [
-                    "\u{2022} FGA-weighted mid-range share is \(pct(mid)) (named threshold \(pct(M.MIDHEAVY_MIN))).",
+                    "\u{2022} FGA-weighted mid-range share is \(pct(mid)) (named threshold \(pct(midThreshold))).",
                     "\u{2022} FGA-weighted 3-point share is \(pct(three)), below the \(pct(M.MIDHEAVY_MAX_3SHARE)) floor.",
                     "\u{2022} A mid-tilted diet tends to pull fewer defenders off the paint; no lineup-level league baseline yet."],
                  basis: "Basis: FGA-weighted individual season shot mixes. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 
-    // Rule 10 — Side asymmetry. sideSkew>=SIDE_SKEW_MIN AND attempts>=100. Geometric cap.
+    // Rule 10 — Side asymmetry. sideSkew>=max(SIDE_SKEW_MIN, SIDE_SKEW_ABS_MIN) AND attempts>=100. Geometric cap.
+    // CE-1: the effective threshold is the MAX of the calibrated pin and the absolute honesty floor (≈60/40 split),
+    // so a barely-perceptible ~55/45 tilt never fires. CE-5: the bullet cites the numeric effective threshold.
     private static func rule10(_ c: SpatialLineupContext) -> I? {
-        guard let s = c.sideSkew, s >= M.SIDE_SKEW_MIN, c.sideAttempts >= M.SIDE_SKEW_MIN_ATTEMPTS else { return nil }
+        let skewThreshold = max(M.SIDE_SKEW_MIN, M.SIDE_SKEW_ABS_MIN)
+        guard let s = c.sideSkew, s >= skewThreshold, c.sideAttempts >= M.SIDE_SKEW_MIN_ATTEMPTS else { return nil }
         let dominantPct = pct((1 + s) / 2)
         let side = c.dominantSideIsLeft ? "left" : "right"
         let val = String(format: "%.2f", s)
         return I(family: .sideAsymmetry, headline: "Perimeter attempts tilt to one side",
                  confidence: .moderate,
                  evidence: [
-                    "\u{2022} \(dominantPct) of the lineup's qualifying 3-point attempts come from the \(side) side (named threshold, skew \(val)).",
+                    "\u{2022} \(dominantPct) of the lineup's qualifying 3-point attempts come from the \(side) side (named threshold \(pct(skewThreshold)), observed skew \(val)).",
                     "\u{2022} Measured over \(c.sideAttempts) qualifying attempts (\u{2265}100 floor), excluding a straight-on center band.",
                     "\u{2022} \(noBaseline) Absolute side split only."],
                  basis: "Basis: individual season 3-point attempt sides from each member's shot profile (center band excluded). \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")

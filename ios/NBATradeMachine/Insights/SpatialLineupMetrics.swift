@@ -32,12 +32,28 @@ nonisolated enum SpatialLineupMetrics {
     //     rank-1 per position, 14 within-position rank fallbacks; 2026-07-14 calibration run) ---
     static let MIDHEAVY_MIN = 0.15             // p75 lineupMidShare over 30 lineups (dist: n=30 min=0.036 p25=0.094 median=0.124 p75=0.146 max=0.260); spec provisional was 0.30
     static let MIDHEAVY_MAX_3SHARE = 0.38      // p50 lineup3Share over 30 lineups (dist: n=30 min=0.273 p25=0.322 median=0.378 p75=0.428 max=0.529); spec provisional was 0.32
+    // CE-2 (final-review honesty floor): the calibrated MIDHEAVY_MIN (0.15) is only ~p75 of a league where
+    // mid-tilt is rare, so it can fire on a lineup that is NOT genuinely mid-heavy in an absolute sense.
+    // Guard rule 9 with an ABSOLUTE floor: fire only when lineupMidShare >= max(MIDHEAVY_MIN, MIDHEAVY_ABS_MIN).
+    static let MIDHEAVY_ABS_MIN = 0.22         // ~a genuinely mid-tilted diet; a future recalibration cannot silently drop below this
 
     // --- geometry — CALIBRATED (Task 2, 30 real depth-order starting fives; 2026-07-14 run) ---
     static let OVERLAP_HIGH = 0.95             // p75 overlapIndex over 30 lineups (dist: n=30 min=0.839 p25=0.918 median=0.931 p75=0.949 max=0.984); spec provisional was 0.35
     static let OVERLAP_MID = 0.93              // p50 overlapIndex over 30 lineups (median 0.931, same dist); spec provisional was 0.22
+    // CE-3 (final-review): rule 4 (sharedOverlap ⇒ compress) is GATED OFF. The calibrated overlapIndex has
+    // no discriminating range over real lineups (30 real fives: min 0.839, median 0.931, max 0.984 — nearly
+    // every lineup shares heavily), so an "overlap ⇒ compress" conclusion pinned ~2pp above the median would
+    // mislead: it fires on essentially all lineups and reads a league-universal fact as a distinctive flaw.
+    // The VISUAL overlap layer still answers "where do they overlap"; only the verbal rule is suppressed.
+    // Revisit when an on-court-together baseline exists (V2) that gives overlap a real discriminating range.
+    static let SHARED_OVERLAP_ENABLED = false
     static let DISPERSION_TIGHT = 31.3         // p25 centroidDispersion (court units) over 30 lineups (dist: n=30 min=18.533 p25=31.339 median=39.785 p75=54.306 max=68.121); spec provisional was 90 (~9 ft)
     static let SIDE_SKEW_MIN = 0.09            // p75 sideSkew over 30 lineups (dist: n=30 min=0.003 p25=0.024 median=0.065 p75=0.092 max=0.230); spec provisional was 0.45
+    // CE-1 (final-review honesty floor): the calibrated SIDE_SKEW_MIN (0.09) is only ~p75 of a league where
+    // side-symmetry is the norm, so it can fire at a barely-perceptible ~55/45 split. Guard rule 10 with an
+    // ABSOLUTE floor: fire only when sideSkew >= max(SIDE_SKEW_MIN, SIDE_SKEW_ABS_MIN). S=0.20 ≈ a 60/40
+    // dominant split ((1+S)/2), the point where "tilts to one side" is a defensible read.
+    static let SIDE_SKEW_ABS_MIN = 0.20        // ≈60/40 dominant split; a future recalibration cannot silently drop below this
     static let SIDE_SKEW_MIN_ATTEMPTS = 100
     static let SIDE_CENTER_BAND = 25.0         // |x| < this excluded from a side
 
@@ -251,6 +267,25 @@ nonisolated enum SpatialLineupMetrics {
     /// where fga = chart.meta.fga (the RAW meta.fga, so 0 stays 0) or -1 when the chart is nil.
     static func memoKey(members: [MemberInput]) -> String {
         members.map { "\($0.slug)#\($0.chart?.meta.fga ?? -1)" }.joined(separator: ",")
+    }
+
+    // MARK: - Ordinal suffix (CE-8)
+
+    /// English ordinal for a percentile rendered as a rounded int: "1st", "2nd", "3rd", "4th"…"11th",
+    /// "12th", "13th", "21st", "82nd", "112th". Percentiles are 0–100 one-decimal; callers pass the
+    /// value and this rounds to the nearest int before suffixing. The 11/12/13 teens exception is honored
+    /// via the last-two-digits check (so 111/112/113 also take "th").
+    static func ordinal(_ pct: Double) -> String {
+        let n = Int(pct.rounded())
+        let mod100 = ((n % 100) + 100) % 100
+        let mod10 = ((n % 10) + 10) % 10
+        let suffix: String
+        if mod100 >= 11 && mod100 <= 13 { suffix = "th" }
+        else if mod10 == 1 { suffix = "st" }
+        else if mod10 == 2 { suffix = "nd" }
+        else if mod10 == 3 { suffix = "rd" }
+        else { suffix = "th" }
+        return "\(n)\(suffix)"
     }
 
     // MARK: - Shared in-bounds filter
