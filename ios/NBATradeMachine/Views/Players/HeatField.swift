@@ -97,6 +97,33 @@ nonisolated enum HeatField {
     }
 }
 
+extension HeatField {
+    /// PURE, `nonisolated`. The RAW kernel attempt-mass field (Σ Gaussian weights) over the
+    /// SAME 26×24 = 624-cell grid geometry as `build`, reusing `massAndMade` and the identical
+    /// in-bounds filter. Returns a row-major `[Double]` of length 624 (NOT a HeatGrid — this is
+    /// raw mass A, not a signed value V; HeatGrid's stored shape is unchanged). No shrinkage, no
+    /// baseline, no normalization: `mass_c = Σ_p exp(-d²/(2σ²))` over in-bounds points within the
+    /// kernel cutoff. Empty / all-OOB input => all-zero array (a valid total function). Cell
+    /// indexing (`row * 26 + col`, cell centers) is byte-identical to `build`'s, so a member's
+    /// `massGrid[c]` aligns with that member's `HeatGrid` cell `c`.
+    nonisolated static func massGrid(points: [PlayerShotChart.ShotPoint]) -> [Double] {
+        let cols = 26, rows = 24
+        let inBounds = points.filter {
+            Double($0.x) >= xMin && Double($0.x) <= xMax &&
+            Double($0.y) >= yMin && Double($0.y) <= yMax
+        }
+        var mass = [Double](repeating: 0, count: cols * rows)
+        for row in 0..<rows {
+            let cy = yMin + Double(row) * spacing
+            for col in 0..<cols {
+                let cx = xMin + Double(col) * spacing
+                mass[row * cols + col] = massAndMade(points: inBounds, cx: cx, cy: cy).mass
+            }
+        }
+        return mass
+    }
+}
+
 /// A row-major 26×24 signed-value grid. Masked cells carry `Double.nan` (transparent).
 /// NOT `Equatable`: a synthesized `==` would report two identical all-masked grids UNEQUAL
 /// because `NaN != NaN`. Tests compare via the NaN-aware `isEqual` helper instead.
