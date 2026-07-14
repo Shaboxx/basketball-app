@@ -20,26 +20,32 @@ extension MatchupInsight {
     static func defensiveInsights(from m: Matchup) -> [MatchupInsight] {
         var out: [MatchupInsight] = []
         let posName = ["G": "guards", "F": "forwards", "C": "centers"]
-        // Rank positions this player defends by opponent pts/poss (higher = more exploited).
+        // Rank the positions this player defends by opponent pts/poss, WITHIN his own
+        // splits — a self-referential ranking, so no league/positional baseline is
+        // implied. Require real possessions so a null-rate/edge doc can't rank in.
         let ranked = m.byPosition
-            .compactMap { key, s in s.ptsPerPoss.map { (key, s, $0) } }
+            .compactMap { key, s in (s.partialPoss > 0 ? s.ptsPerPoss : nil).map { (key, s, $0) } }
             .sorted { $0.2 > $1.2 }
         if let (pos, s, ppp) = ranked.first {
             let noun = posName[pos] ?? pos
             let small = s.partialPoss < minPoss
-            let hedge = small ? "On a small sample so far, may give up" : "Tends to give up"
+            // Descriptive within-sample statement (which position has scored best on him
+            // so far), hedged + cited — never a league-relative "gives up more" claim.
+            let lead = small ? "On a small sample so far, opposing" : "So far, opposing"
             out.append(MatchupInsight(
-                headline: "\(hedge) more efficient looks to \(noun)",
+                headline: "\(lead) \(noun) have been the most efficient scorers",
                 evidence: String(format: "%.2f pts/poss allowed vs %@ over %@ poss", ppp, pos, poss(s.partialPoss))
                     + (small ? " (small sample)" : ""),
                 isSmallSample: small))
         }
-        // Overall efficiency-allowed framing, if present.
-        if let efg = m.defense.oppEfgAllowed {
+        // Overall efficiency allowed — DESCRIPTIVE only: report the rate, no solid/
+        // below-average verdict (that would assert a quality cutoff the data doesn't
+        // define). Requires real possessions so a null-rate/zero-poss doc never yields a
+        // meaningless "over 0 poss" line.
+        if let efg = m.defense.oppEfgAllowed, m.defense.totalPossGuarded > 0 {
             let small = m.defense.totalPossGuarded < minPoss
-            let verb = efg < 0.50 ? "suggests solid" : "suggests below-average"
             out.append(MatchupInsight(
-                headline: "Overall, the data \(verb) shot defense so far",
+                headline: "Opponent shooting efficiency allowed, so far",
                 evidence: String(format: "%.1f%% opponent eFG allowed over %@ poss", efg * 100, poss(m.defense.totalPossGuarded))
                     + (small ? " (small sample)" : ""),
                 isSmallSample: small))
