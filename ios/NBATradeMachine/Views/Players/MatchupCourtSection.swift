@@ -43,6 +43,10 @@ struct MatchupCourtSection: View {
                 if let chart {
                     HalfCourtView(points: chart.points, zones: chart.zones, showZoneFG: $showZoneFG)
                     caption("\(chart.meta.fga) FGA · season \(chart.meta.season)")
+                    // SW-6: the "Scouting read" renders ONLY here — inside the .data branch,
+                    // under the shot map — so .loading/.collectionEmpty/.playerMissing keep
+                    // their existing rows untouched (no scouting read on a loading/missing card).
+                    scoutingRead(chart)
                 } else { notAvailable("Shot chart") }
             }
             if let mu = matchupStore.matchup(for: player.slug) {
@@ -51,6 +55,42 @@ struct MatchupCourtSection: View {
                          mu.offense.efg.map { String(format: "%.1f%% eFG", $0 * 100) } ?? "—")
             }
         }
+    }
+
+    // "Scouting read": hedged, stat-cited shot-profile conclusions under the shot map. Only
+    // invoked from the .data branch (SW-6). An absent profile OR zero families firing -> a
+    // single honest caption (never blank, never fabricated). Data-driven entirely by
+    // ShotProfileInsight.make(from:).
+    @ViewBuilder private func scoutingRead(_ chart: PlayerShotChart) -> some View {
+        let insights = ShotProfileInsight.make(from: chart.profile)
+        Divider()
+        Text("Scouting read").font(.subheadline).bold()
+        if insights.isEmpty {
+            caption("Scouting read not available yet.")
+        } else {
+            ForEach(insights) { ins in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(ins.headline).font(.subheadline).bold()
+                        confidenceChip(ins.confidence)
+                    }
+                    ForEach(ins.evidence, id: \.self) { b in
+                        Text(b).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text(ins.basis).font(.caption2).foregroundStyle(.tertiary)
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    private func confidenceChip(_ c: ShotProfileInsight.Confidence) -> some View {
+        Text(c.rawValue)
+            .font(.caption2).bold()
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Color.accentColor.opacity(c == .high ? 0.22 : 0.12),
+                        in: Capsule())
+            .foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var defense: some View {
