@@ -35,24 +35,27 @@ struct MatchupCourtSection: View {
     // one missing source never hides the other.
     @ViewBuilder private var offense: some View {
         VStack(alignment: .leading, spacing: 8) {
-            let chart = shotStore.chart(for: player.slug)
-            switch FantasyEmptyState.decide(phase: shotStore.phase, hasData: chart != nil) {
+            let phase = FantasyEmptyState.decide(phase: shotStore.phase,
+                                                 hasData: shotStore.chart(for: player.slug) != nil)
+            switch phase {
             case .loading: loadingRow("Loading shot chart…")
             case .collectionEmpty, .playerMissing: notAvailable("Shot chart")
             case .data:
-                if let chart {
+                if let chart = shotStore.chart(for: player.slug) {
                     HalfCourtView(points: chart.points, zones: chart.zones, showZoneFG: $showZoneFG)
                     caption("\(chart.meta.fga) FGA · season \(chart.meta.season)")
-                    // SW-6: the "Scouting read" renders ONLY here — inside the .data branch,
-                    // under the shot map — so .loading/.collectionEmpty/.playerMissing keep
-                    // their existing rows untouched (no scouting read on a loading/missing card).
-                    scoutingRead(chart)
                 } else { notAvailable("Shot chart") }
             }
             if let mu = matchupStore.matchup(for: player.slug) {
                 statLine("As scorer",
                          mu.offense.ptsPerPoss.map { String(format: "%.2f pts/poss", $0) } ?? "—",
                          mu.offense.efg.map { String(format: "%.1f%% eFG", $0 * 100) } ?? "—")
+            }
+            // FIX 3: the "Scouting read" renders UNDER BOTH the shot map AND the "As scorer"
+            // line — but STILL only in the .data-with-chart state (never on
+            // .loading/.collectionEmpty/.playerMissing), preserving that invariant exactly.
+            if case .data = phase, let chart = shotStore.chart(for: player.slug) {
+                scoutingRead(chart)
             }
         }
     }

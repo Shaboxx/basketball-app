@@ -203,10 +203,15 @@ extension ShotProfileInsight {
         let basis = "Basis: shot profile + size. Not lineup on/off data, so real-game spacing may differ."
             + (p.bucketMode == "coarse" ? " (vs \(label) norms)." : "")
 
+        // FIX 2: 5-out enables/limits copy is a big-man read only — attached as a suffix on
+        // an ALREADY-cited bullet (keeps the every-bullet-cites-value-and-norm guardrail).
+        let isBig = BIG_BUCKETS.contains(p.bucket)
+
         // Floor-spacer
         if let three, let threeFg,
            three.pct >= FLOOR_SPACER_3SHARE_PCT, threeFg.value >= FLOOR_SPACER_3FG_MIN {
-            var ev = [ "\u{2022} " + pctBullet("3P share", three, bucket: label),
+            var ev = [ "\u{2022} " + pctBullet("3P share", three, bucket: label,
+                                               suffix: isBig ? " — profile supports 5-out looks" : ""),
                        "\u{2022} " + pctBullet("3P%", threeFg, bucket: label) ]
             if let atb = p.signals["atbShare"] {
                 ev.append("\u{2022} " + pctBullet("above-the-break 3s", atb, bucket: label,
@@ -221,10 +226,14 @@ extension ShotProfileInsight {
                 confidence: confidence(fga: p.fga, drivingPcts: [three.pct]),
                 evidence: ev, basis: basis)
         }
-        // Rim-gravity
-        if let rim, let rimFg,
+        // Rim-gravity — FIX 1: gated to BIG_BUCKETS. "vertical/lob threat" is a big-man claim;
+        // on real data the ungated rule mislabeled ~60 guards/wings (e.g. a high-usage PG) as
+        // lob threats. A non-big rim-dominant profile falls through (it can't match a clog-risk
+        // >= 75th-pct rim share) → family 1 stays silent (silence over a wrong claim).
+        if isBig, let rim, let rimFg,
            rim.pct >= RIM_GRAVITY_RIMSHARE_PCT, rimFg.value >= RIM_GRAVITY_RIMFG_MIN {
-            var ev = [ "\u{2022} " + pctBullet("rim share", rim, bucket: label),
+            var ev = [ "\u{2022} " + pctBullet("rim share", rim, bucket: label,
+                                               suffix: " — collapses the paint in 5-out looks"),
                        "\u{2022} " + pctBullet("rim FG%", rimFg, bucket: label) ]
             if let three, three.pct <= PCT_STRONG_LOW {
                 ev.append("\u{2022} " + pctBullet("3P share", three, bucket: label,
