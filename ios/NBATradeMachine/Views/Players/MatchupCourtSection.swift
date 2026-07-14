@@ -56,6 +56,30 @@ struct MatchupCourtSection: View {
         } label: { Text("Matchups").font(.headline) }
         .padding()
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        // On the STABLE card view, NOT the offense subtree: an Offense→Defense→Offense toggle
+        // recreates the offense subtree and a subtree-attached task would re-fire there,
+        // resetting the tap-cycle/slider mid-session. Here it fires only on card appearance,
+        // player-slug change, or the chart's nil→present availability flip (composite id).
+        .task(id: "\(player.slug)#\(shotStore.chart(for: player.slug) != nil)") {
+            let chart = shotStore.chart(for: player.slug)
+            let decision = CourtVizTransition.apply(oldCacheSlug: heatGridSlug,
+                                                    newSlug: player.slug,
+                                                    chartAvailable: chart != nil)
+            // Rule 1 (appearance reset, ALWAYS): every card (re)appearance / slug change starts clean.
+            if decision.resetToDefaults {
+                zoneLabelMode = .off
+                heatBlend = 0
+            }
+            // Rule 2 (grid invalidation): build ONLY when a chart was actually available for a new slug.
+            if decision.rebuildGrid, let chart {
+                heatGrid = HeatField.build(points: chart.points,
+                                           overallFGA: chart.meta.fga,
+                                           overallFGM: chart.meta.fgm)
+            }
+            // B-3 stamping: update the cache key ONLY when a grid built; when the chart was nil,
+            // `decision.newCacheSlug` keeps the stale/nil key so the next availability change rebuilds.
+            heatGridSlug = decision.newCacheSlug
+        }
     }
 
     // Shot map (SHOT store) and offense stats (MATCHUP store) render INDEPENDENTLY —
@@ -102,27 +126,6 @@ struct MatchupCourtSection: View {
             if case .data = phase, let chart = shotStore.chart(for: player.slug) {
                 scoutingRead(chart)
             }
-        }
-        // Composite key: re-fire when the slug changes OR the chart's availability flips (nil -> present).
-        .task(id: "\(player.slug)#\(shotStore.chart(for: player.slug) != nil)") {
-            let chart = shotStore.chart(for: player.slug)
-            let decision = CourtVizTransition.apply(oldCacheSlug: heatGridSlug,
-                                                    newSlug: player.slug,
-                                                    chartAvailable: chart != nil)
-            // Rule 1 (appearance reset, ALWAYS): every (re)appearance / slug change starts clean.
-            if decision.resetToDefaults {
-                zoneLabelMode = .off
-                heatBlend = 0
-            }
-            // Rule 2 (grid invalidation): build ONLY when a chart was actually available for a new slug.
-            if decision.rebuildGrid, let chart {
-                heatGrid = HeatField.build(points: chart.points,
-                                           overallFGA: chart.meta.fga,
-                                           overallFGM: chart.meta.fgm)
-            }
-            // B-3 stamping: update the cache key ONLY when a grid built; when the chart was nil,
-            // `decision.newCacheSlug` keeps the stale/nil key so the next availability change rebuilds.
-            heatGridSlug = decision.newCacheSlug
         }
     }
 
