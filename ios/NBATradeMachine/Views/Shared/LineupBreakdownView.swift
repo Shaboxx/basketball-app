@@ -40,6 +40,9 @@ struct LineupBreakdownView: View {
                     tagsSection(label)
                     formationsSection(label)
                     capabilitiesSection(label)
+                    if AppConfig.matchupsEnabled {
+                        shotGeographySection
+                    }
                     strengthsSection(label)
                     weaknessesSection(label)
                 } else {
@@ -382,7 +385,7 @@ struct LineupBreakdownView: View {
 }
 
 /// Minimal wrapping HStack for the tag chips (no external dependency).
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat = 6
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
