@@ -70,17 +70,27 @@ struct HalfCourtView: View {
             guard let t = zones[zone] else { continue }
             let lines = zoneLabelLines(mode: zoneLabelMode, tally: t, totalFGA: total)
             guard !lines.isEmpty else { continue }        // sub-5 (or nil fgPct) => draw nothing
+            // Every line is clamped horizontally (clampedLabelCenterX) so corner-3 labels stay
+            // fully inside the court; labels that already fit draw at the unchanged centroid.
+            let proposal = CGSize(width: 10_000, height: 10_000)   // no-wrap ideal measure
             if lines.count == 1 {
                 // .fgPct => primary bold (byte-identical style); .share => secondary bold.
                 let color: Color = (zoneLabelMode == .fgPct) ? .primary : .secondary
-                let text = Text(lines[0]).font(.caption2).bold().foregroundColor(color)
-                ctx.draw(ctx.resolve(text), at: pt)
+                let resolved = ctx.resolve(Text(lines[0]).font(.caption2).bold().foregroundColor(color))
+                let x = clampedLabelCenterX(width: resolved.measure(in: proposal).width,
+                                            originalX: pt.x, in: rect)
+                ctx.draw(resolved, at: CGPoint(x: x, y: pt.y))
             } else {
-                // .both => two-line stack: FG% (primary bold) on top, "VOL n%" (secondary) below.
-                let top = Text(lines[0]).font(.caption2).bold().foregroundColor(.primary)
-                ctx.draw(ctx.resolve(top), at: CGPoint(x: pt.x, y: pt.y - 6))
-                let bottom = Text(lines[1]).font(.caption2).foregroundColor(.secondary)
-                ctx.draw(ctx.resolve(bottom), at: CGPoint(x: pt.x, y: pt.y + 6))
+                // .both => two-line stack: FG% (primary bold) on top, "VOL n%" (secondary) below,
+                // each line clamped independently (the VOL line is wider).
+                let top = ctx.resolve(Text(lines[0]).font(.caption2).bold().foregroundColor(.primary))
+                let topX = clampedLabelCenterX(width: top.measure(in: proposal).width,
+                                               originalX: pt.x, in: rect)
+                ctx.draw(top, at: CGPoint(x: topX, y: pt.y - 6))
+                let bottom = ctx.resolve(Text(lines[1]).font(.caption2).foregroundColor(.secondary))
+                let bottomX = clampedLabelCenterX(width: bottom.measure(in: proposal).width,
+                                                  originalX: pt.x, in: rect)
+                ctx.draw(bottom, at: CGPoint(x: bottomX, y: pt.y + 6))
             }
         }
     }

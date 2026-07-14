@@ -245,16 +245,27 @@ nonisolated enum SpatialLineupEngine {
               let left = c.leftClaimantName, let right = c.rightClaimantName else { return nil }
         // distinctClaimants compares the underlying SLUGS (correct member identity even if two members
         // share a display name); the copy renders the resolved display names.
-        let headline = c.cornerCoverage.distinctClaimants
-            ? "Both corners claimed by different members"
-            : "Both corners claimed in the profile"
         let lShare = c.leftClaimantShare.map { pct($0) } ?? "a qualifying share"
         let rShare = c.rightClaimantShare.map { pct($0) } ?? "a qualifying share"
-        return I(family: .twoCornerCoverage, headline: headline, confidence: .moderate,
+        if c.cornerCoverage.distinctClaimants {
+            return I(family: .twoCornerCoverage, headline: "Both corners claimed by different members",
+                     confidence: .moderate,
+                     evidence: [
+                        "\u{2022} Left corner claimed by \(left) (\(lShare) of their shots); right corner by \(right) (\(rShare)).",
+                        "\u{2022} Each claimant clears the \u{2265}20-attempt, \u{2265}6%-share filter (named thresholds).",
+                        "\u{2022} Bilateral corner presence tends to widen the floor."],
+                     basis: "Basis: individual season corner-zone tallies from each member's shot profile. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
+        }
+        // Same member qualifies in BOTH corners: that is a VERSATILE two-sided corner profile
+        // (viable from either side, lets the lineup flip its strong side) — never phrased as one
+        // player occupying two spots at once. Headline stays geometry-voiced (names live in the
+        // evidence, matching every sibling rule — Opus final-review advisory).
+        return I(family: .twoCornerCoverage, headline: "Versatile two-sided corner profile — viable from either corner",
+                 confidence: .moderate,
                  evidence: [
-                    "\u{2022} Left corner claimed by \(left) (\(lShare) of their shots); right corner by \(right) (\(rShare)).",
-                    "\u{2022} Each claimant clears the \u{2265}20-attempt, \u{2265}6%-share filter (named thresholds).",
-                    "\u{2022} Bilateral corner presence tends to widen the floor."],
+                    "\u{2022} \(left)'s profile qualifies from either corner: \(lShare) of their shots from the left corner and \(rShare) from the right.",
+                    "\u{2022} Both corner samples clear the \u{2265}20-attempt, \u{2265}6%-share filter (named thresholds).",
+                    "\u{2022} The two-sided profile supports flipping the lineup's strong side; viable corner options tend to widen the floor."],
                  basis: "Basis: individual season corner-zone tallies from each member's shot profile. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 

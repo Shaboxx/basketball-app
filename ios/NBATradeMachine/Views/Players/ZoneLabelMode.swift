@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// The four-state zone-label tap cycle for the offensive shot map (sub-project B).
 /// Pure and `nonisolated`: owned as transient `@State` by `MatchupCourtSection` and passed
@@ -36,9 +37,13 @@ nonisolated func zoneFGText(pct: Double) -> String {
     "\(Int((pct * 100).rounded()))%"
 }
 
-/// The Volume (attempt-share) label string, same rounding shape as the FG% string.
+/// The Volume (attempt-share) label string, same rounding shape as the FG% string — except a
+/// NONZERO share that would round to "0%" reads "<1%" (a zone can hold 5 of 1080 attempts —
+/// 0.46% — and still show a real FG%, so "VOL 0%" next to "60%" reads as impossible).
 nonisolated func zoneShareText(share: Double) -> String {
-    "\(Int((share * 100).rounded()))%"
+    let intPct = Int((share * 100).rounded())
+    if intPct == 0 && share > 0 { return "<1%" }
+    return "\(intPct)%"
 }
 
 /// Tallied total FGA across all zones (the denominator for attempt share, adjudication Q1 —
@@ -61,6 +66,19 @@ nonisolated func zoneAttemptShare(_ zone: PlayerShotChart.ZoneTally, totalFGA: I
 ///   - `.both`   -> two lines: FG% string FIRST, then `"VOL n%"` (both gated; nil `fgPct` -> `[]`).
 /// The `Canvas` label pass calls this to decide what (and whether) to draw; styling/anchoring
 /// (fonts, colors, the ±6 pt two-line offset) stays in the view.
+/// Clamped center-x for a zone label of the given measured width so the label fits inside
+/// `rect` inset by `inset` horizontally: the corner-3 centroids sit at x = ±230 of a ±250
+/// court (~4% from each edge), so text centered there clips at the canvas boundary. Text
+/// wider than the available span keeps its original center (degenerate case). Pure so the
+/// arithmetic is unit-testable without a GraphicsContext.
+nonisolated func clampedLabelCenterX(width: CGFloat, originalX: CGFloat,
+                                     in rect: CGRect, inset: CGFloat = 2) -> CGFloat {
+    let available = rect.width - 2 * inset
+    guard available > 0, width <= available else { return originalX }
+    let half = width / 2
+    return min(max(originalX, rect.minX + inset + half), rect.maxX - inset - half)
+}
+
 nonisolated func zoneLabelLines(mode: ZoneLabelMode,
                                 tally: PlayerShotChart.ZoneTally,
                                 totalFGA: Int) -> [String] {

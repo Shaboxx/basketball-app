@@ -306,7 +306,19 @@ extension LineupBreakdownView {
     /// "Spatial read" block. Owns transient @State via a nested StateObject-free helper view so
     /// LineupBreakdownView itself stays unchanged apart from the one call site.
     @ViewBuilder var shotGeographySection: some View {
-        DisclosureGroup {
+        ShotGeographySection(players: players)
+    }
+}
+
+/// Wrapper that owns the DisclosureGroup expansion state (an extension property cannot hold
+/// @State) so the section defaults OPEN — matching MatchupCourtSection's expanded-by-default
+/// court on the player page.
+private struct ShotGeographySection: View {
+    let players: [Player]
+    @State private var isExpanded = true
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
             ShotGeographyBody(players: players).padding(.top, 6)
         } label: {
             Text("Shot geography").font(.headline)
@@ -343,6 +355,9 @@ private struct ShotGeographyBody: View {
                 LineupShotGeographyCanvas(dotLayers: result.dotLayers, overlapCells: result.overlapCells,
                                           mode: mode, isolated: isolated)
                     .frame(height: 300)
+                    // the fixed height + 50:47 aspect gives the canvas a finite intrinsic width;
+                    // in this .leading-aligned VStack it would sit left — center it in the row.
+                    .frame(maxWidth: .infinity)
                 legend(result)
                 spatialRead(result)
             }
