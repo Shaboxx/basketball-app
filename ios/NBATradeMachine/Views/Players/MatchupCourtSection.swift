@@ -5,8 +5,11 @@ import SwiftUI
 /// source never blanks the card). NBA-mode, flag-gated by the caller.
 struct MatchupCourtSection: View {
     let player: Player
-    @EnvironmentObject var shotStore: PlayerShotStore
-    @EnvironmentObject var matchupStore: MatchupStore
+    // Consume the app-wide singletons directly (NOT @EnvironmentObject): PlayerDetailView
+    // is presented across sheet/fullScreenCover/navigationDestination boundaries that don't
+    // propagate the environment, so an @EnvironmentObject here would crash on those paths.
+    @ObservedObject private var shotStore = PlayerShotStore.shared
+    @ObservedObject private var matchupStore = MatchupStore.shared
     @State private var side: Side = .offense
     @State private var showZoneFG = false
     @State private var isExpanded = true
@@ -73,8 +76,12 @@ struct MatchupCourtSection: View {
                             }
                         }
                     }
-                    opponentList("Toughest matchups (most pts/poss allowed)", mu.topMatchups.toughest)
-                    opponentList("Most-faced opponents", mu.topMatchups.mostFrequent)
+                    // NOTE: per-matchup possession counts are inherently small (a full
+                    // season of guarding one player is often 20-60 poss), so the header
+                    // avoids a hard "toughest" superlative and each row flags small samples
+                    // — the ranking is exploratory, not a confident claim.
+                    opponentList("Higher pts/poss allowed so far (small per-matchup samples)", mu.topMatchups.toughest)
+                    opponentList("Most-faced opponents so far", mu.topMatchups.mostFrequent)
                     caption("spatial defense map coming soon")
                 }
             } else { notAvailable("Matchup scouting") }
@@ -91,6 +98,9 @@ struct MatchupCourtSection: View {
                     Spacer()
                     Text(o.ptsPerPoss.map { String(format: "%.2f p/poss", $0) } ?? "—").foregroundStyle(.secondary)
                     Text("· \(Int(o.partialPoss.rounded())) poss").foregroundStyle(.secondary)
+                    if o.partialPoss < MatchupInsight.minPoss {
+                        Text("· small").foregroundStyle(.tertiary)   // explicit small-sample flag
+                    }
                 }.font(.caption).monospacedDigit()
             }
         }

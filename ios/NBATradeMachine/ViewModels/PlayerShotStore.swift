@@ -5,6 +5,12 @@ import Combine
 /// app-wide FantasyPhase + FantasyValueStore.canonicalSlug (period-stripped ids).
 @MainActor
 final class PlayerShotStore: ObservableObject {
+    /// App-wide singleton. Consumed directly (not via @EnvironmentObject) so the
+    /// player-page card can't crash on a navigation boundary that didn't re-inject the
+    /// store — SwiftUI environment does NOT propagate across sheet / fullScreenCover /
+    /// navigationDestination, and PlayerDetailView is presented from many such sites.
+    /// Mirrors FirestoreService.shared; this is a genuine load-once read cache.
+    static let shared = PlayerShotStore()
     @Published private(set) var charts: [String: PlayerShotChart] = [:]
     @Published private(set) var phase: FantasyPhase = .idle
     private let service: FirestoreReading
