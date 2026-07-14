@@ -1,5 +1,29 @@
 import SwiftUI
 
+/// PURE decision for the `.task` reset/rebuild step (B-3 + B-9). Encodes the spec's two
+/// binding reset rules AND the B-3 stamping fix in one unit-testable place:
+///   - Rule 1 (appearance): ALWAYS reset the transient bindings (mode/blend) — so
+///     `resetToDefaults` is unconditionally true.
+///   - Rule 2 (grid invalidation): rebuild the grid only when the slug is not the cached one.
+///   - B-3 stamping: stamp `newCacheSlug` ONLY when a grid actually built (slug changed AND a
+///     chart was available). Otherwise leave the cache key UNCHANGED — nil/stale if the chart
+///     wasn't ready yet (so the later nil -> present transition rebuilds), or the still-valid
+///     cached slug if nothing changed.
+nonisolated enum CourtVizTransition {
+    static func apply(oldCacheSlug: String?,
+                      newSlug: String,
+                      chartAvailable: Bool) -> (resetToDefaults: Bool,
+                                                rebuildGrid: Bool,
+                                                newCacheSlug: String?) {
+        let slugChanged = (newSlug != oldCacheSlug)
+        // Rebuild only when the slug is uncached/changed AND a chart is actually available.
+        let rebuild = slugChanged && chartAvailable
+        // Stamp the key ONLY when we built (B-3); else keep the existing cache key untouched.
+        let newKey: String? = rebuild ? newSlug : oldCacheSlug
+        return (resetToDefaults: true, rebuildGrid: rebuild, newCacheSlug: newKey)
+    }
+}
+
 /// Player-page card: offense = half-court shot map + offensive efficiency; defense =
 /// hedged, stat-cited matchup scouting. Each source renders independently (one missing
 /// source never blanks the card). NBA-mode, flag-gated by the caller.
@@ -52,6 +76,19 @@ struct MatchupCourtSection: View {
                                   heatGrid: heatGridSlug == player.slug ? heatGrid : nil,   // B-4: gate stale grid
                                   onTap: { zoneLabelMode = zoneLabelMode.next })
                     caption("\(chart.meta.fga) FGA · season \(chart.meta.season)")
+                    let heatUnavailable = Self.heatUnavailable(pointsEmpty: chart.points.isEmpty,
+                                                               metaFGA: chart.meta.fga)
+                    HStack(spacing: 8) {
+                        Text("Dot").font(.caption2).foregroundStyle(.secondary)
+                        Slider(value: $heatBlend, in: 0...1)
+                            .disabled(heatUnavailable)
+                        Text("Heat").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    if heatUnavailable {
+                        caption("Heat map needs plotted shots — none available yet.")
+                    } else if let note = Self.droppedNoCoordCaption(chart.meta.droppedNoCoord) {
+                        caption(note)
+                    }
                 } else { notAvailable("Shot chart") }
             }
             if let mu = matchupStore.matchup(for: player.slug) {
@@ -65,6 +102,27 @@ struct MatchupCourtSection: View {
             if case .data = phase, let chart = shotStore.chart(for: player.slug) {
                 scoutingRead(chart)
             }
+        }
+        // Composite key: re-fire when the slug changes OR the chart's availability flips (nil -> present).
+        .task(id: "\(player.slug)#\(shotStore.chart(for: player.slug) != nil)") {
+            let chart = shotStore.chart(for: player.slug)
+            let decision = CourtVizTransition.apply(oldCacheSlug: heatGridSlug,
+                                                    newSlug: player.slug,
+                                                    chartAvailable: chart != nil)
+            // Rule 1 (appearance reset, ALWAYS): every (re)appearance / slug change starts clean.
+            if decision.resetToDefaults {
+                zoneLabelMode = .off
+                heatBlend = 0
+            }
+            // Rule 2 (grid invalidation): build ONLY when a chart was actually available for a new slug.
+            if decision.rebuildGrid, let chart {
+                heatGrid = HeatField.build(points: chart.points,
+                                           overallFGA: chart.meta.fga,
+                                           overallFGM: chart.meta.fgm)
+            }
+            // B-3 stamping: update the cache key ONLY when a grid built; when the chart was nil,
+            // `decision.newCacheSlug` keeps the stale/nil key so the next availability change rebuilds.
+            heatGridSlug = decision.newCacheSlug
         }
     }
 
@@ -184,5 +242,27 @@ struct MatchupCourtSection: View {
     }
     private func caption(_ t: String) -> some View {
         Text(t).font(.caption2).foregroundStyle(.secondary)
+    }
+
+    // MARK: - Sub-project B pure wiring helpers (unit-testable, no SwiftUI)
+
+    /// Rebuild the HeatGrid only when the player slug changes (grid cache invalidation).
+    /// (Retained for the direct cache-key test; `CourtVizTransition.apply` is the composite rule.)
+    nonisolated static func shouldRebuildGrid(slug: String, cachedSlug: String?) -> Bool {
+        slug != cachedSlug
+    }
+
+    /// The Dot↔Heat slider is disabled (no fabricated field) when there are no plotted shots
+    /// or the season FGA is zero.
+    nonisolated static func heatUnavailable(pointsEmpty: Bool, metaFGA: Int) -> Bool {
+        pointsEmpty || metaFGA == 0
+    }
+
+    /// The one-line disclosure shown ONLY when some shots lacked a location (droppedNoCoord > 0);
+    /// nil otherwise (adjudication Q3).
+    nonisolated static func droppedNoCoordCaption(_ droppedNoCoord: Int) -> String? {
+        droppedNoCoord > 0
+            ? "Heat reflects plotted shots only (\(droppedNoCoord) without a location)."
+            : nil
     }
 }
