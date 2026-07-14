@@ -11,7 +11,10 @@ struct MatchupCourtSection: View {
     @ObservedObject private var shotStore = PlayerShotStore.shared
     @ObservedObject private var matchupStore = MatchupStore.shared
     @State private var side: Side = .offense
-    @State private var showZoneFG = false
+    @State private var zoneLabelMode: ZoneLabelMode = .off
+    @State private var heatBlend: Double = 0
+    @State private var heatGrid: HeatGrid? = nil
+    @State private var heatGridSlug: String? = nil
     @State private var isExpanded = true
     enum Side: String, CaseIterable { case offense = "Offense", defense = "Defense" }
 
@@ -42,7 +45,12 @@ struct MatchupCourtSection: View {
             case .collectionEmpty, .playerMissing: notAvailable("Shot chart")
             case .data:
                 if let chart = shotStore.chart(for: player.slug) {
-                    HalfCourtView(points: chart.points, zones: chart.zones, showZoneFG: $showZoneFG)
+                    HalfCourtView(points: chart.points,
+                                  zones: chart.zones,
+                                  zoneLabelMode: zoneLabelMode,
+                                  heatBlend: heatBlend,
+                                  heatGrid: heatGridSlug == player.slug ? heatGrid : nil,   // B-4: gate stale grid
+                                  onTap: { zoneLabelMode = zoneLabelMode.next })
                     caption("\(chart.meta.fga) FGA · season \(chart.meta.season)")
                 } else { notAvailable("Shot chart") }
             }
