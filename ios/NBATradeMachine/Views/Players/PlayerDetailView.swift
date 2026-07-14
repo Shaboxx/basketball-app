@@ -66,6 +66,9 @@ struct PlayerDetailView: View {
                     LatentValueSection(player: player)
                     SalarySection(player: player)
                     ProjectedContractSection(player: player)
+                    if AppConfig.matchupsEnabled {
+                        MatchupCourtSection(player: player)
+                    }
                 }
 
                 AdBanner()   // bottom-of-page banner slot; self-hides when ads are off
