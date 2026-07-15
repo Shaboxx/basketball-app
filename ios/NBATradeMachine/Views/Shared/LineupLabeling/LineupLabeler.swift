@@ -18,9 +18,11 @@ nonisolated struct LineupLabel: Equatable {
     let dQuality: Double
 
     /// Human-readable archetype name (e.g. "Five-Out"). Falls back to the raw
-    /// key when unknown.
+    /// key when unknown. Reads the master taxonomy flag to select V1 or V2 labels.
     var archetypeLabel: String {
-        LineupArchetypes.archetypeLabels[archetype] ?? archetype
+        let map = AppConfig.archetypeTaxonomyV2
+            ? LineupArchetypes.archetypeLabelsV2 : LineupArchetypes.archetypeLabelsV1
+        return map[archetype] ?? archetype
     }
 
     /// True when no player carried a feature record (the engine abstained
@@ -84,7 +86,9 @@ nonisolated enum LineupLabeler {
 
         let archetype = LineupArchetypes.resolve(features, norms, tags: fired,
                                                   impacts: impacts, tier: tier)
-        let archStrains = LineupArchetypes.archetypeStrains[archetype] ?? []
+        let strainMap = AppConfig.archetypeTaxonomyV2
+            ? LineupArchetypes.archetypeStrainsV2 : LineupArchetypes.archetypeStrainsV1
+        let archStrains = strainMap[archetype] ?? []
 
         // enables = union of firing tags' enables, minus those the archetype
         // (or a firing tag's own strain) nullifies.

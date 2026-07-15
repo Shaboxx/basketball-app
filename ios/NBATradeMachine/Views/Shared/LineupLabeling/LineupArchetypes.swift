@@ -5,12 +5,9 @@ import Foundation
 /// assigned: `resolve` walks the predicates in priority order and returns the
 /// FIRST that passes, falling back to `balanced`.
 ///
-/// Priority groups (highest first):
-///   1. death_lineup -> small_ball -> twin_towers -> five_out -> bully_ball
-///   2. heliocentric -> iso_hero -> two_pg
-///   3. positionless -> run_and_gun
-///   4. bench_mob (reserve tiers only, above the reserve impact baseline)
-///   5. balanced (fallback)
+/// The flag `AppConfig.archetypeTaxonomyV2` selects between the V1 chain
+/// (original minus run_and_gun) and the V2 chain (two_star_engine added, the
+/// V2-excluded keys absent, reordered). Default off, ships dark.
 nonisolated enum LineupArchetypes {
 
     // MARK: - Tunable thresholds (mirror archetypes.py)
@@ -51,6 +48,13 @@ nonisolated enum LineupArchetypes {
     nonisolated static let DEATH_MIN_IMPACT = 0.0
     nonisolated static let BENCH_RESERVE_BASELINE = -1.5
 
+    // --- V2 taxonomy pins (spec G3) ---
+    nonisolated static let HANDLER_LOAD_PCTL_V2_CREDIT = 0.10
+    nonisolated static let TWO_STAR_LOAD_PCTL = 0.90
+    nonisolated static let TWO_STAR_COSTAR_PCTL = 0.75
+    nonisolated static let BULLY_WEIGHT_PCTL_V2 = 0.55
+    nonisolated static let BULLY_FC_HEIGHT_MIN = 80.0
+
     private typealias N = LineupNorms
 
     // MARK: - Small role/feature helpers
@@ -89,17 +93,15 @@ nonisolated enum LineupArchetypes {
         return n
     }
 
-    private nonisolated static func primaryHandlers(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Int {
+    private nonisolated static func primaryHandlers(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+                                                    v2: Bool) -> Int {
+        let credit = v2 ? HANDLER_LOAD_PCTL_V2_CREDIT : 0.2
         var n = 0
         for p in players {
             let position = pos(p)
             let load = N.pctl(p, "load", norms)
-            if isIn(position, PRIMARY_HANDLER_POS)
-                && (load == nil || load! >= HANDLER_LOAD_PCTL - 0.2) {
-                n += 1
-            } else if let load, load >= HANDLER_LOAD_PCTL, isIn(position, GUARD_POS) {
-                n += 1
-            }
+            if isIn(position, PRIMARY_HANDLER_POS) && (load == nil || load! >= HANDLER_LOAD_PCTL - credit) { n += 1 }
+            else if let load, load >= HANDLER_LOAD_PCTL, isIn(position, GUARD_POS) { n += 1 }
         }
         return n
     }
@@ -205,8 +207,40 @@ nonisolated enum LineupArchetypes {
     }
 
     nonisolated static func twoPG(_ players: [LineupFeatures?], _ norms: LeagueNorms,
-                      _ tags: [String], _ impacts: [Double?]?) -> Bool {
-        primaryHandlers(players, norms) >= TWO_PG_MIN_HANDLERS
+                      _ tags: [String], _ impacts: [Double?]?, v2: Bool) -> Bool {
+        primaryHandlers(players, norms, v2: v2) >= TWO_PG_MIN_HANDLERS
+    }
+
+    // MARK: - V2 predicates
+
+    nonisolated static func twoStarEngine(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+                                          _ tags: [String], _ impacts: [Double?]?) -> Bool {
+        let loads: [(Int, Double?)] = players.enumerated().map { ($0.offset, N.pctl($0.element, "load", norms)) }
+        let present: [(Int, Double)] = loads.compactMap { idx, v in v.map { (idx, $0) } }
+        guard !present.isEmpty else { return false }
+        var topIdx = present[0].0, topV = present[0].1
+        for (i, v) in present where v > topV { topV = v; topIdx = i }
+        if topV < TWO_STAR_LOAD_PCTL { return false }
+        guard let creation = N.pctl(players[topIdx], "box_creation", norms),
+              creation >= HELIO_CREATION_PCTL else { return false }
+        let others = present.filter { $0.0 != topIdx }.map { $0.1 }
+        return others.contains { $0 >= TWO_STAR_COSTAR_PCTL }
+    }
+
+    nonisolated static func bullyBallV2(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+                                        _ tags: [String], _ impacts: [Double?]?) -> Bool {
+        guard let weight = N.meanPctl(players, "weight_lb", norms), weight >= BULLY_WEIGHT_PCTL_V2
+        else { return false }
+        var fc = 0
+        for p in players {
+            let position = pos(p)
+            let h = N.feat(p, "height_in")
+            let isFC = isIn(position, FRONTCOURT_POS) || (position == "SF" && (h ?? 0) >= BULLY_FC_HEIGHT_MIN)
+            guard isFC, let hh = h, hh >= BULLY_FC_HEIGHT_MIN else { continue }
+            guard let orb = N.pctl(p, "orb_pct", norms), orb >= BULLY_ORB_PCTL else { continue }
+            fc += 1
+        }
+        return fc >= 2
     }
 
     // MARK: - Group 3: defense / tempo
@@ -224,11 +258,8 @@ nonisolated enum LineupArchetypes {
         return ver >= POSITIONLESS_VERSATILITY_PCTL
     }
 
-    nonisolated static func runAndGun(_ players: [LineupFeatures?], _ norms: LeagueNorms,
-                          _ tags: [String], _ impacts: [Double?]?) -> Bool {
-        guard let age = N.avgAge(players), age < RUN_GUN_AGE_MAX else { return false }
-        return primaryHandlers(players, norms) >= 2
-    }
+    // runAndGun REMOVED OUTRIGHT (spec 2.1 A / G3-A5): input-independent shadow-dead
+    // (strict subset of two_pg at strictly lower priority -> never resolvable for ANY input).
 
     // MARK: - Group 4: bench
 
@@ -243,8 +274,8 @@ nonisolated enum LineupArchetypes {
 
     // MARK: - Resolver (Part-3 priority)
 
-    /// Strains attached to each archetype identity (independent of tags).
-    nonisolated static let archetypeStrains: [String: [String]] = [
+    // V1 maps: byte-identical to today MINUS run_and_gun (removed outright, spec 2.1 A).
+    nonisolated static let archetypeStrainsV1: [String: [String]] = [
         "death_lineup": ["interior rebounding vs. size"],
         "small_ball": ["interior rebounding vs. size", "rim protection vs. size"],
         "twin_towers": ["floor spacing", "perimeter switchability"],
@@ -254,12 +285,10 @@ nonisolated enum LineupArchetypes {
         "iso_hero": ["ball movement", "open shots from passing"],
         "two_pg": ["size on the wing", "defensive rebounding"],
         "positionless": [],
-        "run_and_gun": ["half-court execution", "transition defense"],
         "bench_mob": [],
         "balanced": [],
     ]
-
-    nonisolated static let archetypeLabels: [String: String] = [
+    nonisolated static let archetypeLabelsV1: [String: String] = [
         "death_lineup": "Death Lineup",
         "small_ball": "Small Ball",
         "twin_towers": "Twin Towers",
@@ -269,16 +298,42 @@ nonisolated enum LineupArchetypes {
         "iso_hero": "Iso-Heavy",
         "two_pg": "Two Point Guards",
         "positionless": "Positionless",
-        "run_and_gun": "Run-and-Gun",
         "bench_mob": "Bench Mob",
         "balanced": "Balanced",
     ]
 
+    // V2 maps: display renames (keys stable) + the new two_star_engine; OMIT the V2-excluded keys.
+    nonisolated static let archetypeStrainsV2: [String: [String]] = [
+        "small_ball": ["interior rebounding vs. size", "rim protection vs. size"],
+        "twin_towers": ["floor spacing", "perimeter switchability"],
+        "bully_ball": ["floor spacing", "transition defense"],
+        "heliocentric": ["off-ball rhythm", "resilience if the hub sits"],
+        "two_star_engine": ["off-ball rhythm", "resilience if the hub sits"],
+        "iso_hero": ["ball movement", "open shots from passing"],
+        "two_pg": ["size on the wing", "defensive rebounding"],
+        "positionless": [],
+        "balanced": [],
+    ]
+    nonisolated static let archetypeLabelsV2: [String: String] = [
+        "small_ball": "Small Ball",
+        "twin_towers": "Twin Towers",
+        "bully_ball": "Bully Ball",
+        "heliocentric": "Heliocentric",
+        "two_star_engine": "Two-Star Engine",
+        "iso_hero": "Iso-Heavy",
+        "two_pg": "Dual Initiators",
+        "positionless": "Positionless",
+        "balanced": "Conventional",
+    ]
+
+    // Back-compat aliases: dark (flag-off) code + existing readers use the V1 maps.
+    nonisolated static let archetypeStrains = archetypeStrainsV1
+    nonisolated static let archetypeLabels = archetypeLabelsV1
+
     private typealias Predicate = @Sendable ([LineupFeatures?], LeagueNorms, [String], [Double?]?) -> Bool
 
-    /// (name, predicate) in strict priority order. bench_mob is handled
-    /// separately because it needs the tier argument.
-    private nonisolated static let priority: [(String, Predicate)] = [
+    /// V1 priority list (original minus run_and_gun; bench_mob resolved separately).
+    private nonisolated static let priorityV1: [(String, Predicate)] = [
         ("death_lineup", deathLineup),
         ("small_ball", smallBall),
         ("twin_towers", twinTowers),
@@ -286,18 +341,43 @@ nonisolated enum LineupArchetypes {
         ("bully_ball", bullyBall),
         ("heliocentric", heliocentric),
         ("iso_hero", isoHero),
-        ("two_pg", twoPG),
+        ("two_pg", { twoPG($0, $1, $2, $3, v2: false) }),
         ("positionless", positionless),
-        ("run_and_gun", runAndGun),
     ]
 
-    /// Return the single archetype name (first passing predicate, by priority).
+    /// V2 priority list: two_star_engine added, bully repaired, reordered,
+    /// death_lineup/five_out/bench_mob absent by construction.
+    private nonisolated static let priorityV2: [(String, Predicate)] = [
+        ("small_ball", smallBall),
+        ("twin_towers", twinTowers),
+        ("heliocentric", heliocentric),
+        ("iso_hero", isoHero),
+        ("two_star_engine", twoStarEngine),
+        ("bully_ball", bullyBallV2),
+        ("positionless", positionless),
+        ("two_pg", { twoPG($0, $1, $2, $3, v2: true) }),
+    ]
+
+    /// Test/introspection helper: the priority key list for the given taxonomy.
+    nonisolated static func priorityKeys(v2: Bool) -> [String] {
+        (v2 ? priorityV2 : priorityV1).map { $0.0 }
+    }
+
+    /// Production resolve reads the flag; the v2: overload is for tests (no static-let toggle).
     nonisolated static func resolve(_ players: [LineupFeatures?], _ norms: LeagueNorms,
                         tags: [String], impacts: [Double?]? = nil,
                         tier: String = "starters") -> String {
-        for (name, fn) in priority {
-            if fn(players, norms, tags, impacts) { return name }
+        resolve(players, norms, tags: tags, impacts: impacts, tier: tier,
+                v2: AppConfig.archetypeTaxonomyV2)
+    }
+
+    nonisolated static func resolve(_ players: [LineupFeatures?], _ norms: LeagueNorms,
+                        tags: [String], impacts: [Double?]?, tier: String, v2: Bool) -> String {
+        if v2 {
+            for (name, fn) in priorityV2 where fn(players, norms, tags, impacts) { return name }
+            return "balanced"
         }
+        for (name, fn) in priorityV1 where fn(players, norms, tags, impacts) { return name }
         if benchMob(players, norms, tags, impacts, tier) { return "bench_mob" }
         return "balanced"
     }
