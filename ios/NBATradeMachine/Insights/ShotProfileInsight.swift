@@ -48,6 +48,9 @@ extension ShotProfileInsight {
     static let THREE_LEVEL_MIN_PCT = 25.0
     static let THREE_LEVEL_SPREAD_MAX = 0.55
     static let ONE_DIM_DOMINANT_SHARE = 0.60
+    static let BALANCED_BAND_LO = 25.0            // all three zone pctiles must be within [LO, HI]
+    static let BALANCED_BAND_HI = 75.0
+    static let BALANCED_BAND_ENABLED = false      // D7: flipped TRUE in the calibration-verified commit (pin 6bc: Balanced <=35%/bucket AND SGA mid tilt)
     static let HOTCOLD_FGPCT_PCT_HIGH = 70.0
     static let HOTCOLD_FGPCT_PCT_LOW = 30.0
     // Earned-level threshold: max|pct-50| >= this earns .high
@@ -209,6 +212,11 @@ extension ShotProfileInsight {
         else { suffix = "th" }
         return "\(n)\(suffix)"
     }
+
+    private static func zoneWord(_ token: String) -> String {
+        switch token { case "mid": return "mid-range"; case "three": return "3-point"; default: return token }
+    }
+    private static func capFirst(_ s: String) -> String { s.isEmpty ? s : s.prefix(1).uppercased() + s.dropFirst() }
 }
 
 extension ShotProfileInsight {
@@ -481,18 +489,7 @@ extension ShotProfileInsight {
                          "\u{2022} " + pctBullet(smallest.0, smallest.1, bucket: label) ]
             driving = [dominantSig.pct]
         } else {
-            // Balanced: cite the two most norm-divergent of rim/mid/three by |pct-50|,
-            // ties broken rim -> mid -> three.
-            let ordered = [("rim", rim), ("mid", mid), ("three", three)]
-                .enumerated()
-                .sorted { a, b in
-                    let da = abs(a.element.1.pct - 50), db = abs(b.element.1.pct - 50)
-                    return da == db ? a.offset < b.offset : da > db
-                }
-                .map { $0.element }
-            headline = "Balanced shot diet"
-            evidence = ordered.prefix(2).map { "\u{2022} " + pctBullet("\($0.0) share", $0.1, bucket: label) }
-            driving = ordered.prefix(2).map { $0.1.pct }
+            return shotDietBody(p)   // D7: Balanced-band + tilt (with the shared conf/hotCold/basis tail).
         }
 
         let conf = confidence(fga: p.fga, drivingPcts: driving)
@@ -503,6 +500,50 @@ extension ShotProfileInsight {
         if conf == .moderate { basis += " Sample may be small." }
         return ShotProfileInsight(family: .shotDiet, headline: headline,
                                   confidence: conf, evidence: evidence, basis: basis)
+    }
+
+    /// D7 Balanced-band + tilt read (the shotDiet else branch, extracted so the band split is testable
+    /// while BALANCED_BAND_ENABLED is dark, F4/F6/A1). Requires rim/mid/three signals present.
+    static func shotDietBody(_ p: Profile, enabled: Bool = BALANCED_BAND_ENABLED) -> ShotProfileInsight {
+        let label = bucketLabel(p)
+        let rim = p.signals["rimShare"]!, mid = p.signals["midShare"]!, three = p.signals["threeShare"]!
+        let ordered = [("rim", rim), ("mid", mid), ("three", three)]
+            .enumerated()
+            .sorted { a, b in
+                let da = abs(a.element.1.pct - 50), db = abs(b.element.1.pct - 50)
+                return da == db ? a.offset < b.offset : da > db
+            }
+            .map { $0.element }
+        let allInBand = [rim, mid, three].allSatisfy { $0.pct >= BALANCED_BAND_LO && $0.pct <= BALANCED_BAND_HI }
+        let headline: String
+        let evidence: [String]
+        let driving: [Double]
+        if !enabled || allInBand {
+            headline = "Balanced shot diet"
+            if enabled {
+                evidence = ordered.prefix(2).map {
+                    "\u{2022} " + pctBullet("\($0.0) share", $0.1, bucket: label,
+                                            suffix: " (inside the 25th\u{2013}75th-percentile balanced band)") }
+            } else {
+                evidence = ordered.prefix(2).map { "\u{2022} " + pctBullet("\($0.0) share", $0.1, bucket: label) }
+            }
+            driving = ordered.prefix(2).map { $0.1.pct }
+        } else {
+            let headZone = ordered.first(where: { $0.1.pct > 50 }) ?? ordered[0]
+            let otherZone = ordered.first(where: { $0.0 != headZone.0 })!
+            headline = "\(capFirst(zoneWord(headZone.0)))-tilted shot diet"
+            evidence = [ "\u{2022} " + pctBullet("\(headZone.0) share", headZone.1, bucket: label,
+                                                 suffix: " \u{2014} the tilt zone, outside the 25th\u{2013}75th balanced band"),
+                         "\u{2022} " + pctBullet("\(otherZone.0) share", otherZone.1, bucket: label,
+                                                 suffix: " \u{2014} the next most norm-divergent zone, relative to the 25th\u{2013}75th balanced band") ]
+            driving = [headZone.1.pct, otherZone.1.pct]
+        }
+        let conf = confidence(fga: p.fga, drivingPcts: driving)
+        var ev = evidence
+        ev += hotColdBullets(p, label: label)
+        var basis = "Basis: shot-location mix + FG% vs \(label) norms, season 2025-26 so far. Not defensive or tracking data."
+        if conf == .moderate { basis += " Sample may be small." }
+        return ShotProfileInsight(family: .shotDiet, headline: headline, confidence: conf, evidence: ev, basis: basis)
     }
 
     /// The dominant labeled mix component (rim/mid/three only; paintNonRim never drives).
