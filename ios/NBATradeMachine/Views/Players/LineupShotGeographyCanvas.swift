@@ -149,6 +149,9 @@ nonisolated struct LineupSpatialResult: Equatable {
     let insights: [SpatialLineupInsight]
     let memberStates: [(name: String, slot: Int, state: SpatialLineupMetrics.MemberState)]
     let gatePassed: Bool
+    let minHubDistance: Double?
+    let collidingPair: SpatialLineupMetrics.HubCollision?
+    let versatileMembers: [SpatialLineupMetrics.VersatileMember]
 
     static func == (l: LineupSpatialResult, r: LineupSpatialResult) -> Bool { l.key == r.key }
 }
@@ -164,11 +167,42 @@ extension LineupShotGeography {
         let usable = members.enumerated().filter { SpatialLineupMetrics.state(for: $0.element.chart) == .usable }
         let usableCharts = usable.compactMap { $0.element.chart }
         let usableGrids = usableCharts.map { HeatField.massGrid(points: $0.points) }
+        // PF14 index invariant: usableNames aligns to usableCharts/usableGrids (same `usable.map` order);
+        // hoisted above the G1b hub block below (which zips it with memberHotSets/usableGrids).
+        let usableNames = usable.map { $0.element.name }
         // VISUAL overlap layer (heat-model v2): efficiency-aware hot cells, >= 2 members hot.
         // Empty when the league field is nil (no member has defined hot cells).
         let memberHotSets: [Set<Int>] = league.map { L in
             usableCharts.map { SpatialLineupMetrics.memberHotCells(points: $0.points, league: L) }
         } ?? []
+        // G1b hub overlap (section 8): reuse the SAME usableGrids (index-aligned to usableCharts /
+        // memberHotSets); empty memberHotSets (nil league) => memberHubs empty => nil/[] => rules dark.
+        // PF14 INDEX INVARIANT: usableNames[i], memberHotSets[i], and usableGrids[i] are all the i-th
+        // USABLE member, in the SAME order (each is `usable.map`/`usableCharts.map` in the shipped build).
+        // So memberHubs[i], versatile's memberHotSets[i] lookup, and usableGrids[i] refer to ONE member;
+        // the zip below preserves that alignment. Do NOT reorder any of the three without the others.
+        let memberHubs: [(name: String, hubs: [SpatialLineupMetrics.ShotHub])] =
+            memberHotSets.isEmpty ? [] :
+            zip(usableNames, zip(memberHotSets, usableGrids)).map { (name, pair) in
+                (name, SpatialLineupMetrics.shotHubs(hotCells: pair.0, massGrid: pair.1))
+            }
+        let (minHubDist, hubCollision) = SpatialLineupMetrics.minHubDistance(memberHubs: memberHubs)
+        let effectiveFloor = SpatialLineupMetrics.effectiveFloor()   // PF14: the ONE floor primitive
+        func cellX(_ c: Int) -> Double { HeatField.xMin + Double(c % 26) * HeatField.spacing }
+        func cellY(_ c: Int) -> Double { HeatField.yMin + Double(c / 26) * HeatField.spacing }
+        let versatile: [SpatialLineupMetrics.VersatileMember] = memberHubs.enumerated().compactMap { (i, mh) in
+            let arcCount = mh.hubs.filter { $0.isArcHub }.count
+            guard arcCount >= SpatialLineupMetrics.ARC_VERSATILE_N else { return nil }
+            // memberHotSets[i] is THIS member's full hot set (PF14 index invariant above): i indexes the
+            // same usable member as memberHubs[i], so hot3 is computed over mh's own hot cells.
+            let hot3 = memberHotSets[i].filter { HeatField.cellShotValue(cx: cellX($0), cy: cellY($0)) == 3 }.count
+            let escapeN = hubCollision.map {
+                SpatialLineupMetrics.escapeHubCount(name: mh.name, hubs: mh.hubs,
+                                                    collision: $0, effectiveFloor: effectiveFloor)
+            } ?? 0
+            return SpatialLineupMetrics.VersatileMember(name: mh.name, arcHubCount: arcCount,
+                                                        hotThreeCellCount: hot3, escapeHubCount: escapeN)
+        }
         let overlapCells = memberHotSets.isEmpty ? []
             : SpatialLineupMetrics.hotOverlapCounts(memberHotSets: memberHotSets)
                 .enumerated().filter { $0.element >= 2 }.map { $0.offset }
@@ -184,7 +218,6 @@ extension LineupShotGeography {
         let combinedUsableFga = usableCharts.reduce(0) { $0 + $1.meta.fga }
         let minUsableFga = usableCharts.map { $0.meta.fga }.min() ?? 0
         let usableProfiles = usableCharts.map { $0.profile }
-        let usableNames = usable.map { $0.element.name }
         let excluded = members.enumerated()
             .filter { SpatialLineupMetrics.state(for: $0.element.chart) != .usable }
             .map { $0.element.name }
@@ -192,11 +225,15 @@ extension LineupShotGeography {
                                       usableGrids: usableGrids, usableProfiles: usableProfiles,
                                       usableNames: usableNames, excluded: excluded,
                                       combinedUsableFga: combinedUsableFga, minUsableFga: minUsableFga,
-                                      memberHotSets: memberHotSets)
+                                      memberHotSets: memberHotSets,
+                                      minHubDistance: minHubDist, collidingPair: hubCollision,
+                                      versatileMembers: versatile)
         let gatePassed = usableCharts.count >= SpatialLineupMetrics.MIN_USABLE_MEMBERS
             && combinedUsableFga >= SpatialLineupMetrics.MIN_COMBINED_USABLE_FGA
         return LineupSpatialResult(key: key, dotLayers: dotLayers, overlapCells: overlapCells,
-                                   insights: insights, memberStates: states, gatePassed: gatePassed)
+                                   insights: insights, memberStates: states, gatePassed: gatePassed,
+                                   minHubDistance: minHubDist, collidingPair: hubCollision,
+                                   versatileMembers: versatile)
     }
 
     private static func engineInsights(
@@ -205,7 +242,10 @@ extension LineupShotGeography {
         usableCharts: [PlayerShotChart], usableGrids: [[Double]],
         usableProfiles: [PlayerShotChart.Profile?], usableNames: [String], excluded: [String],
         combinedUsableFga: Int, minUsableFga: Int,
-        memberHotSets: [Set<Int>]) -> [SpatialLineupInsight] {
+        memberHotSets: [Set<Int>],
+        minHubDistance: Double?,
+        collidingPair: SpatialLineupMetrics.HubCollision?,
+        versatileMembers: [SpatialLineupMetrics.VersatileMember]) -> [SpatialLineupInsight] {
 
         let usablePoints = usableCharts.map { $0.points }
         // heat-model v2 hot-cell overlap context (section 9.3) — empty memberHotSets => nil/0.
@@ -296,7 +336,9 @@ extension LineupShotGeography {
             minThreeSharePct: minThreeSharePct, loneVolShare: loneShare,
             overlapIndex: overlapIndex, paintOverlap: paintOverlap, overlapContributorCount: contributorCount,
             hotOverlapNonRim: hotOverlapNonRim, hotOverlapContributorCount: hotOverlapContributorCount,
-            centroidDispersion: dispersion, lineup3Share: lineup3, lineupMidShare: lineupMid,
+            centroidDispersion: dispersion,
+            minHubDistance: minHubDistance, collidingPair: collidingPair, versatileMembers: versatileMembers,
+            lineup3Share: lineup3, lineupMidShare: lineupMid,
             rimHeavyCount: rimHeavy.count, rimHeavyMaxPct: rimHeavyMaxPct, rimHeavyNames: rimHeavy.map { ($0.name, $0.pct) },
             cornerCoverage: corner, leftClaimantShare: claimantShare(corner.leftClaimant, SpatialLineupMetrics.LEFT_CORNER),
             rightClaimantShare: claimantShare(corner.rightClaimant, SpatialLineupMetrics.RIGHT_CORNER),

@@ -7,12 +7,14 @@ import Foundation
 nonisolated struct SpatialLineupInsight: Equatable, Identifiable {
     enum Family: String {
         case noPerimeter, lonePerimeter, fiveOut,        // perimeter class (mutually exclusive)
-             sharedOverlap,                              // overlap
+             sharedOverlap,                              // overlap (permanently dark, retired)
+             sharedHubProximity,                         // G1b hub congestion (rank 4; dark)
              packedGeometry,                             // geometry
              rimCrowding,                                // interior
              emptyCorners, twoCornerCoverage,            // corners class (mutually exclusive)
              midRangeHeavy,                              // diet
-             sideAsymmetry                               // geometry
+             sideAsymmetry,                              // geometry
+             multiSpotPerimeter                          // G1b arc versatility (rank 8; dark)
     }
     enum Confidence: String { case high, moderate }      // exactly two chips; no .low (A house style)
 
@@ -48,6 +50,11 @@ nonisolated struct SpatialLineupContext {
     let hotOverlapContributorCount: Int    // # usable members with a non-RA shared hot cell (k_hot >= 2)
     let centroidDispersion: Double?
 
+    // G1b hub overlap (section 8) — additive; nil/empty when the league field is nil => rules dark.
+    let minHubDistance: Double?                                   // section 5; nil when < 2 members have hubs
+    let collidingPair: SpatialLineupMetrics.HubCollision?         // the pair achieving the min (nil when minHubDistance nil)
+    let versatileMembers: [SpatialLineupMetrics.VersatileMember]  // usable members with arcHubCount >= ARC_VERSATILE_N
+
     // diet
     let lineup3Share: Double?
     let lineupMidShare: Double?
@@ -80,9 +87,16 @@ nonisolated enum SpatialLineupEngine {
     private typealias M = SpatialLineupMetrics
     private typealias I = SpatialLineupInsight
 
-    /// Evaluate all 10 rules, drop non-firing, sort by fixed priority, return the top 4.
-    /// Returns [] when the section gate fails (caller shows the caption).
+    /// PUBLIC entry — unchanged signature. Supplies the hub read behind the dark flag, then delegates.
     static func make(from c: SpatialLineupContext) -> [SpatialLineupInsight] {
+        makeResolved(from: c, hubInsight: M.HUB_CONGESTION_ENABLED ? hubBody(c) : nil)
+    }
+
+    /// SEAM (SF6) — receives the ALREADY-EVALUATED hub insight; tests call this directly with a
+    /// non-nil hubInsight to exercise the `hub fired => skip rule 5` path WITHOUT flipping the flag.
+    /// Uses the concrete `SpatialLineupInsight?` (not the private `I` alias) so the seam is non-private
+    /// and unit-testable, matching the `rule4Body` convention.
+    static func makeResolved(from c: SpatialLineupContext, hubInsight hub: SpatialLineupInsight?) -> [SpatialLineupInsight] {
         guard c.usableCount >= M.MIN_USABLE_MEMBERS,
               c.combinedUsableFga >= M.MIN_COMBINED_USABLE_FGA else { return [] }
 
@@ -98,14 +112,16 @@ nonisolated enum SpatialLineupEngine {
             // rule 3 requires its own min-threeShare guard; data-absence blocks only rules 1/2.
             add(3, r)
         }
-        add(4, rule4(c))   // CE-3: rule4 self-suppresses via SHARED_OVERLAP_ENABLED (returns nil while false)
-        add(5, rule5(c))
+        add(4, rule4(c))                    // CE-3: rule4 self-suppresses via SHARED_OVERLAP_ENABLED (returns nil while false)
+        add(4, hub)                         // .sharedHubProximity, passed in; shares the rank-4 slot (rule 4 never fires).
+        if hub == nil { add(5, rule5(c)) }  // MUTUAL EXCLUSION: skip rule 5 when the hub read fires.
         add(6, rule6(c))
         // Corners class: 7 vs 8, coverage==1 fires neither.
         // CE-7: rule 8 (twoCornerCoverage) is demoted to the LOWEST display rank (11, below sideAsymmetry's
         // 10). It fires on 26/30 real lineups (near-universal), so it must never crowd distinctive reads
         // out of the top-4. rule 7 (emptyCorners) keeps its natural rank 7.
         add(7, rule7(c)); add(11, rule8(c))
+        add(8, rule9Multi(c))               // .multiSpotPerimeter — dark behind ARC_VERSATILITY_ENABLED.
         add(9, rule9(c))
         add(10, rule10(c))
 
@@ -315,4 +331,11 @@ nonisolated enum SpatialLineupEngine {
                     "\u{2022} \(noBaseline) Absolute side split only."],
                  basis: "Basis: individual season 3-point attempt sides from each member's shot profile (center band excluded). \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
+
+    // MARK: - G1b rule bodies (section 6, 7) — REAL copy added in Task 4; dark placeholders here.
+
+    /// .sharedHubProximity body (rank 4). `make` calls this only when HUB_CONGESTION_ENABLED is true.
+    static func hubBody(_ c: SpatialLineupContext) -> SpatialLineupInsight? { nil }
+    /// .multiSpotPerimeter body (rank 8). Gated by ARC_VERSATILITY_ENABLED at fire time (Task 4).
+    static func rule9Multi(_ c: SpatialLineupContext) -> SpatialLineupInsight? { nil }
 }
