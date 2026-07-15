@@ -119,6 +119,10 @@ nonisolated enum SpatialLineupEngine {
             // rule 3 requires its own min-threeShare guard; data-absence blocks only rules 1/2.
             add(3, r)
         }
+        // D1 (F5/F6): rimGravityAnchorBody is UNGATED; the flag is resolved HERE at the add (consumption)
+        // site (mirroring add(4, hub)). Added OUTSIDE the perimeter-class if/else so it co-displays with
+        // noPerimeter; shares rank 3 with fiveOut, both CAN co-fire, ordered by (rank, seq).
+        add(3, M.RIM_GRAVITY_ANCHOR_ENABLED ? rimGravityAnchorBody(c) : nil)
         add(4, rule4(c))                    // CE-3: rule4 self-suppresses via SHARED_OVERLAP_ENABLED (returns nil while false)
         add(4, hub)                         // .sharedHubProximity, passed in; shares the rank-4 slot (rule 4 never fires).
         if hub == nil { add(5, rule5(c)) }  // MUTUAL EXCLUSION: skip rule 5 when the hub read fires.
@@ -197,6 +201,22 @@ nonisolated enum SpatialLineupEngine {
                     "\u{2022} \(c.perimeterShooterCount) of five clear A's spacer filter (65th-pct 3P share, \u{2265}34% 3P%).",
                     "\u{2022} Lineup 3-point share is \(pct(three)) (FGA-weighted), so the floor tends to stay stretched."],
                  basis: "Basis: individual season shot profiles + A's positional norms. \(notOnCourt)\(exclPhrase(c.excludedNames))")
+    }
+
+    /// Rank 3 (shares the slot with fiveOut; the two CAN co-fire, deterministic (rank, seq) order).
+    /// Positive: a vertical-spacing rim-gravity anchor. UNGATED body (rule4Body pattern, A5): the flag is
+    /// resolved at the add site, so the copy shape is unit-testable while dark. Cites the single highest-
+    /// share anchor. Threshold rejection is rimGravityAnchors' job (F7); this renders what it is handed.
+    static func rimGravityAnchorBody(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
+        guard let top = c.rimAnchors.max(by: { $0.sharePct < $1.sharePct }) else { return nil }
+        return I(family: .rimGravityAnchor,
+                 headline: "Interior anchor may pull the defense toward the rim",
+                 confidence: .moderate,
+                 evidence: [
+                    "\u{2022} \(top.name) posts a \(pct(top.shareValue)) rim share (\(M.ordinal(top.sharePct)) percentile for position, at/above the 72nd-percentile rim-anchor gate) and \(pct(top.rimFg)) at the rim (at/above the 72% rim-finishing floor).",
+                    "\u{2022} A rim-gravity presence tends to draw help toward the paint, so the lineup may space vertically rather than in a five-out shape.",
+                    "\u{2022} Cites season rim volume and finishing only; no lineup-level league baseline yet."],
+                 basis: "Basis: individual season rim shares + finishing vs A's positional norms. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 
     // Rule 4 — Shared hot zones outside the rim (heat-model v2). Fires when hotOverlapNonRim >=
