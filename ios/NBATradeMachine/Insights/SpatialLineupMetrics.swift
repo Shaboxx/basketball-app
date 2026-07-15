@@ -30,6 +30,9 @@ nonisolated enum SpatialLineupMetrics {
     static let RIM_ANCHOR_RIMFG_MIN   = 0.72    // audit section F: p75 rimFG% (vertical finishing floor)
     static let RIM_GRAVITY_ANCHOR_ENABLED = false   // D1: flipped TRUE in the calibration-verified commit (pin 1)
 
+    // --- family cap (D2) ---
+    static let FAMILY_CAP_ENABLED = false   // D2: flipped TRUE with pins 3-4 in the calibration-verified commit
+
     // --- corners ---
     static let CORNER_MIN_FGA = 20
     static let CORNER_MIN_SHARE = 0.06

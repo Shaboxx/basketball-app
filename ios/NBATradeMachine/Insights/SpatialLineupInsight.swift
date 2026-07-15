@@ -93,6 +93,22 @@ nonisolated enum SpatialLineupEngine {
     private typealias M = SpatialLineupMetrics
     private typealias I = SpatialLineupInsight
 
+    // D2: the interior-tilt deficiency family (spec D2). At most the lowest-rank firing member displays.
+    private static let INTERIOR_TILT_FAMILY: Set<SpatialLineupInsight.Family> =
+        [.noPerimeter, .packedGeometry, .rimCrowding, .emptyCorners]
+
+    /// PURE family-cap filter (rule4Body seam discipline): keep only the FIRST (lowest-rank, by the
+    /// already-(rank,seq)-sorted order) interior-tilt-family member; non-family entries untouched.
+    static func applyFamilyCap(_ ranked: [(rank: Int, seq: Int, insight: SpatialLineupInsight)]) -> [(rank: Int, seq: Int, insight: SpatialLineupInsight)] {
+        var keptFamilyMember = false
+        return ranked.filter { entry in
+            guard INTERIOR_TILT_FAMILY.contains(entry.insight.family) else { return true }
+            if keptFamilyMember { return false }
+            keptFamilyMember = true
+            return true
+        }
+    }
+
     /// PUBLIC entry — unchanged signature. Supplies the hub read behind the dark flag, then delegates.
     static func make(from c: SpatialLineupContext) -> [SpatialLineupInsight] {
         makeResolved(from: c, hubInsight: M.HUB_CONGESTION_ENABLED ? hubBody(c) : nil)
@@ -136,7 +152,11 @@ nonisolated enum SpatialLineupEngine {
         add(9, rule9(c))
         add(10, rule10(c))
 
-        return out.sorted { ($0.rank, $0.seq) < ($1.rank, $1.seq) }.prefix(4).map { $0.insight }
+        var ranked = out.sorted { ($0.rank, $0.seq) < ($1.rank, $1.seq) }
+        // D2 (F11): gated so the dark path is byte-identical. Runs BEFORE prefix(4) so the surviving
+        // family member is the lowest-rank one. Flipped TRUE with pins 3-4.
+        if M.FAMILY_CAP_ENABLED { ranked = applyFamilyCap(ranked) }
+        return ranked.prefix(4).map { $0.insight }
     }
 
     // MARK: - Copy helpers
