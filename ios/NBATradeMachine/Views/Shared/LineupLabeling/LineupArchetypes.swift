@@ -7,7 +7,8 @@ import Foundation
 ///
 /// The flag `AppConfig.archetypeTaxonomyV2` selects between the V1 chain
 /// (original minus run_and_gun) and the V2 chain (two_star_engine added, the
-/// V2-excluded keys absent, reordered). Default off, ships dark.
+/// V2-excluded keys absent, reordered). Enabled after the committed calibration
+/// run (see provenance in archetypes.py).
 nonisolated enum LineupArchetypes {
 
     // MARK: - Tunable thresholds (mirror archetypes.py)
@@ -326,7 +327,8 @@ nonisolated enum LineupArchetypes {
         "balanced": "Conventional",
     ]
 
-    // Back-compat aliases: dark (flag-off) code + existing readers use the V1 maps.
+    // Back-compat aliases: enabled after the committed calibration run (see provenance);
+    // existing readers use the V1 maps.
     nonisolated static let archetypeStrains = archetypeStrainsV1
     nonisolated static let archetypeLabels = archetypeLabelsV1
 
