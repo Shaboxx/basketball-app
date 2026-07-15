@@ -24,6 +24,10 @@ nonisolated enum CourtVizTransition {
     }
 }
 
+/// Heat sub-mode (D2): mode 1 colors vs the cell league baseline; mode 2 colors expected
+/// points per shot vs leagueMeanPPS. The view is handed whichever grid the parent selects.
+nonisolated enum HeatMode: String, CaseIterable { case vsLeague = "vs league", pointsPerShot = "Points/shot" }
+
 /// Player-page card: offense = half-court shot map + offensive efficiency; defense =
 /// hedged, stat-cited matchup scouting. Each source renders independently (one missing
 /// source never blanks the card). NBA-mode, flag-gated by the caller.
@@ -38,6 +42,8 @@ struct MatchupCourtSection: View {
     @State private var zoneLabelMode: ZoneLabelMode = .off
     @State private var heatBlend: Double = 0
     @State private var heatGrid: HeatGrid? = nil
+    @State private var heatGridEP: HeatGrid? = nil
+    @State private var heatMode: HeatMode = .vsLeague
     @State private var heatGridSlug: String? = nil
     @State private var isExpanded = true
     enum Side: String, CaseIterable { case offense = "Offense", defense = "Defense" }
@@ -60,26 +66,38 @@ struct MatchupCourtSection: View {
         // recreates the offense subtree and a subtree-attached task would re-fire there,
         // resetting the tap-cycle/slider mid-session. Here it fires only on card appearance,
         // player-slug change, or the chart's nil→present availability flip (composite id).
-        .task(id: "\(player.slug)#\(shotStore.chart(for: player.slug) != nil)") {
+        .task(id: Self.heatTaskID(slug: player.slug,
+                                  chartAvailable: shotStore.chart(for: player.slug) != nil,
+                                  leagueRevision: shotStore.leagueRevision)) {
             let chart = shotStore.chart(for: player.slug)
             let decision = CourtVizTransition.apply(oldCacheSlug: heatGridSlug,
                                                     newSlug: player.slug,
                                                     chartAvailable: chart != nil)
-            // Rule 1 (appearance reset, ALWAYS): every card (re)appearance / slug change starts clean.
             if decision.resetToDefaults {
                 zoneLabelMode = .off
                 heatBlend = 0
+                heatMode = .vsLeague
             }
-            // Rule 2 (grid invalidation): build ONLY when a chart was actually available for a new slug.
-            if decision.rebuildGrid, let chart {
-                heatGrid = HeatField.build(points: chart.points,
-                                           overallFGA: chart.meta.fga,
-                                           overallFGM: chart.meta.fgm,
-                                           league: nil)   // TEMP: Task 7 wires shotStore.league
+            if decision.rebuildGrid, let chart, let league = shotStore.league {
+                heatGrid = HeatField.build(points: chart.points, overallFGA: chart.meta.fga,
+                                           overallFGM: chart.meta.fgm, league: league)
+                // EP grid built ONLY when the mean-PPS anchor is present (no ?? 0 fallback, F7).
+                if let pps = shotStore.leagueMeanPPS {
+                    heatGridEP = HeatField.buildEP(points: chart.points, overallFGA: chart.meta.fga,
+                                                   overallFGM: chart.meta.fgm, league: league,
+                                                   leagueMeanPPS: pps)
+                } else {
+                    heatGridEP = nil
+                }
+                heatGridSlug = decision.newCacheSlug
+            } else if decision.rebuildGrid, shotStore.league == nil {
+                // chart present but league not loaded yet: leave the grids nil (heat unavailable);
+                // do NOT stamp the slug so the league-arrival rebuild rebuilds. The composite id
+                // re-fires on the next leagueRevision bump (PF9).
+                heatGrid = nil; heatGridEP = nil
+            } else {
+                heatGridSlug = decision.newCacheSlug
             }
-            // B-3 stamping: update the cache key ONLY when a grid built; when the chart was nil,
-            // `decision.newCacheSlug` keeps the stale/nil key so the next availability change rebuilds.
-            heatGridSlug = decision.newCacheSlug
         }
     }
 
@@ -94,23 +112,41 @@ struct MatchupCourtSection: View {
             case .collectionEmpty, .playerMissing: notAvailable("Shot chart")
             case .data:
                 if let chart = shotStore.chart(for: player.slug) {
+                    let leagueMissing = shotStore.league == nil
+                    let unavailable = Self.heatUnavailable(pointsEmpty: chart.points.isEmpty,
+                                                           metaFGA: chart.meta.fga,
+                                                           leagueMissing: leagueMissing)
+                    let epAvailable = Self.epModeAvailable(league: shotStore.league,
+                                                           pps: shotStore.leagueMeanPPS)
+                    let active = Self.activeGrid(mode: heatMode,
+                                                 vsLeague: heatGridSlug == player.slug ? heatGrid : nil,
+                                                 ep: heatGridSlug == player.slug ? heatGridEP : nil)
                     HalfCourtView(points: chart.points,
                                   zones: chart.zones,
                                   zoneLabelMode: zoneLabelMode,
                                   heatBlend: heatBlend,
-                                  heatGrid: heatGridSlug == player.slug ? heatGrid : nil,   // B-4: gate stale grid
+                                  heatGrid: active,                       // parent swaps mode-1 / EP
                                   onTap: { zoneLabelMode = zoneLabelMode.next })
                     caption("\(chart.meta.fga) FGA · season \(chart.meta.season)")
-                    let heatUnavailable = Self.heatUnavailable(pointsEmpty: chart.points.isEmpty,
-                                                               metaFGA: chart.meta.fga)
                     HStack(spacing: 8) {
                         Text("Dot").font(.caption2).foregroundStyle(.secondary)
-                        Slider(value: $heatBlend, in: 0...1)
-                            .disabled(heatUnavailable)
+                        Slider(value: $heatBlend, in: 0...1).disabled(unavailable)
                         Text("Heat").font(.caption2).foregroundStyle(.secondary)
                     }
-                    if heatUnavailable {
-                        caption("Heat map needs plotted shots — none available yet.")
+                    // Segmented control visible only when blended in (D2); the Points/shot segment
+                    // is present only when the EP anchor is available.
+                    if Self.showsHeatModeControl(heatBlend: heatBlend) {
+                        Picker("", selection: $heatMode) {
+                            Text(HeatMode.vsLeague.rawValue).tag(HeatMode.vsLeague)
+                            if epAvailable { Text(HeatMode.pointsPerShot.rawValue).tag(HeatMode.pointsPerShot) }
+                        }.pickerStyle(.segmented)
+                        caption(heatMode == .vsLeague ? Self.heatCaptionVsLeague : Self.heatCaptionPointsPerShot)
+                        caption(heatMode == .vsLeague ? Self.legendVsLeague : Self.legendPointsPerShot)
+                        if heatMode == .pointsPerShot { caption(Self.epHint) }
+                    }
+                    if unavailable {
+                        caption(Self.unavailableCaption(pointsEmpty: chart.points.isEmpty,
+                                                        metaFGA: chart.meta.fga, leagueMissing: leagueMissing))
                     } else if let note = Self.droppedNoCoordCaption(chart.meta.droppedNoCoord) {
                         caption(note)
                     }
@@ -248,25 +284,64 @@ struct MatchupCourtSection: View {
         Text(t).font(.caption2).foregroundStyle(.secondary)
     }
 
-    // MARK: - Sub-project B pure wiring helpers (unit-testable, no SwiftUI)
+    // MARK: - Heat-model v2 pure wiring helpers (unit-testable, no SwiftUI)
+
+    /// The composite .task id: re-fires on slug change, chart-availability flip, OR any
+    /// leagueRevision bump (F12/PF9 — the grid must rebuild when the league field loads OR is
+    /// replaced by a valid fetch over a non-nil seed; an Int revision catches the non-nil ->
+    /// non-nil replacement a `league != nil` boolean would miss).
+    nonisolated static func heatTaskID(slug: String, chartAvailable: Bool, leagueRevision: Int) -> String {
+        "\(slug)#\(chartAvailable)#\(leagueRevision)"
+    }
+
+    /// The segmented control is visible only when the heat layer is blended in (D2).
+    nonisolated static func showsHeatModeControl(heatBlend: Double) -> Bool { heatBlend > 0 }
+
+    /// EP (Points/shot) mode is available iff a full-length league field AND a finite mean-PPS
+    /// anchor are loaded (PA8: also require `league.count == 624` and `pps.isFinite`). The
+    /// [0.8, 1.4] RANGE check is NOT duplicated here — the validation layer (`LeagueField.isValid`)
+    /// owns it; this gate only guards a nil/empty field and a NaN/Inf anchor from reaching buildEP.
+    nonisolated static func epModeAvailable(league: [Double]?, pps: Double?) -> Bool {
+        guard let league, league.count == 26 * 24, let pps, pps.isFinite else { return false }
+        return true
+    }
+
+    /// The grid the parent hands the view for a given mode (pointer swap, no recompute).
+    nonisolated static func activeGrid(mode: HeatMode, vsLeague: HeatGrid?, ep: HeatGrid?) -> HeatGrid? {
+        mode == .vsLeague ? vsLeague : ep
+    }
 
     /// Rebuild the HeatGrid only when the player slug changes (grid cache invalidation).
-    /// (Retained for the direct cache-key test; `CourtVizTransition.apply` is the composite rule.)
     nonisolated static func shouldRebuildGrid(slug: String, cachedSlug: String?) -> Bool {
         slug != cachedSlug
     }
 
-    /// The Dot↔Heat slider is disabled (no fabricated field) when there are no plotted shots
-    /// or the season FGA is zero.
-    nonisolated static func heatUnavailable(pointsEmpty: Bool, metaFGA: Int) -> Bool {
-        pointsEmpty || metaFGA == 0
+    /// The Dot↔Heat slider is disabled when there are no plotted shots, the season FGA is
+    /// zero, OR the league baseline is missing (never a fabricated/own-baseline field).
+    nonisolated static func heatUnavailable(pointsEmpty: Bool, metaFGA: Int, leagueMissing: Bool) -> Bool {
+        pointsEmpty || metaFGA == 0 || leagueMissing
     }
 
-    /// The one-line disclosure shown ONLY when some shots lacked a location (droppedNoCoord > 0);
-    /// nil otherwise (adjudication Q3).
+    /// The disabled caption: the league-missing string when the ONLY failing condition is a
+    /// missing league field, else the no-shots string.
+    nonisolated static func unavailableCaption(pointsEmpty: Bool, metaFGA: Int, leagueMissing: Bool) -> String {
+        if leagueMissing && !pointsEmpty && metaFGA != 0 { return unavailableNoLeague }
+        return unavailableNoShots
+    }
+
+    /// The one-line disclosure shown ONLY when some shots lacked a location; nil otherwise.
     nonisolated static func droppedNoCoordCaption(_ droppedNoCoord: Int) -> String? {
         droppedNoCoord > 0
             ? "Heat reflects plotted shots only (\(droppedNoCoord) without a location)."
             : nil
     }
+
+    // MARK: - Copy (section 12, banned-word screened)
+    static let heatCaptionVsLeague = "Heat vs NBA average from that spot."
+    static let heatCaptionPointsPerShot = "Points per shot attempt vs the league mean."
+    static let epHint = "Color shows points per shot attempt — not full possession value."
+    static let unavailableNoShots = "Heat map needs plotted shots — none available yet."
+    static let unavailableNoLeague = "Heat map needs the league baseline — not loaded yet."
+    static let legendVsLeague = "Warmer = makes it more often than NBA average here; cooler = less often."
+    static let legendPointsPerShot = "Warmer = more points per shot attempt than the league average."
 }
