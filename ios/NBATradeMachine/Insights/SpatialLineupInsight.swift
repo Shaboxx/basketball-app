@@ -7,6 +7,7 @@ import Foundation
 nonisolated struct SpatialLineupInsight: Equatable, Identifiable {
     enum Family: String {
         case noPerimeter, lonePerimeter, fiveOut,        // perimeter class (mutually exclusive)
+             rimGravityAnchor,                           // D1 positive rim-gravity anchor (rank 3; dark)
              sharedOverlap,                              // overlap (permanently dark, retired)
              sharedHubProximity,                         // G1b hub congestion (rank 4; dark)
              packedGeometry,                             // geometry
@@ -81,6 +82,11 @@ nonisolated struct SpatialLineupContext {
     // member-level percentile citations (for high-eligible member bullets)
     let lonePerimeterName: String?
     let memberPercentiles: [String: (bucket: String, threeSharePct: Double, rimSharePct: Double)]
+
+    // D1 rim-gravity anchor (var-with-default so the memberwise init synthesizes DEFAULTED params:
+    // every existing call site + the test ctx(...) compile unchanged, the one builder passes values).
+    var rimAnchors: [(name: String, sharePct: Double, shareValue: Double, rimFg: Double)] = []   // qualifiers
+    var hasRimAnchor: Bool = false   // == !rimAnchors.isEmpty; convenience for the noPerimeter override
 }
 
 nonisolated enum SpatialLineupEngine {
@@ -100,8 +106,9 @@ nonisolated enum SpatialLineupEngine {
         guard c.usableCount >= M.MIN_USABLE_MEMBERS,
               c.combinedUsableFga >= M.MIN_COMBINED_USABLE_FGA else { return [] }
 
-        var out: [(rank: Int, insight: I)] = []
-        func add(_ rank: Int, _ ins: I?) { if let ins { out.append((rank, ins)) } }
+        var out: [(rank: Int, seq: Int, insight: I)] = []
+        var seq = 0
+        func add(_ rank: Int, _ ins: I?) { if let ins { out.append((rank, seq, ins)); seq += 1 } }
 
         // Perimeter class: 1 -> 2 -> 3, first match wins (mutual exclusion).
         if c.everyUsableHasPerimeterSignals {
@@ -125,7 +132,7 @@ nonisolated enum SpatialLineupEngine {
         add(9, rule9(c))
         add(10, rule10(c))
 
-        return out.sorted { $0.rank < $1.rank }.prefix(4).map { $0.insight }
+        return out.sorted { ($0.rank, $0.seq) < ($1.rank, $1.seq) }.prefix(4).map { $0.insight }
     }
 
     // MARK: - Copy helpers

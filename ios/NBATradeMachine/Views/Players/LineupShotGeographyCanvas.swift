@@ -278,6 +278,10 @@ extension LineupShotGeography {
         }
         let rimHeavyMaxPct = rimHeavy.map { $0.pct }.max()
 
+        // D1: rim-gravity anchor qualifiers (unconditional pure work; consumers gate on the flag).
+        let rimAnchors = SpatialLineupMetrics.rimGravityAnchors(
+            members: usable.map { ($0.element.name, $0.element.chart?.profile) })
+
         // lone perimeter (when exactly one).
         var loneName: String? = nil, loneShare: Double? = nil
         if perimCount == 1 {
@@ -344,7 +348,8 @@ extension LineupShotGeography {
             rightClaimantShare: claimantShare(corner.rightClaimant, SpatialLineupMetrics.RIGHT_CORNER),
             leftClaimantName: claimantName(corner.leftClaimant), rightClaimantName: claimantName(corner.rightClaimant),
             sideSkew: skew, sideAttempts: sideAttempts, dominantSideIsLeft: dominantLeft,
-            lonePerimeterName: loneName, memberPercentiles: percentiles)
+            lonePerimeterName: loneName, memberPercentiles: percentiles,
+            rimAnchors: rimAnchors, hasRimAnchor: !rimAnchors.isEmpty)
         return SpatialLineupEngine.make(from: ctx)
     }
 
