@@ -59,6 +59,25 @@ nonisolated enum SpatialLineupMetrics {
     //   suppressed pending an on-court-together baseline (V2). rule4Body's copy path stays tested directly.
     static let HOT_OVERLAP_PIN = 0.746         // p75 hotOverlapNonRim (2026-07-14 run above; unused while the flag is off)
     static let HOT_OVERLAP_ABS_MIN = 0.30      // PINNED absolute floor: a genuinely shared hot court, not p75 of a still-clustered league
+
+    // --- G1b hub overlap (section 15; both rules ship DARK until the committed calibration verdict, H6) ---
+    static let HUB_MIN_SHARE = 0.15        // component mass share of member's total non-RA hot mass (H1)
+    static let HUB_MIN_CELLS = 2           // component size floor (H1)
+    static let ARC_MAJORITY = 0.50         // >= this fraction of component mass on 3PT cells => arc hub (H5)
+    static let HUB_DIST_ABS_MAX = 35.0     // court units — PINNED absolute closeness cap (H3, distance analog of the honesty floors)
+    // HUB_DIST_PIN is set at integration from p25(minHubDistance) on the committed run [EXPLORATORY p25 ~ 16.3];
+    // seeded here to the exploratory value so the ENABLED body is testable while the flag stays false. Integration
+    // repins it (or records NO) with a provenance comment. Unused while HUB_CONGESTION_ENABLED == false.
+    static let HUB_DIST_PIN = 16.3         // CALIBRATE (committed run); EXPLORATORY p25 anchor
+    static let ARC_VERSATILE_N = 2         // PROVISIONAL; integration pins N by the [10%, 50%] lineup-prevalence window (H5)
+    static let HUB_CONGESTION_ENABLED = false    // dark until the committed run's verdict (H6)
+    static let ARC_VERSATILITY_ENABLED = false   // dark until the committed run's verdict (H6)
+
+    /// PF14: the ONE effective-fire-floor primitive (H3) = min(HUB_DIST_PIN, HUB_DIST_ABS_MAX). The
+    /// congestion body's fire comparison, `LineupShotGeography.build`'s escape-hub anchor, and the
+    /// tests' `hubFloor()` ALL read this single definition so the pin and the honesty cap can never
+    /// drift apart across call sites.
+    static func effectiveFloor() -> Double { min(HUB_DIST_PIN, HUB_DIST_ABS_MAX) }
     static let DISPERSION_TIGHT = 31.3         // p25 centroidDispersion (court units) over 30 lineups (dist: n=30 min=18.533 p25=31.339 median=39.785 p75=54.306 max=68.121); spec provisional was 90 (~9 ft)
     static let SIDE_SKEW_MIN = 0.09            // p75 sideSkew over 30 lineups (dist: n=30 min=0.003 p25=0.024 median=0.065 p75=0.092 max=0.230); spec provisional was 0.45
     // CE-1 (final-review honesty floor): the calibrated SIDE_SKEW_MIN (0.09) is only ~p75 of a league where
@@ -206,6 +225,94 @@ nonisolated enum SpatialLineupMetrics {
             if k[c] >= 2 { inter += 1 }
         }
         return union == 0 ? nil : Double(inter) / Double(union)
+    }
+
+    // MARK: - Shot hubs (G1b; section 4)
+
+    /// One concentrated above-league shot-making location for a member: an 8-connected component
+    /// of the member's NON-RA hot cells that clears both floors. Pure value type (H1).
+    nonisolated struct ShotHub: Equatable {
+        let cells: [Int]                        // the component's cell indices (row-major, 0..623), SORTED ASCENDING (PF11)
+        let centroid: (x: Double, y: Double)    // mass-weighted mean of the CELL CENTERS (court units)
+        let strength: Double                    // component mass / member's total non-RA hot mass, in (0,1]
+        let isArcHub: Bool                      // >= ARC_MAJORITY of component mass on the 344 three-point cells
+        // `cells` is `[Int]` (sorted ascending), NOT `Set<Int>` (PF11): so every test/copy assertion
+        // is a plain array literal (`[159, 160, 161]`) and the value is deterministic + cross-language
+        // stable. The synthesized Equatable is KEPT (arrays compare elementwise), but the tuple
+        // `centroid` still blocks full synthesis, so the explicit `==` remains.
+        static func == (l: ShotHub, r: ShotHub) -> Bool {
+            l.cells == r.cells && l.centroid == r.centroid
+                && l.strength == r.strength && l.isArcHub == r.isArcHub
+        }
+    }
+
+    /// The member's shot hubs (H1). `hotCells` = the member's hot set; the finder drops the 12 RA
+    /// indices itself. `massGrid` = the SAME member's raw mass grid (index-aligned to hotCells).
+    /// Returns hubs ASCENDING by the component's lowest row-major cell index (deterministic,
+    /// cross-language stable). Boundary-safe (SF7): a wrong-length grid or a non-finite/negative
+    /// cell fails closed to 0, never traps.
+    static func shotHubs(hotCells: Set<Int>, massGrid: [Double]) -> [ShotHub] {
+        // 0. INPUT VALIDATION (SF7). Wrong-length grid => version/shape mismatch => fail closed.
+        guard massGrid.count == 26 * 24 else { return [] }
+        func mass(_ c: Int) -> Double {
+            let m = massGrid[c]
+            return (m.isFinite && m > 0) ? m : 0    // NaN / +inf / negative contributes 0
+        }
+        // 1. NON-RA FILTER.
+        let nonRA = hotCells.filter { !isRAcell($0) }
+        if nonRA.isEmpty { return [] }
+        // 2. TOTAL MASS.
+        let totalMass = nonRA.reduce(0.0) { $0 + mass($1) }
+        if totalMass <= 0 { return [] }
+        // 3. COMPONENTS — 8-neighbor flood fill over nonRA, iterating ascending index for determinism.
+        func neighbors(_ c: Int) -> [Int] {
+            let col = c % 26, row = c / 26
+            var out: [Int] = []
+            for dcol in -1...1 {
+                for drow in -1...1 {
+                    if dcol == 0 && drow == 0 { continue }
+                    let ncol = col + dcol, nrow = row + drow
+                    if ncol < 0 || ncol > 25 || nrow < 0 || nrow > 23 { continue }   // no wrap
+                    out.append(nrow * 26 + ncol)
+                }
+            }
+            return out
+        }
+        var visited = Set<Int>()
+        var components: [Set<Int>] = []
+        for start in nonRA.sorted() where !visited.contains(start) {
+            var comp = Set<Int>()
+            var stack = [start]
+            visited.insert(start)
+            while let c = stack.popLast() {
+                comp.insert(c)
+                for n in neighbors(c) where nonRA.contains(n) && !visited.contains(n) {
+                    visited.insert(n); stack.append(n)
+                }
+            }
+            components.append(comp)
+        }
+        // 4. GATES + BUILD.
+        var hubs: [ShotHub] = []
+        for K in components {
+            guard K.count >= HUB_MIN_CELLS else { continue }
+            let compMass = K.reduce(0.0) { $0 + mass($1) }
+            guard compMass > 0 else { continue }
+            let share = compMass / totalMass
+            guard share >= HUB_MIN_SHARE else { continue }
+            func cellCenterX(_ c: Int) -> Double { HeatField.xMin + Double(c % 26) * HeatField.spacing }
+            func cellCenterY(_ c: Int) -> Double { HeatField.yMin + Double(c / 26) * HeatField.spacing }
+            let cx = K.reduce(0.0) { $0 + mass($1) * cellCenterX($1) } / compMass
+            let cy = K.reduce(0.0) { $0 + mass($1) * cellCenterY($1) } / compMass
+            let arcMass = K.reduce(0.0) { acc, c in
+                acc + (HeatField.cellShotValue(cx: cellCenterX(c), cy: cellCenterY(c)) == 3 ? mass(c) : 0)
+            }
+            let isArc = (arcMass / compMass) >= ARC_MAJORITY
+            // PF11: store the component as a SORTED ASCENDING [Int] (Array(K).sorted()), not the Set K.
+            hubs.append(ShotHub(cells: Array(K).sorted(), centroid: (x: cx, y: cy), strength: share, isArcHub: isArc))
+        }
+        // 5. ORDER ascending by min(cells) — cells is sorted, so cells.first is the min (PF11).
+        return hubs.sorted { ($0.cells.first ?? 0) < ($1.cells.first ?? 0) }
     }
 
     // MARK: - Perimeter
