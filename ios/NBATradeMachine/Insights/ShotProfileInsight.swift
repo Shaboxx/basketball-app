@@ -43,6 +43,7 @@ extension ShotProfileInsight {
     static let SIZE_PROTOTYPE_PCT = 60.0
     static let STRETCH_BIG_3SHARE_PCT = 70.0
     static let STRETCH_FLOOR_ENABLED = false   // D5: flipped TRUE in the calibration-verified commit (pin 6a: 0 Stretch with 3P% < .34)
+    static let SIZE_STYLE_SPLIT_ENABLED = false   // D6: flipped TRUE in the calibration-verified commit (pin 7)
     // Family 3: shot diet & hot/cold
     static let THREE_LEVEL_MIN_PCT = 25.0
     static let THREE_LEVEL_SPREAD_MAX = 0.55
@@ -61,7 +62,7 @@ extension ShotProfileInsight {
         guard let p = profile, p.fga > FGA_SUPPRESS_FLOOR else { return [] }
         var out: [ShotProfileInsight] = []
         if let s = spacing(p) { out.append(s) }
-        if let v = positionViability(p) { out.append(v) }
+        out.append(contentsOf: positionViability(p))   // D6: 0..2 entries (style + pure-measurement size)
         if let d = shotDiet(p) { out.append(d) }
         return out
     }
@@ -192,6 +193,22 @@ extension ShotProfileInsight {
 
     private static func pctText(_ frac: Double) -> String { "\(Int((frac * 100).rounded()))%" }
     private static func roundedPct(_ frac: Double) -> Double { (frac * 100).rounded() }
+
+    /// Percentile ordinal ("1st"/"2nd"/"3rd"/"11th"/"12th"/"13th"/"21st"...): rounds to the nearest
+    /// int, honors the 11/12/13 teens exception via the last-two-digits check. Mirrors
+    /// SpatialLineupMetrics.ordinal (kept local so this pure type imports only Foundation).
+    static func ordinal(_ pct: Double) -> String {
+        let n = Int(pct.rounded())
+        let mod100 = ((n % 100) + 100) % 100
+        let mod10 = ((n % 10) + 10) % 10
+        let suffix: String
+        if mod100 >= 11 && mod100 <= 13 { suffix = "th" }
+        else if mod10 == 1 { suffix = "st" }
+        else if mod10 == 2 { suffix = "nd" }
+        else if mod10 == 3 { suffix = "rd" }
+        else { suffix = "th" }
+        return "\(n)\(suffix)"
+    }
 }
 
 extension ShotProfileInsight {
@@ -322,8 +339,34 @@ extension ShotProfileInsight {
             evidence: ev, basis: basis)
     }
 
-    private static func positionViability(_ p: Profile) -> ShotProfileInsight? {
-        guard p.position != nil, let height = p.signals["heightIn"] else { return nil }
+    /// D6 pure-measurement size read (F8/F9): fires when height.pct >= 60 AND (wingspan.pct >= 60 OR
+    /// wingspan absent) -- preserving the or-absent Prototypical semantic. Purely dimensional headline;
+    /// each bullet carries its value + norm + the named 60th-percentile gate. Never encodes shot diet.
+    static func sizeRead(_ p: Profile) -> ShotProfileInsight? {
+        guard let height = p.signals["heightIn"] else { return nil }
+        let wing = p.signals["wingspanIn"]
+        let label = bucketLabel(p)
+        let wingProto = wing.map { $0.pct >= SIZE_PROTOTYPE_PCT } ?? true
+        guard height.pct >= SIZE_PROTOTYPE_PCT, wingProto else { return nil }
+        func sizeBullet(_ lbl: String, _ s: Signal) -> String {
+            // sol-2: render the percentile through the ordinal helper (1st/2nd/3rd/11th... correct),
+            // NOT a raw "\(Int(s.pct.rounded()))th" that would print "1th"/"21th".
+            "\u{2022} " + inchesBullet(lbl, s, bucket: label)
+                + " (\(ordinal(s.pct)) percentile, at/above the 60th-percentile typical-length gate)"
+        }
+        var ev = [sizeBullet("height", height)]
+        if let wing { ev.append(sizeBullet("wingspan", wing)) }
+        let cap: Confidence = wing != nil ? .high : .moderate
+        var driving = [height.pct]; if let wing { driving.append(wing.pct) }
+        return ShotProfileInsight(
+            family: .positionViability, headline: "\(viabilityNoun(p))-typical length",
+            confidence: confidence(fga: p.fga, drivingPcts: driving, cap: cap),
+            evidence: ev,
+            basis: "Basis: listed size vs \(label) norms. Reads size only; profile shape is a separate read. Not defensive tracking or role data.")
+    }
+
+    static func positionViability(_ p: Profile, enabled: Bool = SIZE_STYLE_SPLIT_ENABLED) -> [ShotProfileInsight] {
+        guard p.position != nil, let height = p.signals["heightIn"] else { return [] }
         let wing = p.signals["wingspanIn"]
         let word = bigWord(p)
         let label = bucketLabel(p)
@@ -342,42 +385,68 @@ extension ShotProfileInsight {
             var d = [height.pct]; if let wing { d.append(wing.pct) }; return d
         }
 
-        // Stretch big (bucket C/PF + high three share) -- D5 extracted to stretchRead.
-        if let s = stretchRead(p) { return s }
-        // Small-ball-only (C bucket, undersized, NOT a stretch big).
-        // SW-2: this label cites height + rim + three shares, so ALL of heightIn (already
-        // bound), rimShare AND threeShare must be present — no `?? 0` fabricated pct. If any
-        // required cited signal is absent the label does NOT fire (falls through to Undersized).
-        if p.bucket == "C", height.pct <= SIZE_UNDERSIZED_PCT,
-           let rim = p.signals["rimShare"], let three, three.pct < STRETCH_BIG_3SHARE_PCT {
+        if !enabled {
+            // Legacy single-entry first-match chain (byte-identical to today), incl. the old Prototypical head.
+            if let s = stretchRead(p) { return [s] }
+            // Small-ball-only (C bucket, undersized, NOT a stretch big).
+            // SW-2: this label cites height + rim + three shares, so ALL of heightIn (already
+            // bound), rimShare AND threeShare must be present -- no `?? 0` fabricated pct.
+            if p.bucket == "C", height.pct <= SIZE_UNDERSIZED_PCT,
+               let rim = p.signals["rimShare"], let three, three.pct < STRETCH_BIG_3SHARE_PCT {
+                var ev = sizeEvidence()
+                ev.append("\u{2022} " + pctBullet("rim share", rim, bucket: label))
+                ev.append("\u{2022} " + pctBullet("3P share", three, bucket: label))
+                return [ShotProfileInsight(
+                    family: .positionViability, headline: "Small-ball \(word) profile",
+                    confidence: confidence(fga: p.fga, drivingPcts: [height.pct, three.pct], cap: cap),
+                    evidence: ev, basis: basis)]
+            }
+            // Undersized (SW-7: noun from the (bucket, bucketMode) helper, never raw p.position)
+            let wingUnder = wing.map { $0.pct <= SIZE_UNDERSIZED_PCT } ?? true
+            if height.pct <= SIZE_UNDERSIZED_PCT, wingUnder {
+                return [ShotProfileInsight(
+                    family: .positionViability, headline: "Undersized for \(viabilityNoun(p))",
+                    confidence: confidence(fga: p.fga, drivingPcts: drivingSize(), cap: cap),
+                    evidence: sizeEvidence(), basis: basis)]
+            }
+            // Prototypical / traditional (SW-7: noun from the helper, never raw p.position)
+            let wingProto = wing.map { $0.pct >= SIZE_PROTOTYPE_PCT } ?? true
+            if height.pct >= SIZE_PROTOTYPE_PCT, wingProto {
+                let head = (p.bucketMode == "specific" && p.bucket == "C" && (three?.pct ?? 100) < STRETCH_BIG_3SHARE_PCT)
+                    ? "Traditional 5 size"
+                    : "Prototypical \(viabilityNoun(p)) size"
+                return [ShotProfileInsight(
+                    family: .positionViability, headline: head,
+                    confidence: confidence(fga: p.fga, drivingPcts: drivingSize(), cap: cap),
+                    evidence: sizeEvidence(), basis: basis)]
+            }
+            return []
+        }
+        // enabled: style read (if any) THEN the pure-measurement size read (F9), coexisting.
+        var out: [ShotProfileInsight] = []
+        // Style read: Stretch -> Small-ball -> Undersized, first-match.
+        if let s = stretchRead(p) {
+            out.append(s)
+        } else if p.bucket == "C", height.pct <= SIZE_UNDERSIZED_PCT,
+                  let rim = p.signals["rimShare"], let three, three.pct < STRETCH_BIG_3SHARE_PCT {
             var ev = sizeEvidence()
             ev.append("\u{2022} " + pctBullet("rim share", rim, bucket: label))
             ev.append("\u{2022} " + pctBullet("3P share", three, bucket: label))
-            return ShotProfileInsight(
+            out.append(ShotProfileInsight(
                 family: .positionViability, headline: "Small-ball \(word) profile",
                 confidence: confidence(fga: p.fga, drivingPcts: [height.pct, three.pct], cap: cap),
-                evidence: ev, basis: basis)
+                evidence: ev, basis: basis))
+        } else {
+            let wingUnder = wing.map { $0.pct <= SIZE_UNDERSIZED_PCT } ?? true
+            if height.pct <= SIZE_UNDERSIZED_PCT, wingUnder {
+                out.append(ShotProfileInsight(
+                    family: .positionViability, headline: "Undersized for \(viabilityNoun(p))",
+                    confidence: confidence(fga: p.fga, drivingPcts: drivingSize(), cap: cap),
+                    evidence: sizeEvidence(), basis: basis))
+            }
         }
-        // Undersized (SW-7: noun from the (bucket, bucketMode) helper, never raw p.position)
-        let wingUnder = wing.map { $0.pct <= SIZE_UNDERSIZED_PCT } ?? true
-        if height.pct <= SIZE_UNDERSIZED_PCT, wingUnder {
-            return ShotProfileInsight(
-                family: .positionViability, headline: "Undersized for \(viabilityNoun(p))",
-                confidence: confidence(fga: p.fga, drivingPcts: drivingSize(), cap: cap),
-                evidence: sizeEvidence(), basis: basis)
-        }
-        // Prototypical / traditional (SW-7: noun from the helper, never raw p.position)
-        let wingProto = wing.map { $0.pct >= SIZE_PROTOTYPE_PCT } ?? true
-        if height.pct >= SIZE_PROTOTYPE_PCT, wingProto {
-            let head = (p.bucketMode == "specific" && p.bucket == "C" && (three?.pct ?? 100) < STRETCH_BIG_3SHARE_PCT)
-                ? "Traditional 5 size"
-                : "Prototypical \(viabilityNoun(p)) size"
-            return ShotProfileInsight(
-                family: .positionViability, headline: head,
-                confidence: confidence(fga: p.fga, drivingPcts: drivingSize(), cap: cap),
-                evidence: sizeEvidence(), basis: basis)
-        }
-        return nil
+        if let sz = sizeRead(p) { out.append(sz) }
+        return out
     }
 
     // MARK: - Family 3: Shot diet & hot/cold
