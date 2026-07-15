@@ -332,10 +332,53 @@ nonisolated enum SpatialLineupEngine {
                  basis: "Basis: individual season 3-point attempt sides from each member's shot profile (center band excluded). \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 
-    // MARK: - G1b rule bodies (section 6, 7) — REAL copy added in Task 4; dark placeholders here.
+    // MARK: - G1b rule bodies (section 6, 7)
 
-    /// .sharedHubProximity body (rank 4). `make` calls this only when HUB_CONGESTION_ENABLED is true.
-    static func hubBody(_ c: SpatialLineupContext) -> SpatialLineupInsight? { nil }
-    /// .multiSpotPerimeter body (rank 8). Gated by ARC_VERSATILITY_ENABLED at fire time (Task 4).
-    static func rule9Multi(_ c: SpatialLineupContext) -> SpatialLineupInsight? { nil }
+    /// .sharedHubProximity body (rank 4, G1b, section 6.1/7.1). Flag-independent copy shape
+    /// (rule4Body pattern). Fires iff minHubDistance <= min(HUB_DIST_PIN, HUB_DIST_ABS_MAX).
+    /// `make` calls this only when HUB_CONGESTION_ENABLED is true.
+    static func hubBody(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
+        let floor = M.effectiveFloor()   // PF14: the ONE floor primitive (== min(HUB_DIST_PIN, HUB_DIST_ABS_MAX))
+        guard let dist = c.minHubDistance, dist <= floor, let col = c.collidingPair else { return nil }
+        let d = "\(Int(dist.rounded()))", t = "\(Int(floor.rounded()))"
+        let sa = pct(col.hubA.strength), sb = pct(col.hubB.strength)   // SF12: each own-member share, separate
+        var ev = [
+            "\u{2022} \(col.nameA)'s and \(col.nameB)'s nearest shot-making hubs sit \(d) court units apart (named threshold \(t)); the colliding hubs hold \(sa) and \(sb) of each player's own non-rim shot-making mass.",
+            "\u{2022} Similar geography can mean two reads: contested space, or players swapping in and out of the same spots across possessions \u{2014} season charts cannot separate the two.",
+            "\u{2022} Restricted-area convergence is excluded; this cites non-rim hub centroids only."]
+        // Relocation bullet(s): per qualifying colliding versatile member, in collision order (A then B, SF3).
+        for name in [col.nameA, col.nameB] {
+            if let v = c.versatileMembers.first(where: { $0.name == name }), v.hasEscapeHub {
+                ev.append("\u{2022} \(v.name)'s profile supports relocating \u{2014} \(v.escapeHubCount) qualifying arc hubs sit away from the collision spot.")
+            }
+        }
+        return I(family: .sharedHubProximity,
+                 headline: "Shot hubs sit close together \u{2014} contested spacing or shared real estate",
+                 confidence: .moderate, evidence: ev,
+                 basis: "Basis: composited individual season above-league hub centroids on a fixed 20-unit grid, restricted area excluded; season charts are not possession-synchronized, so shared geography tends to admit more than one read. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
+    }
+
+    /// .multiSpotPerimeter (rank 8, G1b, section 6.2b/7.2). PF5: the FINAL split form — `rule9Multi`
+    /// self-suppresses via ARC_VERSATILITY_ENABLED (because `makeResolved` calls `add(8, rule9Multi(c))`
+    /// UNCONDITIONALLY, mirroring how the shipped `rule4` self-suppresses via SHARED_OVERLAP_ENABLED),
+    /// then delegates to the flag-INDEPENDENT `rule9MultiBody` that the copy-shape tests call directly.
+    /// (Asymmetry with `hubBody`, which is flag-independent because `make` gates it via
+    /// `HUB_CONGESTION_ENABLED ? hubBody(c) : nil`; section 6.3.)
+    static func rule9Multi(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
+        guard M.ARC_VERSATILITY_ENABLED else { return nil }
+        return rule9MultiBody(c)
+    }
+    /// Flag-independent copy shape (rule4Body pattern) — unit-testable while ARC_VERSATILITY_ENABLED
+    /// is false. Fires per lineup when >= 1 usable member is versatile.
+    static func rule9MultiBody(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
+        guard !c.versatileMembers.isEmpty else { return nil }
+        var ev = c.versatileMembers.map { v in
+            "\u{2022} \(v.name) carries \(v.arcHubCount) arc hubs (named threshold \(M.ARC_VERSATILE_N)) across \(v.hotThreeCellCount) hot three-point cells."
+        }
+        ev.append("\u{2022} Multiple quality arc spots tend to give a lineup more ways to space; viable relocation options tend to widen the floor. \(noBaseline)")
+        return I(family: .multiSpotPerimeter,
+                 headline: "Multi-spot perimeter profiles \u{2014} arc versatility tends to widen the floor",
+                 confidence: .moderate, evidence: ev,
+                 basis: "Basis: composited individual season above-league arc hubs on a fixed 20-unit grid; arc counts describe reachable spots, not that any relocation occurred. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
+    }
 }
