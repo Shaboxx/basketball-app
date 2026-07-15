@@ -33,6 +33,10 @@ extension ShotProfileInsight {
     static let RIM_GRAVITY_RIMFG_MIN = 0.62
     static let CLOG_RISK_3SHARE_PCT = 25.0
     static let CLOG_RISK_RIMSHARE_PCT = 55.0
+    static let INTERIOR_ANCHOR_3SHARE_PCT_MAX = 25.0   // gap band lower driver (== CLOG_RISK_3SHARE_PCT)
+    static let INTERIOR_ANCHOR_RIMSHARE_PCT_LO = 55.0  // gap band: rim share above the clog-risk ceiling
+    static let INTERIOR_ANCHOR_RIMSHARE_PCT_HI = 75.0  // ... and below the rim-gravity floor
+    static let INTERIOR_ANCHOR_ENABLED = false         // D4: flipped TRUE in the calibration-verified commit (pin 6d: C-bucket 5-30%)
     static let BIG_BUCKETS: Set<String> = ["PF", "C", "F"]
     // Family 2: position viability
     static let SIZE_UNDERSIZED_PCT = 25.0
@@ -193,7 +197,7 @@ extension ShotProfileInsight {
 
     // MARK: - Family 1: Spacing role & gravity (NQ3: headline keys on total threeShare)
 
-    private static func spacing(_ p: Profile) -> ShotProfileInsight? {
+    static func spacing(_ p: Profile, enabled: Bool = INTERIOR_ANCHOR_ENABLED) -> ShotProfileInsight? {
         let word = bigWord(p)
         let label = bucketLabel(p)
         let three = p.signals["threeShare"]
@@ -233,7 +237,7 @@ extension ShotProfileInsight {
         if isBig, let rim, let rimFg,
            rim.pct >= RIM_GRAVITY_RIMSHARE_PCT, rimFg.value >= RIM_GRAVITY_RIMFG_MIN {
             var ev = [ "\u{2022} " + pctBullet("rim share", rim, bucket: label,
-                                               suffix: " — collapses the paint in 5-out looks"),
+                                               suffix: " \u{2014} vertical spacing / lob gravity near the rim"),
                        "\u{2022} " + pctBullet("rim FG%", rimFg, bucket: label) ]
             if let three, three.pct <= PCT_STRONG_LOW {
                 ev.append("\u{2022} " + pctBullet("3P share", three, bucket: label,
@@ -254,6 +258,20 @@ extension ShotProfileInsight {
                 // SW-1: pass the FULL enumerated set [threeShare.pct, rimShare.pct]; earned()
                 // takes max over |pct-50| PER SIGNAL. Pre-reducing with max(pct) is wrong —
                 // pcts 10 and 40 must earn from 10 (|10-50|=40), not from 40 (|40-50|=10).
+                confidence: confidence(fga: p.fga, drivingPcts: [three.pct, rim.pct]),
+                evidence: ev, basis: basis)
+        }
+        // D4: neutral interior-anchor (fills the F1 gap band; big buckets only; NEUTRAL, not a
+        // deficiency). Placed after clog-risk (rim <= 55) so the bands are disjoint (anchor: rim in (55,75]).
+        if enabled, isBig, let three, let rim,
+           three.pct <= INTERIOR_ANCHOR_3SHARE_PCT_MAX,
+           rim.pct > INTERIOR_ANCHOR_RIMSHARE_PCT_LO, rim.pct <= INTERIOR_ANCHOR_RIMSHARE_PCT_HI {
+            let ev = [ "\u{2022} " + pctBullet("rim share", rim, bucket: label,
+                                               suffix: " \u{2014} an interior-oriented profile, in the 55th\u{2013}75th-percentile interior band"),
+                       "\u{2022} " + pctBullet("3P share", three, bucket: label,
+                                               suffix: " \u{2014} not a floor-spacer, at/below the 25th-percentile spacer gate") ]
+            return ShotProfileInsight(
+                family: .spacing, headline: "Interior-oriented \(word) \u{2014} paint-centered shot profile",
                 confidence: confidence(fga: p.fga, drivingPcts: [three.pct, rim.pct]),
                 evidence: ev, basis: basis)
         }
