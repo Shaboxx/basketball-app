@@ -24,6 +24,12 @@ nonisolated enum SpatialLineupMetrics {
     static let RIM_HEAVY_VALUE_MIN = 0.30
     static let RIM_CROWD_MIN_COUNT = 2
 
+    // --- rim-gravity anchor (D1) ---
+    static let RIM_ANCHOR_SHARE_PCT   = 72.0    // audit section F: p75 rimShare positional pctile
+    static let RIM_ANCHOR_SHARE_VALUE = 0.66    // audit section F: p75 raw rimShare (either arm qualifies)
+    static let RIM_ANCHOR_RIMFG_MIN   = 0.72    // audit section F: p75 rimFG% (vertical finishing floor)
+    static let RIM_GRAVITY_ANCHOR_ENABLED = false   // D1: flipped TRUE in the calibration-verified commit (pin 1)
+
     // --- corners ---
     static let CORNER_MIN_FGA = 20
     static let CORNER_MIN_SHARE = 0.06
@@ -400,6 +406,21 @@ nonisolated enum SpatialLineupMetrics {
             return acc + (three.pct >= PERIM_3SHARE_PCT && fg.value >= PERIM_3FG_MIN ? 1 : 0)
         }
     }
+    /// Members qualifying as a rim-gravity anchor (D1): (rimShare.pct >= RIM_ANCHOR_SHARE_PCT
+    /// OR rimShare.value >= RIM_ANCHOR_SHARE_VALUE) AND rimFgPct.value >= RIM_ANCHOR_RIMFG_MIN.
+    /// Returns each qualifier's (name, rimSharePct, rimShareValue, rimFgValue) for the copy. Threshold
+    /// rejection is this metric's job (F7): a nil profile / missing signal / failed gate is not returned.
+    static func rimGravityAnchors(members: [(name: String, profile: PlayerShotChart.Profile?)])
+        -> [(name: String, sharePct: Double, shareValue: Double, rimFg: Double)] {
+        members.compactMap { m in
+            guard let p = m.profile,
+                  let rim = p.signals["rimShare"], let rfg = p.signals["rimFgPct"] else { return nil }
+            let shareArm = rim.pct >= RIM_ANCHOR_SHARE_PCT || rim.value >= RIM_ANCHOR_SHARE_VALUE
+            guard shareArm, rfg.value >= RIM_ANCHOR_RIMFG_MIN else { return nil }
+            return (m.name, rim.pct, rim.value, rfg.value)
+        }
+    }
+
     /// Data-absence guard (rules 1 + 2): every usable member must carry BOTH threeShare AND threeFgPct.
     static func everyUsableHasPerimeterSignals(profiles: [PlayerShotChart.Profile?]) -> Bool {
         profiles.allSatisfy { p in
