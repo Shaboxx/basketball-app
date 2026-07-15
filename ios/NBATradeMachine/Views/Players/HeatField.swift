@@ -15,15 +15,14 @@ nonisolated enum HeatField {
     static let sigma: Double = 30                           // Gaussian bandwidth
     static let kernelCutoff: Double = 90                    // ignore shots farther than this from a cell center
 
-    // --- baseline / shrinkage ---
-    static let baselineMinFGA: Int = 30                     // use player's own FG% only when overallFGA >= this
-    static let leagueFallbackFG: Double = 0.46              // p0 fallback, used ONLY when overallFGA < baselineMinFGA
+    // --- shrinkage ---
     static let priorWeight: Double = 8                      // pseudo-attempts shrinking p̂ toward p0
 
     // --- masking / density / normalization ---
     static let minMass: Double = 5                          // cell masked (transparent) when A < this
     static let densityAnchor: Double = 25                   // A at which D saturates to 1 (via sqrt(A/25))
     static let accuracyAnchor: Double = 0.15                // ±15pp deviation maps to V = ±1 (ABSOLUTE, not per-player)
+    static let epAnchor: Double = 0.25                      // ±0.25 PPS deviation maps to V_ep = ±1 (EP_ANCHOR)
 
     // --- color ramp (ABSOLUTE anchors so players are comparable) ---
     static let coolColor = (r: 0x21, g: 0x66, b: 0xAC)      // #2166AC at V = -1
@@ -51,49 +50,95 @@ nonisolated enum HeatField {
         return (A, M)
     }
 
-    /// PURE, deterministic. `points` are `PlayerShotChart.ShotPoint` (x/y Int court units,
-    /// made Bool). `overallFGA`/`overallFGM` are the player's season totals (`meta.fga`/`meta.fgm`).
-    /// Returns a 26×24 `HeatGrid`; masked cells carry NaN. Empty/degraded input => all-masked grid.
+    /// PURE, deterministic. `points`/`overallFGA`/`overallFGM` as before; `league` is the
+    /// league per-cell FG% field (624 row-major doubles; a cell is `Double.nan` where the
+    /// league kernel mass was below LEAGUE_MIN_MASS). Pass `nil` when the league field is
+    /// unavailable => an ALL-MASKED grid (heat unavailable; NEVER own-baseline fallback).
+    /// `overallFGA`/`overallFGM` are retained ONLY for the empty-input total-function guard
+    /// and future diagnostics — they no longer feed the baseline (own-baseline retired, D1).
     nonisolated static func build(points: [PlayerShotChart.ShotPoint],
                                   overallFGA: Int,
-                                  overallFGM: Int) -> HeatGrid {
+                                  overallFGM: Int,
+                                  league: [Double]?) -> HeatGrid {
         let cols = 26, rows = 24
-        // 0. Defensive total-function rule: overallFGA <= 0 => all-masked grid, ALWAYS,
-        //    even if `points` is nonempty (impossible in real data — points ⊆ attempts — but the
-        //    binding "no fabricated field at fga == 0" rule must hold for any input).
-        guard overallFGA > 0 else {
-            return HeatGrid(cols: cols, rows: rows, spacing: spacing, xMin: xMin, yMin: yMin,
-                            values: [Double](repeating: Double.nan, count: cols * rows))
-        }
-        // 1. Baseline p0.
-        let p0: Double = (overallFGA >= baselineMinFGA)
-            ? Double(overallFGM) / Double(overallFGA)
-            : leagueFallbackFG
-
-        // 2. Filter to in-bounds points ONLY (adjudication Q3: OOB excluded from the field).
+        let allMasked = HeatGrid(cols: cols, rows: rows, spacing: spacing, xMin: xMin, yMin: yMin,
+                                 values: [Double](repeating: Double.nan, count: cols * rows))
+        // 0. League field REQUIRED. Missing or wrong-length => heat unavailable (all-masked).
+        guard let L = league, L.count == cols * rows else { return allMasked }
+        // 1. Defensive total-function guard (unchanged): no season attempts => all-masked.
+        guard overallFGA > 0 else { return allMasked }
+        // 2. In-bounds filter ONLY (unchanged).
         let inBounds = points.filter {
             Double($0.x) >= xMin && Double($0.x) <= xMax &&
             Double($0.y) >= yMin && Double($0.y) <= yMax
         }
-
         var values = [Double](repeating: Double.nan, count: cols * rows)
-
         for row in 0..<rows {
             let cy = yMin + Double(row) * spacing
             for col in 0..<cols {
+                let idx = row * cols + col
+                let Lc = L[idx]
+                if Lc.isNaN { continue }                       // league null => player cell MASKED
                 let cx = xMin + Double(col) * spacing
-                // Accumulate this cell's mass via the single-source helper (B-7).
                 let (A, M) = massAndMade(points: inBounds, cx: cx, cy: cy)
-                if A < minMass { continue }           // masked -> stays NaN
-                let pHat = (M + priorWeight * p0) / (A + priorWeight)   // shrink toward p0
-                let D = min(1.0, (A / densityAnchor).squareRoot())      // density damping
-                let dev = (pHat - p0) / accuracyAnchor                  // signed, ±15pp -> ±1
-                let V = D * max(-1.0, min(1.0, dev))                    // clamp to [-1,+1]
-                values[row * cols + col] = V
+                if A < minMass { continue }                    // A < 5 mask (UNCHANGED)
+                let pHat = (M + priorWeight * Lc) / (A + priorWeight)   // shrink toward L_c
+                let D = min(1.0, (A / densityAnchor).squareRoot())      // density damping (UNCHANGED)
+                let dev = (pHat - Lc) / accuracyAnchor                  // signed, ±0.15 -> ±1
+                values[idx] = D * max(-1.0, min(1.0, dev))              // V = D·clamp(dev, ±1)
             }
         }
-        return HeatGrid(cols: cols, rows: rows, spacing: spacing,
-                        xMin: xMin, yMin: yMin, values: values)
+        return HeatGrid(cols: cols, rows: rows, spacing: spacing, xMin: xMin, yMin: yMin, values: values)
+    }
+
+    /// The 2/3 cell classifier (cell CENTERS, not raw shots). Byte-identical to the Python
+    /// league_field.cell_shot_value. Reads CourtThreeGeometry (shared constants, F10).
+    nonisolated static func cellShotValue(cx: Double, cy: Double) -> Int {
+        if cy >= CourtThreeGeometry.cornerYStar {
+            return (cx * cx + cy * cy) >= (CourtThreeGeometry.arcRadius * CourtThreeGeometry.arcRadius) ? 3 : 2
+        }
+        return abs(cx) >= CourtThreeGeometry.cornerX ? 3 : 2
+    }
+
+    /// PURE expected-points field (D2). Reuses the EXACT L_c-NaN mask, A<5 mask, p̂, and D from
+    /// `build`, then colors EP_c = p̂_c·q_c anchored at `leagueMeanPPS`: V_ep = D·clamp((EP -
+    /// leagueMeanPPS)/EP_ANCHOR, ±1), EP_ANCHOR = 0.25 PPS. Missing/wrong-length league OR a
+    /// non-finite anchor => all-masked (PA3: a NaN/Inf leagueMeanPPS would poison every dev; the
+    /// [0.8,1.4] RANGE policing stays at the validation layer, spec F6 — this is only a finiteness
+    /// total-function guard, not a duplicate range check).
+    nonisolated static func buildEP(points: [PlayerShotChart.ShotPoint],
+                                    overallFGA: Int,
+                                    overallFGM: Int,
+                                    league: [Double]?,
+                                    leagueMeanPPS: Double) -> HeatGrid {
+        let cols = 26, rows = 24
+        let allMasked = HeatGrid(cols: cols, rows: rows, spacing: spacing, xMin: xMin, yMin: yMin,
+                                 values: [Double](repeating: Double.nan, count: cols * rows))
+        guard let L = league, L.count == cols * rows else { return allMasked }
+        guard overallFGA > 0 else { return allMasked }
+        guard leagueMeanPPS.isFinite else { return allMasked }   // PA3: finiteness guard (not range)
+        let inBounds = points.filter {
+            Double($0.x) >= xMin && Double($0.x) <= xMax &&
+            Double($0.y) >= yMin && Double($0.y) <= yMax
+        }
+        var values = [Double](repeating: Double.nan, count: cols * rows)
+        for row in 0..<rows {
+            let cy = yMin + Double(row) * spacing
+            for col in 0..<cols {
+                let idx = row * cols + col
+                let Lc = L[idx]
+                if Lc.isNaN { continue }
+                let cx = xMin + Double(col) * spacing
+                let (A, M) = massAndMade(points: inBounds, cx: cx, cy: cy)
+                if A < minMass { continue }
+                let pHat = (M + priorWeight * Lc) / (A + priorWeight)
+                let D = min(1.0, (A / densityAnchor).squareRoot())
+                let ep = pHat * Double(cellShotValue(cx: cx, cy: cy))
+                let dev = (ep - leagueMeanPPS) / epAnchor
+                values[idx] = D * max(-1.0, min(1.0, dev))
+            }
+        }
+        return HeatGrid(cols: cols, rows: rows, spacing: spacing, xMin: xMin, yMin: yMin, values: values)
     }
 }
 

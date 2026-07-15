@@ -74,7 +74,8 @@ struct MatchupCourtSection: View {
             if decision.rebuildGrid, let chart {
                 heatGrid = HeatField.build(points: chart.points,
                                            overallFGA: chart.meta.fga,
-                                           overallFGM: chart.meta.fgm)
+                                           overallFGM: chart.meta.fgm,
+                                           league: nil)   // TEMP: Task 7 wires shotStore.league
             }
             // B-3 stamping: update the cache key ONLY when a grid built; when the chart was nil,
             // `decision.newCacheSlug` keeps the stale/nil key so the next availability change rebuilds.
