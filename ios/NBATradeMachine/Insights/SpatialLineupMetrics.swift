@@ -18,6 +18,8 @@ nonisolated enum SpatialLineupMetrics {
     static let PERIM_3FG_MIN = 0.34            // == ShotProfileInsight.FLOOR_SPACER_3FG_MIN
     static let LONE_PERIM_VOL_SHARE = 0.55
     static let FIVE_OUT_MIN_3SHARE_PCT = 35.0
+    static let FOUR_OUT_MIN_SHOOTERS = 3        // D3: relaxed perimeter-shooter count (was rule 3's implicit 4)
+    static let FOUR_OUT_ENABLED = false         // D3: flipped TRUE in the calibration-verified commit (pin 2)
 
     // --- interior ---
     static let RIM_HEAVY_PCT = 75.0

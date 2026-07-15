@@ -224,18 +224,31 @@ nonisolated enum SpatialLineupEngine {
                  basis: "Basis: individual season shot profiles + A's positional filters. \(notOnCourt)\(exclPhrase(c.excludedNames))")
     }
 
-    // Rule 3 — Five-out shape. usableCount==5 AND count>=4 AND minThreeSharePct>=35. High-eligible.
+    // Rule 3 — Five-out / four-out shape. usableCount==5 AND count>=minShooters AND minThreeSharePct>=35.
+    // D3: minShooters is a parameter of an ungated body, resolved from FOUR_OUT_ENABLED in the wrapper.
     private static func rule3(_ c: SpatialLineupContext) -> I? {
-        guard c.usableCount == 5, c.perimeterShooterCount >= 4,
+        rule3Body(c, minShooters: M.FOUR_OUT_ENABLED ? M.FOUR_OUT_MIN_SHOOTERS : 4)
+    }
+    static func rule3Body(_ c: SpatialLineupContext, minShooters: Int) -> SpatialLineupInsight? {
+        guard c.usableCount == 5, c.perimeterShooterCount >= minShooters,
               let minPct = c.minThreeSharePct, minPct >= M.FIVE_OUT_MIN_3SHARE_PCT,
               let three = c.lineup3Share else { return nil }
         let conf = minConf(sampleCeiling(c.minUsableFga), earned(minPct))
-        return I(family: .fiveOut, headline: "Profile suggests a five-out shape",
+        if c.perimeterShooterCount >= 4 {
+            return I(family: .fiveOut, headline: "Profile suggests a five-out shape",
+                     confidence: conf,
+                     evidence: [
+                        "\u{2022} All five usable members carry a 3-point share at or above the 35th-percentile floor for their positions.",
+                        "\u{2022} \(c.perimeterShooterCount) of five clear A's spacer filter (65th-pct 3P share, \u{2265}34% 3P%).",
+                        "\u{2022} Lineup 3-point share is \(pct(three)) (FGA-weighted), so the floor tends to stay stretched."],
+                     basis: "Basis: individual season shot profiles + A's positional norms. \(notOnCourt)\(exclPhrase(c.excludedNames))")
+        }
+        return I(family: .fiveOut, headline: "Profile suggests a four-out-compatible shape",
                  confidence: conf,
                  evidence: [
                     "\u{2022} All five usable members carry a 3-point share at or above the 35th-percentile floor for their positions.",
-                    "\u{2022} \(c.perimeterShooterCount) of five clear A's spacer filter (65th-pct 3P share, \u{2265}34% 3P%).",
-                    "\u{2022} Lineup 3-point share is \(pct(three)) (FGA-weighted), so the floor tends to stay stretched."],
+                    "\u{2022} \(c.perimeterShooterCount) of five clear A's spacer filter (65th-pct 3P share, \u{2265}34% 3P%; named threshold 3), so four-out looks tend to be reachable while a fifth may operate inside.",
+                    "\u{2022} Lineup 3-point share is \(pct(three)) (FGA-weighted)."],
                  basis: "Basis: individual season shot profiles + A's positional norms. \(notOnCourt)\(exclPhrase(c.excludedNames))")
     }
 
