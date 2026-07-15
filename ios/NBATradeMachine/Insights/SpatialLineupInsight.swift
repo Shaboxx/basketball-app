@@ -160,12 +160,28 @@ nonisolated enum SpatialLineupEngine {
 
     // MARK: - Rules
 
-    // Rule 1 — No-perimeter. Fires when perimeterShooterCount == 0. Cap .moderate.
+    // Rule 1 — No-perimeter. Fires when perimeterShooterCount == 0. Cap .moderate. D1: the copy
+    // branches to a scheme-conditional variant when an anchor is present AND the override is on.
     private static func rule1(_ c: SpatialLineupContext) -> I? {
+        rule1Body(c, anchorOverride: M.RIM_GRAVITY_ANCHOR_ENABLED)
+    }
+    /// F6 default-argument seam: tests call rule1Body(c, anchorOverride: true) to exercise the dark
+    /// override copy without toggling the static let. Non-private (rule4Body convention).
+    static func rule1Body(_ c: SpatialLineupContext, anchorOverride: Bool = M.RIM_GRAVITY_ANCHOR_ENABLED) -> SpatialLineupInsight? {
         guard c.perimeterShooterCount == 0, let three = c.lineup3Share else { return nil }
         let insideShare = pct(1 - three)
+        if anchorOverride, c.hasRimAnchor, let a = c.rimAnchors.max(by: { $0.sharePct < $1.sharePct }) {
+            return I(family: .noPerimeter,
+                     headline: "Spacing leans vertical rather than five-out",
+                     confidence: .moderate,
+                     evidence: [
+                        "\u{2022} No usable member clears the 65th-pct 3P-share, \u{2265}34% 3P% spacer filter (A's positional thresholds).",
+                        "\u{2022} \(a.name) posts a \(pct(a.shareValue)) rim share (\(M.ordinal(a.sharePct)) percentile, at/above the 72nd-percentile rim-anchor gate) and \(pct(a.rimFg)) at the rim (at/above the 72% rim-finishing floor), so the look may lean on vertical spacing or a 4-out-1-in shape.",
+                        "\u{2022} Lineup 3-point share is \(pct(three)) (FGA-weighted across \(c.usableCount) usable members); the remaining \(insideShare) is inside the arc."],
+                     basis: "Basis: individual season shot profiles + A's positional 3-point filters. \(notOnCourt)\(exclPhrase(c.excludedNames))")
+        }
         return I(family: .noPerimeter,
-                 headline: "Limited perimeter spacing — paint may be easier to protect",
+                 headline: "Limited perimeter spacing \u{2014} paint may be easier to protect",
                  confidence: .moderate,
                  evidence: [
                     "\u{2022} No usable member clears the 65th-pct 3P-share, \u{2265}34% 3P% spacer filter (A's positional thresholds).",
