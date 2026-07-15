@@ -156,7 +156,7 @@ nonisolated struct LineupSpatialResult: Equatable {
 extension LineupShotGeography {
     /// PURE builder: resolve member states, build ≤5 massGrids + metrics, run the engine. Off the
     /// render path (called from a `.task`, cached by memoKey). `charts[i]` aligns to `members[i]`.
-    static func build(members: [SpatialLineupMetrics.MemberInput]) -> LineupSpatialResult {
+    static func build(members: [SpatialLineupMetrics.MemberInput], league: [Double]?) -> LineupSpatialResult {
         let key = SpatialLineupMetrics.memoKey(members: members)
         let states = members.enumerated().map { (i, m) in
             (name: m.name, slot: i, state: SpatialLineupMetrics.state(for: m.chart))
@@ -164,8 +164,14 @@ extension LineupShotGeography {
         let usable = members.enumerated().filter { SpatialLineupMetrics.state(for: $0.element.chart) == .usable }
         let usableCharts = usable.compactMap { $0.element.chart }
         let usableGrids = usableCharts.map { HeatField.massGrid(points: $0.points) }
-        let overlapCounts = usableGrids.isEmpty ? [] : SpatialLineupMetrics.overlapCounts(grids: usableGrids)
-        let overlapCells = overlapCounts.enumerated().filter { $0.element >= 2 }.map { $0.offset }
+        // VISUAL overlap layer (heat-model v2): efficiency-aware hot cells, >= 2 members hot.
+        // Empty when the league field is nil (no member has defined hot cells).
+        let memberHotSets: [Set<Int>] = league.map { L in
+            usableCharts.map { SpatialLineupMetrics.memberHotCells(points: $0.points, league: L) }
+        } ?? []
+        let overlapCells = memberHotSets.isEmpty ? []
+            : SpatialLineupMetrics.hotOverlapCounts(memberHotSets: memberHotSets)
+                .enumerated().filter { $0.element >= 2 }.map { $0.offset }
 
         // dot layers: usable + thin (missing contribute nothing but are still named in states).
         let dotLayers: [LineupShotGeographyCanvas.DotLayer] = members.enumerated().compactMap { (i, m) in
@@ -362,10 +368,10 @@ private struct ShotGeographyBody: View {
                 spatialRead(result)
             }
         }
-        .task(id: SpatialLineupMetrics.memoKey(members: members)) {
+        .task(id: SpatialLineupMetrics.memoKey(members: members) + "#\(store.leagueRevision)") {
             if LineupShotGeography.shouldTriggerLoad(phase: store.phase) { await store.load() }
-            let built = LineupShotGeography.build(members: members)
-            if cache?.key != built.key { cache = built }
+            let built = LineupShotGeography.build(members: members, league: store.league)
+            if cache?.key != built.key || cache?.overlapCells != built.overlapCells { cache = built }
         }
     }
 

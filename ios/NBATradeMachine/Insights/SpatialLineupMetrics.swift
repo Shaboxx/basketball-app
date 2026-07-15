@@ -137,6 +137,57 @@ nonisolated enum SpatialLineupMetrics {
         }
     }
 
+    // MARK: - Hot-cell overlap (heat-model v2, efficiency-aware; sections 9.1-9.3)
+
+    /// Hot cells for one usable member: indices c where massGrid_m[c] >= minMass AND p̂ > L_c
+    /// (equivalently V_m(c) > 0; damping-independent). `made` mass recomputed per cell via
+    /// massAndMade; a cell where league[c] is NaN is never hot (no defined baseline).
+    static func memberHotCells(points: [PlayerShotChart.ShotPoint], league: [Double]) -> Set<Int> {
+        guard league.count == 26 * 24 else { return [] }
+        var hot = Set<Int>()
+        for row in 0..<24 {
+            let cy = HeatField.yMin + Double(row) * HeatField.spacing
+            for col in 0..<26 {
+                let cx = HeatField.xMin + Double(col) * HeatField.spacing
+                let idx = row * 26 + col
+                let Lc = league[idx]
+                if Lc.isNaN { continue }
+                let (A, M) = HeatField.massAndMade(points: points, cx: cx, cy: cy)
+                if A < HeatField.minMass { continue }
+                let pHat = (M + HeatField.priorWeight * Lc) / (A + HeatField.priorWeight)
+                if pHat > Lc { hot.insert(idx) }
+            }
+        }
+        return hot
+    }
+
+    /// k_hot_c = #{ usable member m : c in memberHotCells(m) }. A cell is a visual overlap
+    /// cell iff k_hot_c >= 2 (all cells, section 9.2).
+    static func hotOverlapCounts(memberHotSets: [Set<Int>]) -> [Int] {
+        (0..<(26 * 24)).map { c in memberHotSets.reduce(0) { $0 + ($1.contains(c) ? 1 : 0) } }
+    }
+
+    /// A cell is restricted-area iff its center is within 40 court units of the hoop (0,0)
+    /// (section 9.3). Over real centers this is exactly {38,39,63,64,65,66,89,90,91,92,116,117}.
+    static func isRAcell(_ c: Int) -> Bool {
+        let col = c % 26, row = c / 26
+        let cx = HeatField.xMin + Double(col) * HeatField.spacing
+        let cy = HeatField.yMin + Double(row) * HeatField.spacing
+        return (cx * cx + cy * cy) <= 1600.0
+    }
+
+    /// hotOverlapNonRim = |{c: k_hot_c >= 2 AND non-RA}| / |{c: k_hot_c >= 1 AND non-RA}|
+    /// (section 9.3). nil when the non-RA union is empty. Range [0,1].
+    static func hotOverlapNonRim(memberHotSets: [Set<Int>]) -> Double? {
+        let k = hotOverlapCounts(memberHotSets: memberHotSets)
+        var union = 0, inter = 0
+        for c in 0..<k.count where !isRAcell(c) {
+            if k[c] >= 1 { union += 1 }
+            if k[c] >= 2 { inter += 1 }
+        }
+        return union == 0 ? nil : Double(inter) / Double(union)
+    }
+
     // MARK: - Perimeter
 
     /// #{ usable member with threeShare.pct >= 65 AND threeFgPct.value >= 0.34 }. A nil profile
