@@ -42,6 +42,7 @@ extension ShotProfileInsight {
     static let SIZE_UNDERSIZED_PCT = 25.0
     static let SIZE_PROTOTYPE_PCT = 60.0
     static let STRETCH_BIG_3SHARE_PCT = 70.0
+    static let STRETCH_FLOOR_ENABLED = false   // D5: flipped TRUE in the calibration-verified commit (pin 6a: 0 Stretch with 3P% < .34)
     // Family 3: shot diet & hot/cold
     static let THREE_LEVEL_MIN_PCT = 25.0
     static let THREE_LEVEL_SPREAD_MAX = 0.55
@@ -280,6 +281,47 @@ extension ShotProfileInsight {
 
     // MARK: - Family 2: Position viability (Stretch -> Small-ball -> Undersized -> Prototypical)
 
+    /// D5 Stretch read (extracted so the make-rate split is testable while STRETCH_FLOOR_ENABLED is
+    /// dark, F6/F12). Returns nil when the big/3-share gate is not met. `enabled` gates BOTH the
+    /// make-rate split AND the new 3P% bullet (today's Stretch branch has no 3P% bullet).
+    static func stretchRead(_ p: Profile, enabled: Bool = STRETCH_FLOOR_ENABLED) -> ShotProfileInsight? {
+        guard let height = p.signals["heightIn"] else { return nil }
+        let wing = p.signals["wingspanIn"]
+        let word = bigWord(p)
+        let label = bucketLabel(p)
+        let three = p.signals["threeShare"]
+        let hasWing = wing != nil
+        let cap: Confidence = hasWing ? .high : .moderate
+        var basis = "Basis: listed size vs \(label) norms + shot profile. Not defensive tracking or role data."
+        if !hasWing { basis += " Wingspan unavailable — read is height-only." }
+        func sizeEvidence() -> [String] {
+            var ev = ["\u{2022} " + inchesBullet("height", height, bucket: label)]
+            if let wing { ev.append("\u{2022} " + inchesBullet("wingspan", wing, bucket: label)) }
+            return ev
+        }
+        guard (p.bucket == "C" || p.bucket == "PF"), let three, three.pct >= STRETCH_BIG_3SHARE_PCT else { return nil }
+        let threeFg = p.signals["threeFgPct"]
+        let meetsFloor = !enabled || (threeFg.map { $0.value >= FLOOR_SPACER_3FG_MIN } ?? false)
+        var ev = sizeEvidence()
+        ev.append("\u{2022} " + pctBullet("3P share", three, bucket: label))
+        if enabled, let threeFg {
+            ev.append("\u{2022} " + pctBullet("3P%", threeFg, bucket: label,
+                                              suffix: " (34% is the spacer make-rate floor)"))
+        }
+        if meetsFloor {
+            return ShotProfileInsight(
+                family: .positionViability, headline: "Stretch \(word)",
+                confidence: confidence(fga: p.fga, drivingPcts: [three.pct], cap: cap),
+                evidence: ev, basis: basis)
+        }
+        let fgText = threeFg.map { pctText($0.value) } ?? "an unlisted rate"
+        return ShotProfileInsight(
+            family: .positionViability,
+            headline: "High 3-point volume for a \(word) \u{2014} \(fgText) from three so far, under the 34% spacer make-rate",
+            confidence: confidence(fga: p.fga, drivingPcts: [three.pct], cap: cap),
+            evidence: ev, basis: basis)
+    }
+
     private static func positionViability(_ p: Profile) -> ShotProfileInsight? {
         guard p.position != nil, let height = p.signals["heightIn"] else { return nil }
         let wing = p.signals["wingspanIn"]
@@ -300,15 +342,8 @@ extension ShotProfileInsight {
             var d = [height.pct]; if let wing { d.append(wing.pct) }; return d
         }
 
-        // Stretch big (bucket C/PF + high three share)
-        if (p.bucket == "C" || p.bucket == "PF"), let three, three.pct >= STRETCH_BIG_3SHARE_PCT {
-            var ev = sizeEvidence()
-            ev.append("\u{2022} " + pctBullet("3P share", three, bucket: label))
-            return ShotProfileInsight(
-                family: .positionViability, headline: "Stretch \(word)",
-                confidence: confidence(fga: p.fga, drivingPcts: [three.pct], cap: cap),
-                evidence: ev, basis: basis)
-        }
+        // Stretch big (bucket C/PF + high three share) -- D5 extracted to stretchRead.
+        if let s = stretchRead(p) { return s }
         // Small-ball-only (C bucket, undersized, NOT a stretch big).
         // SW-2: this label cites height + rim + three shares, so ALL of heightIn (already
         // bound), rimShare AND threeShare must be present — no `?? 0` fabricated pct. If any
