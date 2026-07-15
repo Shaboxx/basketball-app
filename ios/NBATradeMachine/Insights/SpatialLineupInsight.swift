@@ -43,6 +43,9 @@ nonisolated struct SpatialLineupContext {
     let overlapIndex: Double?
     let paintOverlap: Double?
     let overlapContributorCount: Int
+    // heat-model v2 hot-cell overlap (section 9.3) — additive; the RAW overlapIndex above is unchanged.
+    let hotOverlapNonRim: Double?          // nil when no usable member is hot on any non-RA cell
+    let hotOverlapContributorCount: Int    // # usable members with a non-RA shared hot cell (k_hot >= 2)
     let centroidDispersion: Double?
 
     // diet
@@ -173,20 +176,30 @@ nonisolated enum SpatialLineupEngine {
                  basis: "Basis: individual season shot profiles + A's positional norms. \(notOnCourt)\(exclPhrase(c.excludedNames))")
     }
 
-    // Rule 4 — Shared-area overlap. overlapIndex>=OVERLAP_HIGH with >=2 contributors. Geometric cap.
-    // CE-3: GATED OFF behind SHARED_OVERLAP_ENABLED — the calibrated overlapIndex has no discriminating
-    // range over real lineups (fires on nearly all), so the verbal "overlap ⇒ compress" read would mislead.
-    // Code retained (visual layer + a future on-court baseline in V2 revive it); simply does not fire.
-    private static func rule4(_ c: SpatialLineupContext) -> I? {
+    // Rule 4 — Shared hot zones outside the rim (heat-model v2). Fires when hotOverlapNonRim >=
+    // max(HOT_OVERLAP_PIN, HOT_OVERLAP_ABS_MIN) with >= 2 contributors. GATED behind
+    // SHARED_OVERLAP_ENABLED (section 9.4): stays suppressed unless the recalibration criteria fire.
+    // The body is split out so the enabled COPY SHAPE is unit-testable while the flag stays false.
+    static func rule4(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
         guard M.SHARED_OVERLAP_ENABLED else { return nil }
-        guard let ov = c.overlapIndex, ov >= M.OVERLAP_HIGH, c.overlapContributorCount >= 2 else { return nil }
-        return I(family: .sharedOverlap, headline: "Shot areas overlap — may compress operating space",
+        return rule4Body(c)
+    }
+
+    /// The fire logic WITHOUT the flag guard (flag-independent, unit-testable copy shape, section 9.4).
+    /// Return type is the concrete SpatialLineupInsight (not the private `I` alias) so the function can
+    /// be non-private for the enabled-shape test.
+    static func rule4Body(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
+        let threshold = max(M.HOT_OVERLAP_PIN, M.HOT_OVERLAP_ABS_MIN)
+        guard let observed = c.hotOverlapNonRim, observed >= threshold,
+              c.hotOverlapContributorCount >= 2 else { return nil }
+        return I(family: .sharedOverlap,
+                 headline: "Shared hot zones outside the rim — spacing may compress",
                  confidence: .moderate,
                  evidence: [
-                    "\u{2022} Shared shot area covers \(pct(ov)) of the lineup's occupied court (named threshold \(pct(M.OVERLAP_HIGH))).",
-                    "\u{2022} \(c.overlapContributorCount) usable members contribute mass to the shared cells, so preferred spots may crowd.",
-                    "\u{2022} \(noBaseline) This cites the absolute overlap share, not a percentile."],
-                 basis: "Basis: composited individual season shot mass on a fixed 20-unit grid. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
+                    "\u{2022} Members share above-league hot cells over \(pct(observed)) of their occupied non-rim hot court (named threshold \(pct(threshold))).",
+                    "\u{2022} Restricted-area convergence is excluded — this cites perimeter/mid overlap only.",
+                    "\u{2022} \(noBaseline) Absolute overlap share, not a percentile."],
+                 basis: "Basis: composited individual season above-league hot cells on a fixed 20-unit grid, restricted area excluded. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 
     // Rule 5 — Packed / clustered geometry. dispersion<=TIGHT AND overlapIndex>=MID. Geometric cap.

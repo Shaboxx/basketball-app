@@ -191,7 +191,8 @@ extension LineupShotGeography {
         let insights = engineInsights(members: members, usable: usable, usableCharts: usableCharts,
                                       usableGrids: usableGrids, usableProfiles: usableProfiles,
                                       usableNames: usableNames, excluded: excluded,
-                                      combinedUsableFga: combinedUsableFga, minUsableFga: minUsableFga)
+                                      combinedUsableFga: combinedUsableFga, minUsableFga: minUsableFga,
+                                      memberHotSets: memberHotSets)
         let gatePassed = usableCharts.count >= SpatialLineupMetrics.MIN_USABLE_MEMBERS
             && combinedUsableFga >= SpatialLineupMetrics.MIN_COMBINED_USABLE_FGA
         return LineupSpatialResult(key: key, dotLayers: dotLayers, overlapCells: overlapCells,
@@ -203,9 +204,17 @@ extension LineupShotGeography {
         usable: [(offset: Int, element: SpatialLineupMetrics.MemberInput)],
         usableCharts: [PlayerShotChart], usableGrids: [[Double]],
         usableProfiles: [PlayerShotChart.Profile?], usableNames: [String], excluded: [String],
-        combinedUsableFga: Int, minUsableFga: Int) -> [SpatialLineupInsight] {
+        combinedUsableFga: Int, minUsableFga: Int,
+        memberHotSets: [Set<Int>]) -> [SpatialLineupInsight] {
 
         let usablePoints = usableCharts.map { $0.points }
+        // heat-model v2 hot-cell overlap context (section 9.3) — empty memberHotSets => nil/0.
+        let hotOverlapNonRim = memberHotSets.isEmpty ? nil : SpatialLineupMetrics.hotOverlapNonRim(memberHotSets: memberHotSets)
+        let hotOverlapK = memberHotSets.isEmpty ? [] : SpatialLineupMetrics.hotOverlapCounts(memberHotSets: memberHotSets)
+        // # usable members with a hot cell c that is non-RA AND shared (k_hot_c >= 2).
+        let hotOverlapContributorCount = memberHotSets.reduce(0) { acc, hot in
+            acc + (hot.contains { !SpatialLineupMetrics.isRAcell($0) && hotOverlapK.indices.contains($0) && hotOverlapK[$0] >= 2 } ? 1 : 0)
+        }
         let overlapIndex = SpatialLineupMetrics.overlapIndex(grids: usableGrids)
         let paintOverlap = SpatialLineupMetrics.paintOverlap(grids: usableGrids)
         let contributorCount = SpatialLineupMetrics.overlapContributorCount(grids: usableGrids)
@@ -286,6 +295,7 @@ extension LineupShotGeography {
             perimeterShooterCount: perimCount, everyUsableHasPerimeterSignals: everyPerim,
             minThreeSharePct: minThreeSharePct, loneVolShare: loneShare,
             overlapIndex: overlapIndex, paintOverlap: paintOverlap, overlapContributorCount: contributorCount,
+            hotOverlapNonRim: hotOverlapNonRim, hotOverlapContributorCount: hotOverlapContributorCount,
             centroidDispersion: dispersion, lineup3Share: lineup3, lineupMidShare: lineupMid,
             rimHeavyCount: rimHeavy.count, rimHeavyMaxPct: rimHeavyMaxPct, rimHeavyNames: rimHeavy.map { ($0.name, $0.pct) },
             cornerCoverage: corner, leftClaimantShare: claimantShare(corner.leftClaimant, SpatialLineupMetrics.LEFT_CORNER),
