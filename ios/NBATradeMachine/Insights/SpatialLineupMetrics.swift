@@ -38,6 +38,7 @@ nonisolated enum SpatialLineupMetrics {
     // --- corners ---
     static let CORNER_MIN_FGA = 20
     static let CORNER_MIN_SHARE = 0.06
+    static let TWO_CORNER_ENABLED = false   // D8: RETIREMENT flag (A4) — false = retired; pin 5 passing KEEPS it false. Reversible.
 
     // --- shot diet (lineup-weighted) — CALIBRATED (Task 2, 30 real depth-order starting fives,
     //     rank-1 per position, 14 within-position rank fallbacks; 2026-07-14 calibration run) ---

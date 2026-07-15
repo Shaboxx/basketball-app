@@ -342,10 +342,15 @@ nonisolated enum SpatialLineupEngine {
                  basis: "Basis: individual season corner-zone tallies. \(notOnCourt) \(noBaseline)\(exclPhrase(c.excludedNames))")
     }
 
-    // Rule 8 — Two-corner coverage. cornerCoverage==2. Cap .moderate.
+    // Rule 8 — Two-corner coverage. cornerCoverage==2. Cap .moderate. D8 (A4): RETIRED behind
+    // TWO_CORNER_ENABLED=false (mirrors rule4's self-suppression); the body stays intact + testable.
     // CE-6: slug drives deterministic selection (in cornerCoverage), but ALL user-facing copy uses the
     // member's display NAME — leftClaimantName/rightClaimantName (resolved slug→name in the context builder).
     private static func rule8(_ c: SpatialLineupContext) -> I? {
+        guard M.TWO_CORNER_ENABLED else { return nil }
+        return rule8Body(c)
+    }
+    static func rule8Body(_ c: SpatialLineupContext) -> SpatialLineupInsight? {
         guard c.cornerCoverage.count == 2,
               let left = c.leftClaimantName, let right = c.rightClaimantName else { return nil }
         // distinctClaimants compares the underlying SLUGS (correct member identity even if two members
