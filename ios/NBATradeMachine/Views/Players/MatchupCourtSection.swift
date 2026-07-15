@@ -22,6 +22,26 @@ nonisolated enum CourtVizTransition {
         let newKey: String? = rebuild ? newSlug : oldCacheSlug
         return (resetToDefaults: true, rebuildGrid: rebuild, newCacheSlug: newKey)
     }
+
+    /// Revision-aware decision (heat-model v2 final-review fix, sol diff defect 1): a
+    /// leagueRevision bump with an UNCHANGED cached slug means the league field was REPLACED
+    /// (bundle seed -> valid Firestore doc, or a future refetch). That fire must REBUILD the
+    /// grids from the new field but must NOT reset the user's transient controls — reset
+    /// belongs to appearance/slug/chart-flip transitions only (a background data refresh may
+    /// never wipe an active tap-cycle/slider/mode selection).
+    static func applyV2(oldCacheSlug: String?, newSlug: String, chartAvailable: Bool,
+                        oldRevision: Int?, newRevision: Int)
+        -> (resetToDefaults: Bool, rebuildGrid: Bool, newCacheSlug: String?, newCacheRevision: Int?) {
+        let base = apply(oldCacheSlug: oldCacheSlug, newSlug: newSlug, chartAvailable: chartAvailable)
+        let slugChanged = (newSlug != oldCacheSlug)
+        // Revision-only refresh: same cached slug, a previously-stamped revision, a new revision.
+        let revisionOnly = !slugChanged && oldRevision != nil && oldRevision != newRevision
+        let rebuild = base.rebuildGrid || (revisionOnly && chartAvailable)
+        return (resetToDefaults: !revisionOnly,
+                rebuildGrid: rebuild,
+                newCacheSlug: rebuild ? newSlug : oldCacheSlug,
+                newCacheRevision: rebuild ? newRevision : oldRevision)
+    }
 }
 
 /// Heat sub-mode (D2): mode 1 colors vs the cell league baseline; mode 2 colors expected
@@ -45,6 +65,7 @@ struct MatchupCourtSection: View {
     @State private var heatGridEP: HeatGrid? = nil
     @State private var heatMode: HeatMode = .vsLeague
     @State private var heatGridSlug: String? = nil
+    @State private var heatGridRevision: Int? = nil
     @State private var isExpanded = true
     enum Side: String, CaseIterable { case offense = "Offense", defense = "Defense" }
 
@@ -70,9 +91,11 @@ struct MatchupCourtSection: View {
                                   chartAvailable: shotStore.chart(for: player.slug) != nil,
                                   leagueRevision: shotStore.leagueRevision)) {
             let chart = shotStore.chart(for: player.slug)
-            let decision = CourtVizTransition.apply(oldCacheSlug: heatGridSlug,
-                                                    newSlug: player.slug,
-                                                    chartAvailable: chart != nil)
+            let decision = CourtVizTransition.applyV2(oldCacheSlug: heatGridSlug,
+                                                      newSlug: player.slug,
+                                                      chartAvailable: chart != nil,
+                                                      oldRevision: heatGridRevision,
+                                                      newRevision: shotStore.leagueRevision)
             if decision.resetToDefaults {
                 zoneLabelMode = .off
                 heatBlend = 0
@@ -90,13 +113,15 @@ struct MatchupCourtSection: View {
                     heatGridEP = nil
                 }
                 heatGridSlug = decision.newCacheSlug
+                heatGridRevision = decision.newCacheRevision
             } else if decision.rebuildGrid, shotStore.league == nil {
                 // chart present but league not loaded yet: leave the grids nil (heat unavailable);
-                // do NOT stamp the slug so the league-arrival rebuild rebuilds. The composite id
-                // re-fires on the next leagueRevision bump (PF9).
+                // do NOT stamp the slug/revision so the league-arrival rebuild rebuilds. The
+                // composite id re-fires on the next leagueRevision bump (PF9).
                 heatGrid = nil; heatGridEP = nil
             } else {
                 heatGridSlug = decision.newCacheSlug
+                heatGridRevision = decision.newCacheRevision
             }
         }
     }

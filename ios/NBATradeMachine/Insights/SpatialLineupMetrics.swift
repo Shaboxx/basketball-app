@@ -156,6 +156,14 @@ nonisolated enum SpatialLineupMetrics {
     /// massAndMade; a cell where league[c] is NaN is never hot (no defined baseline).
     static func memberHotCells(points: [PlayerShotChart.ShotPoint], league: [Double]) -> Set<Int> {
         guard league.count == 26 * 24 else { return [] }
+        // In-bounds filter FIRST (sol diff defect 2): massAndMade's contract is "callers pass
+        // in-bounds points" — massGrid/build both filter, so hot cells must too, or an
+        // out-of-court shot within 90 units of an edge cell manufactures mass (and overlap)
+        // that the player's own heat field does not show.
+        let inBounds = points.filter {
+            Double($0.x) >= HeatField.xMin && Double($0.x) <= HeatField.xMax &&
+            Double($0.y) >= HeatField.yMin && Double($0.y) <= HeatField.yMax
+        }
         var hot = Set<Int>()
         for row in 0..<24 {
             let cy = HeatField.yMin + Double(row) * HeatField.spacing
@@ -164,7 +172,7 @@ nonisolated enum SpatialLineupMetrics {
                 let idx = row * 26 + col
                 let Lc = league[idx]
                 if Lc.isNaN { continue }
-                let (A, M) = HeatField.massAndMade(points: points, cx: cx, cy: cy)
+                let (A, M) = HeatField.massAndMade(points: inBounds, cx: cx, cy: cy)
                 if A < HeatField.minMass { continue }
                 let pHat = (M + HeatField.priorWeight * Lc) / (A + HeatField.priorWeight)
                 if pHat > Lc { hot.insert(idx) }
