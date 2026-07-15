@@ -315,6 +315,75 @@ nonisolated enum SpatialLineupMetrics {
         return hubs.sorted { ($0.cells.first ?? 0) < ($1.cells.first ?? 0) }
     }
 
+    // MARK: - Congestion metric + versatility (G1b; section 5, 6.2a)
+
+    /// The colliding cross-member hub pair, for the copy (H2, SF12). `distance` is the min centroid
+    /// distance; `hubA`/`hubB` belong to DIFFERENT members `nameA`/`nameB`. The copy cites the two
+    /// hubs OWN-member strengths SEPARATELY (`hubA.strength`, `hubB.strength`, each <= 1), never summed.
+    nonisolated struct HubCollision: Equatable {
+        let nameA: String, nameB: String
+        let hubA: ShotHub, hubB: ShotHub
+        let distance: Double
+    }
+
+    /// A usable member with an above-threshold arc-hub count (SF2). Named struct (not a tuple) so it
+    /// has a dependable Equatable and carries the escape-hub COUNT the relocation bullet needs.
+    nonisolated struct VersatileMember: Equatable {
+        let name: String
+        let arcHubCount: Int
+        let hotThreeCellCount: Int
+        let escapeHubCount: Int
+        var hasEscapeHub: Bool { escapeHubCount > 0 }   // derived
+    }
+
+    /// minHubDistance = the MINIMUM Euclidean distance between hub centroids of DIFFERENT members
+    /// (H2). `memberHubs[i]` = usable member i's hubs (name-paired). nil when fewer than 2 members
+    /// have >= 1 hub. Also returns the colliding pair achieving the min. Deterministic tie-break:
+    /// the strict `d < best.distance` keeps the FIRST pair under (ascending member i, then j, then
+    /// hubs in shotHubs order).
+    static func minHubDistance(memberHubs: [(name: String, hubs: [ShotHub])])
+        -> (distance: Double?, collision: HubCollision?) {
+        let present = memberHubs.filter { !$0.hubs.isEmpty }
+        guard present.count >= 2 else { return (nil, nil) }
+        var best: HubCollision? = nil
+        for i in 0..<present.count {
+            for j in (i + 1)..<present.count {           // DIFFERENT members only
+                for hi in present[i].hubs {
+                    for hj in present[j].hubs {
+                        let d = hypotDist(dx: hi.centroid.x - hj.centroid.x, dy: hi.centroid.y - hj.centroid.y)
+                        if best == nil || d < best!.distance {
+                            best = HubCollision(nameA: present[i].name, nameB: present[j].name,
+                                                hubA: hi, hubB: hj, distance: d)
+                        }
+                    }
+                }
+            }
+        }
+        return (best?.distance, best)
+    }
+
+    /// #{ arc hubs of `name` whose centroid is > effectiveFloor from `name`'s OWN colliding hub }
+    /// (H5, SF11). `name`s colliding hub = collision.hubA if name == nameA, else hubB; 0 when name
+    /// is in neither side of the pair.
+    static func escapeHubCount(name: String, hubs: [ShotHub],
+                               collision: HubCollision, effectiveFloor: Double) -> Int {
+        let own: ShotHub
+        if name == collision.nameA { own = collision.hubA }
+        else if name == collision.nameB { own = collision.hubB }
+        else { return 0 }
+        return hubs.reduce(0) { acc, h in
+            guard h.isArcHub else { return acc }
+            let d = hypotDist(dx: h.centroid.x - own.centroid.x, dy: h.centroid.y - own.centroid.y)
+            return acc + (d > effectiveFloor ? 1 : 0)
+        }
+    }
+
+    /// Euclidean distance from component deltas — the ONE distance primitive both new metrics use
+    /// (cross-language parity with Python math.hypot).
+    private static func hypotDist(dx: Double, dy: Double) -> Double {
+        (dx * dx + dy * dy).squareRoot()
+    }
+
     // MARK: - Perimeter
 
     /// #{ usable member with threeShare.pct >= 65 AND threeFgPct.value >= 0.34 }. A nil profile
