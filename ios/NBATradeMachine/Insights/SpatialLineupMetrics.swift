@@ -60,18 +60,24 @@ nonisolated enum SpatialLineupMetrics {
     static let HOT_OVERLAP_PIN = 0.746         // p75 hotOverlapNonRim (2026-07-14 run above; unused while the flag is off)
     static let HOT_OVERLAP_ABS_MIN = 0.30      // PINNED absolute floor: a genuinely shared hot court, not p75 of a still-clustered league
 
-    // --- G1b hub overlap (section 15; both rules ship DARK until the committed calibration verdict, H6) ---
+    // --- G1b hub overlap — ENABLED by the committed calibration verdicts (H6) ---
+    // PROVENANCE (2026-07-15 committed run, calibrate_lineup_metrics.py over the 30 real
+    // depth-order fives, hot cells on the league field leagueMeanPPS=1.0913):
+    //   minHubDistance dist: n=30 min=3.527 p10=9.398 p25=16.312 median=23.126 p75=38.455
+    //   p90=48.566 max=56.059 (0 lineups with < 2 hub-bearing members).
+    //   HUB CONGESTION criteria (spec 6.1): spread(p90-p10)=39.2 — PASSED (need >= 25.0);
+    //   effective floor min(p25=16.3, 35.0)=16.3 fires on 27% — PASSED (<= 40%). ENABLE: YES.
+    //   ARC VERSATILITY (H5, smallest N with lineup prevalence in [10%, 50%]): member prevalence
+    //   at N=1/2/3 = 0.49/0.19/0.04; lineup prevalence 0.97/0.70/0.20. N=2 breaches the 0.50
+    //   ceiling (0.70); N=3 lands at 0.20. ENABLE: YES with N=3.
     static let HUB_MIN_SHARE = 0.15        // component mass share of member's total non-RA hot mass (H1)
     static let HUB_MIN_CELLS = 2           // component size floor (H1)
     static let ARC_MAJORITY = 0.50         // >= this fraction of component mass on 3PT cells => arc hub (H5)
     static let HUB_DIST_ABS_MAX = 35.0     // court units — PINNED absolute closeness cap (H3, distance analog of the honesty floors)
-    // HUB_DIST_PIN is set at integration from p25(minHubDistance) on the committed run [EXPLORATORY p25 ~ 16.3];
-    // seeded here to the exploratory value so the ENABLED body is testable while the flag stays false. Integration
-    // repins it (or records NO) with a provenance comment. Unused while HUB_CONGESTION_ENABLED == false.
-    static let HUB_DIST_PIN = 16.3         // CALIBRATE (committed run); EXPLORATORY p25 anchor
-    static let ARC_VERSATILE_N = 2         // PROVISIONAL; integration pins N by the [10%, 50%] lineup-prevalence window (H5)
-    static let HUB_CONGESTION_ENABLED = false    // dark until the committed run's verdict (H6)
-    static let ARC_VERSATILITY_ENABLED = false   // dark until the committed run's verdict (H6)
+    static let HUB_DIST_PIN = 16.3         // p25 minHubDistance, 2026-07-15 committed run above
+    static let ARC_VERSATILE_N = 3         // smallest N in the [10%, 50%] lineup-prevalence window (run above)
+    static let HUB_CONGESTION_ENABLED = true     // 2026-07-15 verdict: YES (provenance above)
+    static let ARC_VERSATILITY_ENABLED = true    // 2026-07-15 verdict: YES, N=3 (provenance above)
 
     /// PF14: the ONE effective-fire-floor primitive (H3) = min(HUB_DIST_PIN, HUB_DIST_ABS_MAX). The
     /// congestion body's fire comparison, `LineupShotGeography.build`'s escape-hub anchor, and the
