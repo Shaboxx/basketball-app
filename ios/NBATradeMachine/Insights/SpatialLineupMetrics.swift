@@ -48,11 +48,16 @@ nonisolated enum SpatialLineupMetrics {
     // Revisit when an on-court-together baseline exists (V2) that gives overlap a real discriminating range.
     static let SHARED_OVERLAP_ENABLED = false
     // --- heat-model v2 hot-cell overlap (rule 4 re-enable, section 9.4) ---
-    // HOT_OVERLAP_PIN is the p75 of hotOverlapNonRim from the recalibration; the calibration run
-    // (calibrate_lineup_metrics.py, RULE 4 RE-ENABLE block) prints the pin + the YES/NO verdict.
-    // PROVENANCE (integration task): recalibration result recorded here before ship; if the criteria
-    // did NOT fire, SHARED_OVERLAP_ENABLED stays false and this pin is a placeholder (unused while off).
-    static let HOT_OVERLAP_PIN = 0.30          // p75 hotOverlapNonRim (FROM CALIBRATION RUN — Task 10 records n + the run)
+    // PROVENANCE (2026-07-14 recalibration, calibrate_lineup_metrics.py over the 30 real depth-order
+    // fives, league field leagueMeanPPS=1.0913 / LEAGUE_MIN_MASS=200):
+    //   hotOverlapNonRim dist: n=30 min=0.494 p10=0.561 p25=0.642 median=0.681 p75=0.746 p90=0.794 max=0.885
+    //   (0 lineups with an empty non-RA hot union.)
+    //   Criteria (spec 9.4): spread(p90-p10)=0.234 — FAILED (need >= 0.25); p75 pin fires on 27% — passed (<= 40%).
+    //   RULE 4 RE-ENABLE: NO -> SHARED_OVERLAP_ENABLED stays false. The hot-cell redefinition DID create
+    //   real range for the first time (0.494–0.885 vs the raw-mass 0.839–0.984), but the spread criterion
+    //   narrowly missed, and the pinned criteria are binding — no post-hoc threshold bending. Rule 4 stays
+    //   suppressed pending an on-court-together baseline (V2). rule4Body's copy path stays tested directly.
+    static let HOT_OVERLAP_PIN = 0.746         // p75 hotOverlapNonRim (2026-07-14 run above; unused while the flag is off)
     static let HOT_OVERLAP_ABS_MIN = 0.30      // PINNED absolute floor: a genuinely shared hot court, not p75 of a still-clustered league
     static let DISPERSION_TIGHT = 31.3         // p25 centroidDispersion (court units) over 30 lineups (dist: n=30 min=18.533 p25=31.339 median=39.785 p75=54.306 max=68.121); spec provisional was 90 (~9 ft)
     static let SIDE_SKEW_MIN = 0.09            // p75 sideSkew over 30 lineups (dist: n=30 min=0.003 p25=0.024 median=0.065 p75=0.092 max=0.230); spec provisional was 0.45
