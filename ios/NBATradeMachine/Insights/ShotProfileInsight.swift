@@ -36,21 +36,27 @@ extension ShotProfileInsight {
     static let INTERIOR_ANCHOR_3SHARE_PCT_MAX = 25.0   // gap band lower driver (== CLOG_RISK_3SHARE_PCT)
     static let INTERIOR_ANCHOR_RIMSHARE_PCT_LO = 55.0  // gap band: rim share above the clog-risk ceiling
     static let INTERIOR_ANCHOR_RIMSHARE_PCT_HI = 75.0  // ... and below the rim-gravity floor
-    static let INTERIOR_ANCHOR_ENABLED = false         // D4: flipped TRUE in the calibration-verified commit (pin 6d: C-bucket 5-30%)
+    // PROVENANCE (2026-07-15 committed G2 run): pin6d INTERIOR_ANCHOR: C-bucket prevalence = 5/84 = 6% (bound [5,30]). PASS.
+    static let INTERIOR_ANCHOR_ENABLED = true
     static let BIG_BUCKETS: Set<String> = ["PF", "C", "F"]
     // Family 2: position viability
     static let SIZE_UNDERSIZED_PCT = 25.0
     static let SIZE_PROTOTYPE_PCT = 60.0
     static let STRETCH_BIG_3SHARE_PCT = 70.0
-    static let STRETCH_FLOOR_ENABLED = false   // D5: flipped TRUE in the calibration-verified commit (pin 6a: 0 Stretch with 3P% < .34)
-    static let SIZE_STYLE_SPLIT_ENABLED = false   // D6: flipped TRUE in the calibration-verified commit (pin 7)
+    // PROVENANCE (2026-07-15 committed G2 run): pin6a STRETCH_FLOOR: Stretch labels with 3P% < 0.34 = 0 (bound ==0). PASS.
+    static let STRETCH_FLOOR_ENABLED = true
+    // PROVENANCE (2026-07-15 committed G2 run): pin7 SIZE_STYLE_SPLIT: Wemby/Holmgren/Embiid all get a
+    // size read, none read Traditional 5 size, family-2 count <= 2. PASS.
+    static let SIZE_STYLE_SPLIT_ENABLED = true
     // Family 3: shot diet & hot/cold
     static let THREE_LEVEL_MIN_PCT = 25.0
     static let THREE_LEVEL_SPREAD_MAX = 0.55
     static let ONE_DIM_DOMINANT_SHARE = 0.60
     static let BALANCED_BAND_LO = 25.0            // all three zone pctiles must be within [LO, HI]
     static let BALANCED_BAND_HI = 75.0
-    static let BALANCED_BAND_ENABLED = false      // D7: flipped TRUE in the calibration-verified commit (pin 6bc: Balanced <=35%/bucket AND SGA mid tilt)
+    // PROVENANCE (2026-07-15 committed G2 run): pin6bc BALANCED_BAND: worst bucket = 21% (bound <=35%);
+    // SGA = (tilt, mid) (bound: (tilt, mid)). PASS.
+    static let BALANCED_BAND_ENABLED = true
     static let HOTCOLD_FGPCT_PCT_HIGH = 70.0
     static let HOTCOLD_FGPCT_PCT_LOW = 30.0
     // Earned-level threshold: max|pct-50| >= this earns .high

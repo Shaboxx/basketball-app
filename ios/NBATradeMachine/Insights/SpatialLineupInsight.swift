@@ -182,12 +182,14 @@ nonisolated enum SpatialLineupEngine {
 
     // Rule 1 — No-perimeter. Fires when perimeterShooterCount == 0. Cap .moderate. D1: the copy
     // branches to a scheme-conditional variant when an anchor is present AND the override is on.
+    // A9 split: the override copy is gated by NOPERIM_OVERRIDE_ENABLED (dark, pin1b BREACH) separately
+    // from the anchor READ (RIM_GRAVITY_ANCHOR_ENABLED, true, pin1a PASS).
     private static func rule1(_ c: SpatialLineupContext) -> I? {
-        rule1Body(c, anchorOverride: M.RIM_GRAVITY_ANCHOR_ENABLED)
+        rule1Body(c, anchorOverride: M.NOPERIM_OVERRIDE_ENABLED)
     }
     /// F6 default-argument seam: tests call rule1Body(c, anchorOverride: true) to exercise the dark
     /// override copy without toggling the static let. Non-private (rule4Body convention).
-    static func rule1Body(_ c: SpatialLineupContext, anchorOverride: Bool = M.RIM_GRAVITY_ANCHOR_ENABLED) -> SpatialLineupInsight? {
+    static func rule1Body(_ c: SpatialLineupContext, anchorOverride: Bool = M.NOPERIM_OVERRIDE_ENABLED) -> SpatialLineupInsight? {
         guard c.perimeterShooterCount == 0, let three = c.lineup3Share else { return nil }
         let insideShare = pct(1 - three)
         if anchorOverride, c.hasRimAnchor, let a = c.rimAnchors.max(by: { $0.sharePct < $1.sharePct }) {

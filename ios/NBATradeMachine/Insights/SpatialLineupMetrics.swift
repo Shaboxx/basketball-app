@@ -19,7 +19,9 @@ nonisolated enum SpatialLineupMetrics {
     static let LONE_PERIM_VOL_SHARE = 0.55
     static let FIVE_OUT_MIN_3SHARE_PCT = 35.0
     static let FOUR_OUT_MIN_SHOOTERS = 3        // D3: relaxed perimeter-shooter count (was rule 3's implicit 4)
-    static let FOUR_OUT_ENABLED = false         // D3: flipped TRUE in the calibration-verified commit (pin 2)
+    // PROVENANCE (2026-07-15 committed G2 run): pin2 four-out (N>=3) fires = 0 of 30 (bound [1,8]).
+    // BREACH -> ships dark.
+    static let FOUR_OUT_ENABLED = false
 
     // --- interior ---
     static let RIM_HEAVY_PCT = 75.0
@@ -30,15 +32,28 @@ nonisolated enum SpatialLineupMetrics {
     static let RIM_ANCHOR_SHARE_PCT   = 72.0    // audit section F: p75 rimShare positional pctile
     static let RIM_ANCHOR_SHARE_VALUE = 0.66    // audit section F: p75 raw rimShare (either arm qualifies)
     static let RIM_ANCHOR_RIMFG_MIN   = 0.72    // audit section F: p75 rimFG% (vertical finishing floor)
-    static let RIM_GRAVITY_ANCHOR_ENABLED = false   // D1: flipped TRUE in the calibration-verified commit (pin 1)
+    // PROVENANCE (2026-07-15 committed G2 run): pin1a rimGravityAnchor fires = 6 of 30 (bound [3,12]). PASS.
+    static let RIM_GRAVITY_ANCHOR_ENABLED = true
+    // PROVENANCE (2026-07-15 committed G2 run): pin1b noPerimeter-override reach = 1 of 7
+    // noPerimeter lineups (bound >= 2). BREACH -> ships dark (A9 split: the anchor READ enables on
+    // pin 1a; the override copy is gated separately here). The rim-FG >= 0.72 finishing floor selects
+    // anchor centers who play WITH shooters, disjoint from the no-shooter-lineup centers. Future
+    // wave: pre-register an override-specific gate before re-attempting.
+    static let NOPERIM_OVERRIDE_ENABLED = false
 
     // --- family cap (D2) ---
-    static let FAMILY_CAP_ENABLED = false   // D2: flipped TRUE with pins 3-4 in the calibration-verified commit
+    // PROVENANCE (2026-07-15 committed G2 run): pin3 interior-tilt family co-fire = 0 (bound ==0). PASS.
+    // pin4 neg-read WITH-center mean = 0.58 (bound <=0.7, n=24); WITHOUT = 0.00 (n=6);
+    // ratio = inf (bound <=2.0) [A8: ratio clause vacuous at WITHOUT==0 per A8 (panel 2-1, sol dissent
+    // recorded); absolute clause governs]. PASS.
+    static let FAMILY_CAP_ENABLED = true
 
     // --- corners ---
     static let CORNER_MIN_FGA = 20
     static let CORNER_MIN_SHARE = 0.06
-    static let TWO_CORNER_ENABLED = false   // D8: RETIREMENT flag (A4) — false = retired; pin 5 passing KEEPS it false. Reversible.
+    // PROVENANCE (2026-07-15 committed G2 run): pin5 twoCornerCoverage displayed = 0 of 30 (bound ==0).
+    // PASS (retirement flag A4) -> STAYS false by design; pin 5 verifies the retired state.
+    static let TWO_CORNER_ENABLED = false
 
     // --- shot diet (lineup-weighted) — CALIBRATED (Task 2, 30 real depth-order starting fives,
     //     rank-1 per position, 14 within-position rank fallbacks; 2026-07-14 calibration run) ---
