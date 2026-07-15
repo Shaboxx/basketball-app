@@ -347,9 +347,11 @@ nonisolated enum SpatialLineupEngine {
             "\u{2022} Similar geography can mean two reads: contested space, or players swapping in and out of the same spots across possessions \u{2014} season charts cannot separate the two.",
             "\u{2022} Restricted-area convergence is excluded; this cites non-rim hub centroids only."]
         // Relocation bullet(s): per qualifying colliding versatile member, in collision order (A then B, SF3).
+        // Pluralized (post-final-review sol advisory): "1 qualifying arc hub sits" / "n qualifying arc hubs sit".
         for name in [col.nameA, col.nameB] {
             if let v = c.versatileMembers.first(where: { $0.name == name }), v.hasEscapeHub {
-                ev.append("\u{2022} \(v.name)'s profile supports relocating \u{2014} \(v.escapeHubCount) qualifying arc hubs sit away from the collision spot.")
+                let hubs = v.escapeHubCount == 1 ? "1 qualifying arc hub sits" : "\(v.escapeHubCount) qualifying arc hubs sit"
+                ev.append("\u{2022} \(v.name)'s profile supports relocating \u{2014} \(hubs) away from the collision spot.")
             }
         }
         return I(family: .sharedHubProximity,
