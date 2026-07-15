@@ -312,8 +312,8 @@ extension ShotProfileInsight {
 
     // MARK: - Family 2: Position viability (Stretch -> Small-ball -> Undersized -> Prototypical)
 
-    /// D5 Stretch read (extracted so the make-rate split is testable while STRETCH_FLOOR_ENABLED is
-    /// dark, F6/F12). Returns nil when the big/3-share gate is not met. `enabled` gates BOTH the
+    /// D5 Stretch read (default-argument seam, F6/F12; the flag is LIVE per pin 6a — the seam lets
+    /// tests pin either state explicitly). Returns nil when the big/3-share gate is not met. `enabled` gates BOTH the
     /// make-rate split AND the new 3P% bullet (today's Stretch branch has no 3P% bullet).
     static func stretchRead(_ p: Profile, enabled: Bool = STRETCH_FLOOR_ENABLED) -> ShotProfileInsight? {
         guard let height = p.signals["heightIn"] else { return nil }
@@ -508,8 +508,8 @@ extension ShotProfileInsight {
                                   confidence: conf, evidence: evidence, basis: basis)
     }
 
-    /// D7 Balanced-band + tilt read (the shotDiet else branch, extracted so the band split is testable
-    /// while BALANCED_BAND_ENABLED is dark, F4/F6/A1). Requires rim/mid/three signals present.
+    /// D7 Balanced-band + tilt read (the shotDiet else branch; default-argument seam, F4/F6/A1; the
+    /// flag is LIVE per pin 6bc — the seam lets tests pin either state explicitly). Requires rim/mid/three signals present.
     static func shotDietBody(_ p: Profile, enabled: Bool = BALANCED_BAND_ENABLED) -> ShotProfileInsight {
         let label = bucketLabel(p)
         let rim = p.signals["rimShare"]!, mid = p.signals["midShare"]!, three = p.signals["threeShare"]!

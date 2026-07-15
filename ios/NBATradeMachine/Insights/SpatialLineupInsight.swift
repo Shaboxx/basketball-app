@@ -7,15 +7,15 @@ import Foundation
 nonisolated struct SpatialLineupInsight: Equatable, Identifiable {
     enum Family: String {
         case noPerimeter, lonePerimeter, fiveOut,        // perimeter class (mutually exclusive)
-             rimGravityAnchor,                           // D1 positive rim-gravity anchor (rank 3; dark)
+             rimGravityAnchor,                           // D1 positive rim-gravity anchor (rank 3; LIVE, pin 1a)
              sharedOverlap,                              // overlap (permanently dark, retired)
-             sharedHubProximity,                         // G1b hub congestion (rank 4; dark)
+             sharedHubProximity,                         // G1b hub congestion (rank 4; LIVE)
              packedGeometry,                             // geometry
              rimCrowding,                                // interior
              emptyCorners, twoCornerCoverage,            // corners class (mutually exclusive)
              midRangeHeavy,                              // diet
              sideAsymmetry,                              // geometry
-             multiSpotPerimeter                          // G1b arc versatility (rank 8; dark)
+             multiSpotPerimeter                          // G1b arc versatility (rank 8; LIVE, N=3)
     }
     enum Confidence: String { case high, moderate }      // exactly two chips; no .low (A house style)
 
