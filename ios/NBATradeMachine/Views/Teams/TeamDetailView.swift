@@ -120,15 +120,24 @@ struct TeamDetailView: View {
     /// only Tier-A docs.
     @ViewBuilder
     private func rosterValueSection(roster: [Player]) -> some View {
-        let (off, def, rated, total) = rosterValueRollup(roster)
-        if rated > 0 {
+        let rollup = currentRollup()
+        if rollup.rated > 0 {
             Section("Roster Latent Value") {
                 HStack(spacing: 16) {
-                    rollupCell("OFF Σ", signed(off))
-                    rollupCell("DEF Σ", signed(def))
-                    rollupCell("Coverage", "\(rated) / \(total)")
+                    rollupCell("OFF Σ", signed(rollup.off))
+                    rollupCell("DEF Σ", signed(rollup.def))
+                    rollupCell("Coverage", "\(rollup.rated) / \(rollup.total)")
                 }
             }
+        }
+    }
+
+    private func currentRollup() -> (off: Double, def: Double, rated: Int, total: Int) {
+        if AppConfig.weightedOvrEnabled {
+            let wr = teamsVM.weightedRollup(for: team.teamId)
+            return (wr.off, wr.def, wr.rated, wr.total)
+        } else {
+            return teamsVM.latentValueRollup(for: team.teamId)
         }
     }
 
@@ -140,20 +149,6 @@ struct TeamDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func rosterValueRollup(_ roster: [Player]) -> (off: Double, def: Double, rated: Int, total: Int) {
-        var off = 0.0
-        var def = 0.0
-        var rated = 0
-        for p in roster {
-            let o = p.dispOff
-            let d = p.dispDef
-            guard o != nil || d != nil else { continue }
-            off += o ?? 0
-            def += d ?? 0
-            rated += 1
-        }
-        return (off, def, rated, roster.count)
-    }
 
     /// Top-3 OFF and top-3 DEF on the roster by display value. Lets you eyeball
     /// who actually carries each side of the ball. Section auto-hides when

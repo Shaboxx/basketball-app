@@ -65,6 +65,23 @@ struct Player: Codable, Identifiable, Hashable {
     // excluded from the synthesized Decodable, which would force it to always be nil.)
     let rosterValue: RosterValue?
 
+    // SP3 per-player relevance block (written by scripts/upload_relevance.py).
+    // Optional — old docs without it decode as nil.
+    // Field names match the Firestore map keys exactly.
+    let relevance: Relevance?
+
+    /// Per-player relevance block used by the SP3 weighted team-OVR rollup.
+    /// Written by scripts/upload_relevance.py; field names match the Firestore map keys.
+    struct Relevance: Codable, Hashable {
+        let mpgSeason: Double
+        let mpgRecent: Double
+        let gp: Int
+        let usg: Double?
+        let usgGames: Int
+        let season: String
+        let asOf: String?
+    }
+
     // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
     // decoder) don't look for it in the document payload. Firestore populates
     // @DocumentID out-of-band from the document reference.
@@ -87,6 +104,7 @@ struct Player: Codable, Identifiable, Hashable {
         case tradeValue
         case lineupFeatures
         case rosterValue
+        case relevance
     }
 
     var id: String { docId ?? slug }
@@ -159,7 +177,8 @@ extension Player {
         thetaV2: ThetaV2? = nil,
         tradeValue: TradeValue? = nil,
         lineupFeatures: LineupFeatures? = nil,
-        rosterValue: RosterValue? = nil
+        rosterValue: RosterValue? = nil,
+        relevance: Relevance? = nil
     ) -> Player {
         Player(
             slug: slug, name: name, teamId: teamId, position: position,
@@ -182,7 +201,8 @@ extension Player {
             positionEligibility: positionEligibility,
             thetaV2: thetaV2, tradeValue: tradeValue,
             lineupFeatures: lineupFeatures,
-            rosterValue: rosterValue
+            rosterValue: rosterValue,
+            relevance: relevance
         )
     }
 }

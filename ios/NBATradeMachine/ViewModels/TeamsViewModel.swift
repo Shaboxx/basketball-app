@@ -213,9 +213,17 @@ final class TeamsViewModel: ObservableObject {
             .def:   Self.gradeMap(players, \.dispDef),
         ]
 
-        let rated = teams.compactMap { t -> (id: String, off: Double, def: Double)? in
-            let r = latentValueRollup(for: t.teamId)
-            return r.rated > 0 ? (t.teamId, r.off, r.def) : nil
+        let rated: [(id: String, off: Double, def: Double)]
+        if AppConfig.weightedOvrEnabled {
+            rated = teams.compactMap { t -> (id: String, off: Double, def: Double)? in
+                let r = weightedRollup(for: t.teamId)
+                return r.contributing > 0 ? (t.teamId, r.off, r.def) : nil
+            }
+        } else {
+            rated = teams.compactMap { t -> (id: String, off: Double, def: Double)? in
+                let r = latentValueRollup(for: t.teamId)
+                return r.rated > 0 ? (t.teamId, r.off, r.def) : nil
+            }
         }
         _teamGrades = [
             .total: Self.teamGradeMap(rated) { $0.off + $0.def },
@@ -299,13 +307,37 @@ final class TeamsViewModel: ObservableObject {
     }
 
     private enum SortChannel { case off, def, total }
+    private var statsSeason: String { FirestoreService.fallbackSeason }
+
+    /// Weighted team OVR rollup (SP3). Maps roster to PlayerInputs and calls TeamOVRWeights.compute.
+    /// When AppConfig.weightedOvrEnabled is false, callers fall back to latentValueRollup.
+    func weightedRollup(for teamId: String) -> (off: Double, def: Double, rated: Int, contributing: Int, total: Int, branch: TeamOVRWeights.Branch) {
+        let roster = players(for: teamId)
+        let inputs = roster.map { p in
+            TeamOVRWeights.PlayerInput(slug: p.slug, off: p.dispOff, def: p.dispDef,
+                                       relevance: p.relevance, usg: p.relevance?.usg)
+        }
+        let result = TeamOVRWeights.compute(players: inputs, expectedSeason: statsSeason)
+        return (result.off, result.def, result.rated, result.contributing, roster.count, result.branch)
+    }
+
     private func sortKey(_ team: Team, _ channel: SortChannel) -> Double {
-        let r = latentValueRollup(for: team.teamId)
-        guard r.rated > 0 else { return -Double.infinity }
-        switch channel {
-        case .off:   return r.off
-        case .def:   return r.def
-        case .total: return r.off + r.def
+        if AppConfig.weightedOvrEnabled {
+            let r = weightedRollup(for: team.teamId)
+            guard r.contributing > 0 else { return -Double.infinity }
+            switch channel {
+            case .off:   return r.off
+            case .def:   return r.def
+            case .total: return r.off + r.def
+            }
+        } else {
+            let r = latentValueRollup(for: team.teamId)
+            guard r.rated > 0 else { return -Double.infinity }
+            switch channel {
+            case .off:   return r.off
+            case .def:   return r.def
+            case .total: return r.off + r.def
+            }
         }
     }
 }
