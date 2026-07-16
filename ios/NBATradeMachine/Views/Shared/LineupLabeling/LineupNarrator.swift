@@ -185,7 +185,7 @@ nonisolated enum LineupNarrator {
             return Finding(
                 key: "creation",
                 headline: "\(connector.name) accounts for a much larger share of team assists than \(scorer.name).",
-                explanation: "\(connector.name)'s on-court team-assist share (\(round2(h))) sits well above \(scorer.name)'s (\(round2(l))) -- the gap clears the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
+                explanation: "\(connector.name)'s on-court team-assist share (\(round2(h))) sits well above \(scorer.name)'s (\(round2(l))) — the gap clears the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
                 grade: "Good", tags: ["Creator + scorer"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .collision:
