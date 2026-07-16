@@ -71,12 +71,22 @@ nonisolated enum LineupSynergy {
     }
 
     static func rimProtection(_ lineup: [LineupFeatures], _ norms: LeagueNorms) -> Double {
-        guard let anchorIdx = lineup.indices.max(by: { raw(lineup[$0], "rim_dfga_per36") < raw(lineup[$1], "rim_dfga_per36") })
-        else { return 0 }
-        let anchor = lineup[anchorIdx]
-        let anchorStop = max(z(anchor, "rim_dfga_per36", norms), 0.0) * max(-z(anchor, "rim_def_delta", norms), 0.0)
+        // Pinned sign convention (compute_lineup_features: rim_def_delta /
+        // perim_def_delta = normal% - opp%, POSITIVE = opponents held below their
+        // normal = GOOD defense). The anchor is the best volume x positive-stop
+        // product — not the raw-volume argmax, which let a per-36-inflated big with
+        // a negative delta shadow a genuine anchor. Volume z is capped at +2 as an
+        // outlier-influence bound (mirrors scripts/lineup_value/synergy.py exactly).
+        var anchorIdx = -1
+        var anchorStop = 0.0
+        for i in lineup.indices {
+            let vol = min(max(z(lineup[i], "rim_dfga_per36", norms), 0.0), 2.0)
+            let stop = vol * max(z(lineup[i], "rim_def_delta", norms), 0.0)
+            if anchorIdx == -1 || stop > anchorStop { anchorIdx = i; anchorStop = stop }
+        }
+        guard anchorIdx >= 0 else { return 0 }
         let others = lineup.indices.filter { $0 != anchorIdx }.map { lineup[$0] }
-        let funnelSum = others.reduce(0.0) { $0 + max(-z($1, "perim_def_delta", norms), 0.0) + max(z($1, "deflections_per36", norms), 0.0) }
+        let funnelSum = others.reduce(0.0) { $0 + max(z($1, "perim_def_delta", norms), 0.0) + max(z($1, "deflections_per36", norms), 0.0) }
         let funnel = funnelSum / Double(max(others.count, 1))
         return anchorStop * (0.5 + funnel)
     }

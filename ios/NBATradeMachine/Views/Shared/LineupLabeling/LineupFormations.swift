@@ -4,7 +4,11 @@ import Foundation
 nonisolated enum LineupFormations {
     static let tauSpace = 3.0
     static let tauSwitch = 3.0
-    static let tauRim = 4.0
+    // Calibrated 2026-07-16 after the rim_protection sign fix, on the 180 real
+    // depth-chart lineups (~upper quartile of the drop-anchor candidates; the
+    // pre-fix 4.0 was scaled to the old inverted magnitude). Keep in lockstep
+    // with scripts/lineup_value/formations.py TAU_RIM.
+    static let tauRim = 2.0
     static let tauPnr = 2.0
     static let formations = ["five_out", "switch_everything", "two_big_drop", "pnr_heavy"]
 

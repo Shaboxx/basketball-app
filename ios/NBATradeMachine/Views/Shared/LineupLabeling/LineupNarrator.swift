@@ -60,7 +60,7 @@ nonisolated enum LineupNarrator {
                 suggestion: f.headline, explanation: f.explanation))
         }
 
-        add("offense", spacing(players, norms))
+        add("offense", spacing(players, norms, label))
         add("offense", creation(players, norms, creationClassificationEnabled: creationClassificationEnabled))
         add("defense", rimProtection(players, norms))
         add("defense", switchability(players, norms))
@@ -73,17 +73,35 @@ nonisolated enum LineupNarrator {
 
     // MARK: - Findings
 
-    private static func spacing(_ players: [Player], _ norms: LeagueNorms) -> Finding? {
+    /// Attempt-rate (% of FGA) at or below this reads as an OBSERVED doesn't-take-threes
+    /// tendency (with a valid bottom-decile clip), not merely an "untested" hedge.
+    private static let nearZeroThreePar = 2.0
+
+    private static func spacing(_ players: [Player], _ norms: LeagueNorms, _ label: LineupLabel) -> Finding? {
         let shooters = ranked(players, "fg3_pct", norms)
         guard !shooters.isEmpty else { return nil }
 
         // A spacing tax (a cold shooter) is the most actionable finding — surface it first.
         let cold = shooters.filter { ($0.pctile ?? 1) < coldPctile }
         if let worst = cold.min(by: { $0.value < $1.value }) {
-            let threePar = worst.player.lineupFeatures?.three_par ?? 0
+            let threeParVal = worst.player.lineupFeatures?.three_par   // nil = unmeasured
+            let threePar = threeParVal ?? 0
             let ev = [SuggestionEvidence(player: worst.name, stat: "3PT%", value: pctOf(worst.value),
                                          pct: pctStr(worst.pctile), sample: nil)]
             if threePar < lowVolumeThreePar {
+                // An OBSERVED near-zero attempt rate with a valid bottom-decile clip is a
+                // tendency read ("doesn't take threes"), scoped to the available data —
+                // not a career claim, and not an "untested" hedge that reads comic on an
+                // established non-shooting big. A MISSING attempt rate stays "untested":
+                // missingness is never converted into negative scouting evidence.
+                if let tp = threeParVal, tp <= nearZeroThreePar,
+                   let pct = worst.pctile, pct < 0.10 {
+                    return Finding(
+                        key: "spacing", headline: "Non-shooter — \(worst.name) doesn't take threes; plan the spacing around them.",
+                        explanation: "\(worst.name) attempts almost no threes in the available data, so their defender can help off. Use them as a screener and roller and let the other four space.",
+                        grade: "Average", tags: ["Non-shooter (by role)"], evidence: ev,
+                        salience: 0.7, confidence: "high")
+                }
                 // Low volume -> untested, not a proven liability (conservative-negative).
                 return Finding(
                     key: "spacing", headline: "Spacing question — \(worst.name) rarely shoots from deep; untested as a floor-spacer.",
@@ -91,9 +109,16 @@ nonisolated enum LineupNarrator {
                     grade: "Average", tags: ["Non-shooter (untested)"], evidence: ev,
                     salience: 0.7, confidence: "low")
             }
+            // Role-aware tactical copy: the dunker spot is big-man positioning; a cold
+            // GUARD gets movement copy instead (missing height also routes to movement
+            // — absence of a height is not a big-man classification).
+            let isInterior = (worst.player.lineupFeatures?.height_in ?? 0) >= 80.0
+            let plan = isInterior
+                ? "Park them in the dunker spot and let the other four space."
+                : "Keep them moving — screen, cut, and relocate rather than spotting up — and let the other four space."
             return Finding(
                 key: "spacing", headline: "Clogged paint — \(worst.name) doesn't stretch it (\(pctOf(worst.value)) from three); defenses sag.",
-                explanation: "\(worst.name) hits just \(pctOf(worst.value)) from deep (\(pctStr(worst.pctile) ?? "low") percentile) on real volume, so their defender helps off. Park them in the dunker spot and let the other four space.",
+                explanation: "\(worst.name) hits just \(pctOf(worst.value)) from deep (\(pctStr(worst.pctile) ?? "low") percentile) on real volume, so their defender helps off. \(plan)",
                 grade: "Poor", tags: ["Clogged paint", "Non-shooter"], evidence: ev,
                 salience: 0.7, confidence: "high")
         }
@@ -108,9 +133,16 @@ nonisolated enum LineupNarrator {
             let lead = hot[0]
             let ev = hot.prefix(3).map { SuggestionEvidence(player: $0.name, stat: "3PT%", value: pctOf($0.value),
                                                             pct: pctStr($0.pctile), sample: nil) }
+            // Formation words route through the SHARED formation predicate: two hot
+            // shooters are a conversion fact, not a five-out license — the labeler's
+            // own five_out viability (0 non-shooters + spacing magnitude) decides.
+            let fiveOutViable = label.formationsViable["five_out"] == true
+            let closing = fiveOutViable
+                ? "play 5-out and drive-and-kick into the corners."
+                : "attack closeouts and drive-and-kick into the corners."
             return Finding(
                 key: "spacing", headline: "Knockdown shooting — \(lead.name) (\(pctOf(lead.value))) leads \(hot.count) live shooters; attack closeouts.",
-                explanation: "\(hot.count) players convert at or above league from three (led by \(lead.name) at \(pctOf(lead.value))). Defenses can't sag — play 5-out and drive-and-kick into the corners.",
+                explanation: "\(hot.count) players convert at or above league from three (led by \(lead.name) at \(pctOf(lead.value))). Defenses can't sag — \(closing)",
                 grade: "Good", tags: ["Knockdown shooters", "Spacing"], evidence: ev,
                 salience: 0.6, confidence: "high")
         }
