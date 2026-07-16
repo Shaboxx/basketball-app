@@ -172,11 +172,12 @@ nonisolated enum LineupNarrator {
             let aVol = a.player.lineupFeatures?.creation_volume
             let bVol = b.player.lineupFeatures?.creation_volume
             let gap = abs((aVol ?? 0) - (bVol ?? 0))
+            let mean = ((aVol ?? 0) + (bVol ?? 0)) / 2
             return Finding(
                 key: "creation",
-                headline: "\(a.name) and \(b.name) both carry a high share of team assists on the floor.",
-                explanation: "\(a.name) (\(round2(aVol))) and \(b.name) (\(round2(bVol))) hold team-assist shares above the league mid-band (\(pinStr(pins?.mu))) while on court, and the gap between them is small (\(pinStr(gap))). Observation from season assist-share data, not a lineup recommendation.",
-                grade: "Average", tags: ["Shared creation"], evidence: ev,
+                headline: "\(a.name) and \(b.name) hold near-even team-assist shares on the floor, averaging above the league mid-band.",
+                explanation: "\(a.name) (\(round2(aVol))) and \(b.name) (\(round2(bVol))) average \(round2(mean)) in on-court team-assist share — above the league mid-band (\(pinStr(pins?.mu))) — with a near-even split: the gap (\(pinStr(gap))) is within the league close-pair pin (\(pinStr(pins?.gapLow))). Observation from season assist-share data, not a lineup recommendation.",
+                grade: "Average", tags: ["Near-even assist shares"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .connector_scorer:
             let aVol = a.player.lineupFeatures?.creation_volume ?? 0
@@ -186,16 +187,18 @@ nonisolated enum LineupNarrator {
                 key: "creation",
                 headline: "\(connector.name) accounts for a much larger share of team assists than \(scorer.name).",
                 explanation: "\(connector.name)'s on-court team-assist share (\(round2(h))) sits well above \(scorer.name)'s (\(round2(l))) — the gap clears the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
-                grade: "Good", tags: ["Creator + scorer"], evidence: ev,
+                grade: "Good", tags: ["Higher assist share"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .collision:
             let aVol = a.player.lineupFeatures?.creation_volume
             let bVol = b.player.lineupFeatures?.creation_volume
+            let gap = abs((aVol ?? 0) - (bVol ?? 0))
+            let mean = ((aVol ?? 0) + (bVol ?? 0)) / 2
             return Finding(
                 key: "creation",
-                headline: "Neither \(a.name) nor \(b.name) carries a high share of team assists on the floor.",
-                explanation: "\(a.name) (\(round2(aVol))) and \(b.name) (\(round2(bVol))) sit below the league mid-band (\(pinStr(pins?.mu))) in on-court team-assist share, with no divergence-clearing gap. Observation from season assist-share data, not a lineup recommendation.",
-                grade: "Average", tags: ["Low assist-share pair"], evidence: ev,
+                headline: "\(a.name) and \(b.name) average below the league mid-band in team-assist share, with no divergence-clearing gap.",
+                explanation: "\(a.name) (\(round2(aVol))) and \(b.name) (\(round2(bVol))) average \(round2(mean)) in on-court team-assist share — below the league mid-band (\(pinStr(pins?.mu))) — and the gap between them (\(pinStr(gap))) does not clear the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
+                grade: "Average", tags: ["Below mid-band (pair average)"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .neutral:
             return nil
