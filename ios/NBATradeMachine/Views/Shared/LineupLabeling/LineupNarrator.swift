@@ -183,10 +183,16 @@ nonisolated enum LineupNarrator {
             let aVol = a.player.lineupFeatures?.creation_volume ?? 0
             let bVol = b.player.lineupFeatures?.creation_volume ?? 0
             let (connector, scorer, h, l) = aVol >= bVol ? (a, b, aVol, bVol) : (b, a, bVol, aVol)
+            // Amendment A2: display the 3dp gap itself — the 2dp member shares alone
+            // can visibly contradict the pin comparison (0.34-0.16=0.18 vs 0.182).
+            // "unrounded" marks the gap as computed pre-rounding (the 2dp members
+            // need not subtract to it); "meets or exceeds" stays true at the
+            // inclusive gap == divergence boundary.
+            let gap = h - l
             return Finding(
                 key: "creation",
                 headline: "\(connector.name) accounts for a much larger share of team assists than \(scorer.name).",
-                explanation: "\(connector.name)'s on-court team-assist share (\(round2(h))) sits well above \(scorer.name)'s (\(round2(l))) — the gap clears the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
+                explanation: "\(connector.name)'s on-court team-assist share (\(round2(h))) sits well above \(scorer.name)'s (\(round2(l))) — the unrounded gap (\(pinStr(gap))) meets or exceeds the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
                 grade: "Good", tags: ["Higher assist share"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .collision:
