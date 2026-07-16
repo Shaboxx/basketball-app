@@ -45,7 +45,8 @@ nonisolated enum LineupNarrator {
         let pctile: Double?
     }
 
-    static func narrate(players: [Player], norms: LeagueNorms, label: LineupLabel) -> LineupSuggestionReport {
+    static func narrate(players: [Player], norms: LeagueNorms, label: LineupLabel,
+                        creationClassificationEnabled: Bool = AppConfig.creationClassificationEnabled) -> LineupSuggestionReport {
         var basic: [SuggestionLine] = []
         var detail: [String: [SuggestionDetail]] = [:]
 
@@ -60,7 +61,7 @@ nonisolated enum LineupNarrator {
         }
 
         add("offense", spacing(players, norms))
-        add("offense", creation(players, norms))
+        add("offense", creation(players, norms, creationClassificationEnabled: creationClassificationEnabled))
         add("defense", rimProtection(players, norms))
         add("defense", switchability(players, norms))
         add("structure", structureLine(players, norms, label))
@@ -116,7 +117,8 @@ nonisolated enum LineupNarrator {
         return nil
     }
 
-    private static func creation(_ players: [Player], _ norms: LeagueNorms) -> Finding? {
+    private static func creation(_ players: [Player], _ norms: LeagueNorms,
+                                  creationClassificationEnabled: Bool = AppConfig.creationClassificationEnabled) -> Finding? {
         let creators = ranked(players, "box_creation", norms).sorted { $0.value > $1.value }
         guard let top = creators.first else { return nil }
         let usgRank = ranked(players, "usg", norms)
@@ -126,7 +128,7 @@ nonisolated enum LineupNarrator {
             let a = leadUsers[0], b = leadUsers[1]
             let ev = [a, b].map { SuggestionEvidence(player: $0.name, stat: "usage", value: pctOf($0.value),
                                                      pct: pctStr($0.pctile), sample: nil) }
-            guard AppConfig.creationClassificationEnabled else {
+            guard creationClassificationEnabled else {
                 return Finding(
                     key: "creation", headline: "Two lead creators — \(a.name) and \(b.name) both need the ball; stagger them.",
                     explanation: "\(a.name) (\(pctOf(a.value)) usage) and \(b.name) (\(pctOf(b.value)) usage) are both high-usage initiators. Stagger their minutes or play one off-ball so the possessions don't collide.",
@@ -169,9 +171,9 @@ nonisolated enum LineupNarrator {
         case .dual_initiator:
             return Finding(
                 key: "creation",
-                headline: "Two primary initiators — \(a.name) and \(b.name) both drive creation; give each their own sets.",
-                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)) vs. initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) both lean toward playmaking on the ball. Design distinct sets for each so their creative loads don't overlap.",
-                grade: "Average", tags: ["Dual initiator", "Ball-dominant"], evidence: ev,
+                headline: "Two primary initiators — \(a.name) and \(b.name) both drive creation; design distinct sets for each.",
+                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)) vs. initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) both tilt toward assists relative to points in their creation profiles. Design distinct set structures for each so their roles are clearly defined.",
+                grade: "Average", tags: ["Dual initiator"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .connector_scorer:
             let (connector, scorer) = (a.player.lineupFeatures?.creation_share ?? 0) >=
@@ -186,7 +188,7 @@ nonisolated enum LineupNarrator {
             return Finding(
                 key: "creation",
                 headline: "Two lead creators — \(a.name) and \(b.name) both need the ball; stagger them.",
-                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)), below initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) are both below the initiator threshold and have similar creation profiles, so possessions may overlap. Stagger their minutes or play one off-ball.",
+                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)), below initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) are both below the initiator threshold with similar usage profiles, so possessions may overlap. Stagger their minutes or play one off-ball.",
                 grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .neutral:
@@ -194,7 +196,7 @@ nonisolated enum LineupNarrator {
                 key: "creation",
                 headline: "Two high-usage players — \(a.name) and \(b.name) both command possessions.",
                 explanation: "\(a.name) (\(pctOf(a.value)) usage) and \(b.name) (\(pctOf(b.value)) usage) are both high-usage. Creation profiles are insufficient or mixed to distinguish roles — monitor possessions and adjust based on shot quality.",
-                grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
+                grade: "Average", tags: [], evidence: ev,
                 salience: 0.55, confidence: "medium")
         }
     }

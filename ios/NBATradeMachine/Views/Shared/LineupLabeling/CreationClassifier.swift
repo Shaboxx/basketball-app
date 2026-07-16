@@ -23,6 +23,7 @@ nonisolated enum CreationClassifier {
         guard let pins else { return .neutral }
         guard pins.version == 1 else { return .neutral }
         guard pins.source == srcA else { return .neutral }
+        guard pins.initiator.isFinite, pins.divergence.isFinite, pins.divergence >= 0 else { return .neutral }
 
         let aAbove = sa >= pins.initiator
         let bAbove = sb >= pins.initiator
