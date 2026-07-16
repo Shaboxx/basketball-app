@@ -15,9 +15,13 @@ struct FeatureNorm: Codable, Equatable, Hashable {
 struct CreationPins: Codable, Equatable {
     let version: Int
     let source: String
-    let initiator: Double
-    let divergence: Double
-    let season: String
+    let season: String?
+    let mu: Double?
+    let gapLow: Double?
+    let divergence: Double?
+    let band: Double?
+    let populationN: Int?
+    let pairsN: Int?
 }
 
 /// League norms for one season (the singleton `leagueNorms/2025-26` doc). Maps

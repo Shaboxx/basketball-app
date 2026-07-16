@@ -76,6 +76,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
     let creation_share: Double?
     let creation_share_src: String?
     let creation_share_season: String?
+    let creation_volume: Double?
 
     init(
         z_ra: Double?, z_paint: Double?, z_mid: Double?, z_lc3: Double?, z_rc3: Double?,
@@ -89,7 +90,8 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         ftr: Double?, ft_pct: Double?, tov_pct: Double?, height_in: Double?, weight_lb: Double?,
         wingspan_in: Double?, primary_pos: String?, position: String?, age: Double?,
         creation_share: Double? = nil, creation_share_src: String? = nil,
-        creation_share_season: String? = nil
+        creation_share_season: String? = nil,
+        creation_volume: Double? = nil
     ) {
         self.z_ra = z_ra; self.z_paint = z_paint; self.z_mid = z_mid
         self.z_lc3 = z_lc3; self.z_rc3 = z_rc3; self.z_atb3 = z_atb3
@@ -107,6 +109,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         self.weight_lb = weight_lb; self.wingspan_in = wingspan_in; self.primary_pos = primary_pos
         self.position = position; self.age = age; self.creation_share = creation_share
         self.creation_share_src = creation_share_src; self.creation_share_season = creation_share_season
+        self.creation_volume = creation_volume
     }
 
     /// Raw feature lookup by name — the engine reads features by string key
@@ -158,6 +161,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         case "wingspan_in": return wingspan_in
         case "age": return age
         case "creation_share": return creation_share
+        case "creation_volume": return creation_volume
         default: return nil
         }
     }

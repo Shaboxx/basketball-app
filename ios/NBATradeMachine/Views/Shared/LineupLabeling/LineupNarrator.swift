@@ -135,9 +135,9 @@ nonisolated enum LineupNarrator {
                     grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
                     salience: 0.55, confidence: "high")
             }
-            let shareA = CreationClassifier.Share(value: a.player.lineupFeatures?.creation_share,
+            let shareA = CreationClassifier.Share(value: a.player.lineupFeatures?.creation_volume,
                                                   src: a.player.lineupFeatures?.creation_share_src)
-            let shareB = CreationClassifier.Share(value: b.player.lineupFeatures?.creation_share,
+            let shareB = CreationClassifier.Share(value: b.player.lineupFeatures?.creation_volume,
                                                   src: b.player.lineupFeatures?.creation_share_src)
             let cls = CreationClassifier.classify(shareA, shareB, pins: norms.creationPins)
             return creationFinding(a: a, b: b, ev: ev, cls: cls, pins: norms.creationPins)
@@ -166,38 +166,39 @@ nonisolated enum LineupNarrator {
     }
 
     private static func creationFinding(a: Ranked, b: Ranked, ev: [SuggestionEvidence],
-                                        cls: CreationClassifier.Class, pins: CreationPins?) -> Finding {
+                                        cls: CreationClassifier.Class, pins: CreationPins?) -> Finding? {
         switch cls {
         case .dual_initiator:
+            let aVol = a.player.lineupFeatures?.creation_volume
+            let bVol = b.player.lineupFeatures?.creation_volume
+            let gap = abs((aVol ?? 0) - (bVol ?? 0))
             return Finding(
                 key: "creation",
-                headline: "Two primary initiators — \(a.name) and \(b.name) both drive creation; design distinct sets for each.",
-                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)) vs. initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) both tilt toward assists relative to points in their creation profiles. Design distinct set structures for each so their roles are clearly defined.",
-                grade: "Average", tags: ["Dual initiator"], evidence: ev,
+                headline: "\(a.name) and \(b.name) both carry a high share of team assists on the floor.",
+                explanation: "\(a.name) (\(round2(aVol))) and \(b.name) (\(round2(bVol))) hold team-assist shares above the league mid-band (\(pinStr(pins?.mu))) while on court, and the gap between them is small (\(pinStr(gap))). Observation from season assist-share data, not a lineup recommendation.",
+                grade: "Average", tags: ["Shared creation"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .connector_scorer:
-            let (connector, scorer) = (a.player.lineupFeatures?.creation_share ?? 0) >=
-                                      (b.player.lineupFeatures?.creation_share ?? 0) ? (a, b) : (b, a)
+            let aVol = a.player.lineupFeatures?.creation_volume ?? 0
+            let bVol = b.player.lineupFeatures?.creation_volume ?? 0
+            let (connector, scorer, h, l) = aVol >= bVol ? (a, b, aVol, bVol) : (b, a, bVol, aVol)
             return Finding(
                 key: "creation",
-                headline: "Complementary roles — \(connector.name) leans playmaking, \(scorer.name) leans scoring; let them play to their strengths.",
-                explanation: "\(connector.name) has a higher creation share (\(round2(connector.player.lineupFeatures?.creation_share))) — tilted toward assists-as-value — while \(scorer.name) (\(round2(scorer.player.lineupFeatures?.creation_share))) tilts toward points. The gap exceeds the divergence pin (\(pinStr(pins?.divergence))). Run the offense through \(connector.name)'s facilitation and \(scorer.name)'s scoring.",
-                grade: "Good", tags: ["Connector + Scorer", "Complementary roles"], evidence: ev,
+                headline: "\(connector.name) accounts for a much larger share of team assists than \(scorer.name).",
+                explanation: "\(connector.name)'s on-court team-assist share (\(round2(h))) sits well above \(scorer.name)'s (\(round2(l))) -- the gap clears the league divergence pin (\(pinStr(pins?.divergence))). Observation from season assist-share data, not a lineup recommendation.",
+                grade: "Good", tags: ["Creator + scorer"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .collision:
+            let aVol = a.player.lineupFeatures?.creation_volume
+            let bVol = b.player.lineupFeatures?.creation_volume
             return Finding(
                 key: "creation",
-                headline: "Two lead creators — \(a.name) and \(b.name) both need the ball; stagger them.",
-                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)), below initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) are both below the initiator threshold with similar usage profiles, so possessions may overlap. Stagger their minutes or play one off-ball.",
-                grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
+                headline: "Neither \(a.name) nor \(b.name) carries a high share of team assists on the floor.",
+                explanation: "\(a.name) (\(round2(aVol))) and \(b.name) (\(round2(bVol))) sit below the league mid-band (\(pinStr(pins?.mu))) in on-court team-assist share, with no divergence-clearing gap. Observation from season assist-share data, not a lineup recommendation.",
+                grade: "Average", tags: ["Low assist-share pair"], evidence: ev,
                 salience: 0.55, confidence: "high")
         case .neutral:
-            return Finding(
-                key: "creation",
-                headline: "Two high-usage players — \(a.name) and \(b.name) both command possessions.",
-                explanation: "\(a.name) (\(pctOf(a.value)) usage) and \(b.name) (\(pctOf(b.value)) usage) are both high-usage. Creation profiles are insufficient or mixed to distinguish roles — monitor possessions and adjust based on shot quality.",
-                grade: "Average", tags: [], evidence: ev,
-                salience: 0.55, confidence: "medium")
+            return nil
         }
     }
 
