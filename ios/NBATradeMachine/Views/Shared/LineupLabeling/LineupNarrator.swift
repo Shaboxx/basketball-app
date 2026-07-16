@@ -126,11 +126,19 @@ nonisolated enum LineupNarrator {
             let a = leadUsers[0], b = leadUsers[1]
             let ev = [a, b].map { SuggestionEvidence(player: $0.name, stat: "usage", value: pctOf($0.value),
                                                      pct: pctStr($0.pctile), sample: nil) }
-            return Finding(
-                key: "creation", headline: "Two lead creators — \(a.name) and \(b.name) both need the ball; stagger them.",
-                explanation: "\(a.name) (\(pctOf(a.value)) usage) and \(b.name) (\(pctOf(b.value)) usage) are both high-usage initiators. Stagger their minutes or play one off-ball so the possessions don't collide.",
-                grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
-                salience: 0.55, confidence: "high")
+            guard AppConfig.creationClassificationEnabled else {
+                return Finding(
+                    key: "creation", headline: "Two lead creators — \(a.name) and \(b.name) both need the ball; stagger them.",
+                    explanation: "\(a.name) (\(pctOf(a.value)) usage) and \(b.name) (\(pctOf(b.value)) usage) are both high-usage initiators. Stagger their minutes or play one off-ball so the possessions don't collide.",
+                    grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
+                    salience: 0.55, confidence: "high")
+            }
+            let shareA = CreationClassifier.Share(value: a.player.lineupFeatures?.creation_share,
+                                                  src: a.player.lineupFeatures?.creation_share_src)
+            let shareB = CreationClassifier.Share(value: b.player.lineupFeatures?.creation_share,
+                                                  src: b.player.lineupFeatures?.creation_share_src)
+            let cls = CreationClassifier.classify(shareA, shareB, pins: norms.creationPins)
+            return creationFinding(a: a, b: b, ev: ev, cls: cls, pins: norms.creationPins)
         }
         if (top.pctile ?? 0) >= highUsagePctile {
             let ev = [SuggestionEvidence(player: top.name, stat: "box creation", value: round1(top.value),
@@ -153,6 +161,42 @@ nonisolated enum LineupNarrator {
             explanation: "Nobody on this five is a high-usage creator, so half-court offense can bog down. Generate advantages with off-ball screens and quick swing passes rather than isolation.",
             grade: "Average", tags: ["No initiator"], evidence: [],
             salience: 0.45, confidence: "medium")
+    }
+
+    private static func creationFinding(a: Ranked, b: Ranked, ev: [SuggestionEvidence],
+                                        cls: CreationClassifier.Class, pins: CreationPins?) -> Finding {
+        switch cls {
+        case .dual_initiator:
+            return Finding(
+                key: "creation",
+                headline: "Two primary initiators — \(a.name) and \(b.name) both drive creation; give each their own sets.",
+                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)) vs. initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) both lean toward playmaking on the ball. Design distinct sets for each so their creative loads don't overlap.",
+                grade: "Average", tags: ["Dual initiator", "Ball-dominant"], evidence: ev,
+                salience: 0.55, confidence: "high")
+        case .connector_scorer:
+            let (connector, scorer) = (a.player.lineupFeatures?.creation_share ?? 0) >=
+                                      (b.player.lineupFeatures?.creation_share ?? 0) ? (a, b) : (b, a)
+            return Finding(
+                key: "creation",
+                headline: "Complementary roles — \(connector.name) leans playmaking, \(scorer.name) leans scoring; let them play to their strengths.",
+                explanation: "\(connector.name) has a higher creation share (\(round2(connector.player.lineupFeatures?.creation_share))) — tilted toward assists-as-value — while \(scorer.name) (\(round2(scorer.player.lineupFeatures?.creation_share))) tilts toward points. The gap exceeds the divergence pin (\(pinStr(pins?.divergence))). Run the offense through \(connector.name)'s facilitation and \(scorer.name)'s scoring.",
+                grade: "Good", tags: ["Connector + Scorer", "Complementary roles"], evidence: ev,
+                salience: 0.55, confidence: "high")
+        case .collision:
+            return Finding(
+                key: "creation",
+                headline: "Two lead creators — \(a.name) and \(b.name) both need the ball; stagger them.",
+                explanation: "\(a.name) (creation share \(round2(a.player.lineupFeatures?.creation_share)), below initiator pin \(pinStr(pins?.initiator))) and \(b.name) (\(round2(b.player.lineupFeatures?.creation_share))) are both below the initiator threshold and have similar creation profiles, so possessions may overlap. Stagger their minutes or play one off-ball.",
+                grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
+                salience: 0.55, confidence: "high")
+        case .neutral:
+            return Finding(
+                key: "creation",
+                headline: "Two high-usage players — \(a.name) and \(b.name) both command possessions.",
+                explanation: "\(a.name) (\(pctOf(a.value)) usage) and \(b.name) (\(pctOf(b.value)) usage) are both high-usage. Creation profiles are insufficient or mixed to distinguish roles — monitor possessions and adjust based on shot quality.",
+                grade: "Average", tags: ["Ball-dominant", "Creation overlap"], evidence: ev,
+                salience: 0.55, confidence: "medium")
+        }
     }
 
     private static func rimProtection(_ players: [Player], _ norms: LeagueNorms) -> Finding? {
@@ -272,6 +316,18 @@ nonisolated enum LineupNarrator {
     }
 
     private static func round1(_ v: Double) -> String { String(format: "%.1f", v) }
+
+    /// Two-decimal display for a creation_share Double?; falls back to "—".
+    private static func round2(_ v: Double?) -> String {
+        guard let v else { return "—" }
+        return String(format: "%.2f", v)
+    }
+
+    /// Three-decimal display for a pin Double?; e.g. "0.576". Falls back to "—".
+    private static func pinStr(_ v: Double?) -> String {
+        guard let v else { return "—" }
+        return String(format: "%.3f", v)
+    }
 
     private static func mean(_ xs: [Double]) -> Double? {
         xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)

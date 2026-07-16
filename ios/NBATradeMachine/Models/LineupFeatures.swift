@@ -72,6 +72,43 @@ struct LineupFeatures: Codable, Equatable, Hashable {
     let position: String?
     let age: Double?
 
+    // Bridge creation-share (nba_api USG breakdown, 2025-26).
+    let creation_share: Double?
+    let creation_share_src: String?
+    let creation_share_season: String?
+
+    init(
+        z_ra: Double?, z_paint: Double?, z_mid: Double?, z_lc3: Double?, z_rc3: Double?,
+        z_atb3: Double?, z_corner3: Double?, fga_total: Double?, ts: Double?, efg: Double?,
+        three_par: Double?, fg3_pct: Double?, sq: Double?, load: Double?, box_creation: Double?,
+        passer_rtg: Double?, usg: Double?, ctov_pct: Double?, orb_pct: Double?, drb_pct: Double?,
+        reb_pct: Double?, versatility: Double?, blk_pct: Double?, stl_pct: Double?, rpf: Double?,
+        portability: Double?, pace: Double?, deflections_per36: Double?, contested_per36: Double?,
+        rim_dfga_per36: Double?, rim_opp_fg_pct: Double?, rim_def_delta: Double?,
+        perim_opp_fg3_pct: Double?, perim_def_delta: Double?, pnr_roll_def_pctl: Double?,
+        ftr: Double?, ft_pct: Double?, tov_pct: Double?, height_in: Double?, weight_lb: Double?,
+        wingspan_in: Double?, primary_pos: String?, position: String?, age: Double?,
+        creation_share: Double? = nil, creation_share_src: String? = nil,
+        creation_share_season: String? = nil
+    ) {
+        self.z_ra = z_ra; self.z_paint = z_paint; self.z_mid = z_mid
+        self.z_lc3 = z_lc3; self.z_rc3 = z_rc3; self.z_atb3 = z_atb3
+        self.z_corner3 = z_corner3; self.fga_total = fga_total; self.ts = ts; self.efg = efg
+        self.three_par = three_par; self.fg3_pct = fg3_pct; self.sq = sq; self.load = load
+        self.box_creation = box_creation; self.passer_rtg = passer_rtg; self.usg = usg
+        self.ctov_pct = ctov_pct; self.orb_pct = orb_pct; self.drb_pct = drb_pct; self.reb_pct = reb_pct
+        self.versatility = versatility; self.blk_pct = blk_pct; self.stl_pct = stl_pct
+        self.rpf = rpf; self.portability = portability; self.pace = pace
+        self.deflections_per36 = deflections_per36; self.contested_per36 = contested_per36
+        self.rim_dfga_per36 = rim_dfga_per36; self.rim_opp_fg_pct = rim_opp_fg_pct
+        self.rim_def_delta = rim_def_delta; self.perim_opp_fg3_pct = perim_opp_fg3_pct
+        self.perim_def_delta = perim_def_delta; self.pnr_roll_def_pctl = pnr_roll_def_pctl
+        self.ftr = ftr; self.ft_pct = ft_pct; self.tov_pct = tov_pct; self.height_in = height_in
+        self.weight_lb = weight_lb; self.wingspan_in = wingspan_in; self.primary_pos = primary_pos
+        self.position = position; self.age = age; self.creation_share = creation_share
+        self.creation_share_src = creation_share_src; self.creation_share_season = creation_share_season
+    }
+
     /// Raw feature lookup by name — the engine reads features by string key
     /// (mirroring the Python `feat(player, name)`), so a single dispatch keeps
     /// it in lock-step with the norms map. Returns nil for any unknown or
@@ -120,6 +157,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         case "weight_lb": return weight_lb
         case "wingspan_in": return wingspan_in
         case "age": return age
+        case "creation_share": return creation_share
         default: return nil
         }
     }

@@ -9,6 +9,17 @@ struct FeatureNorm: Codable, Equatable, Hashable {
     let sorted: [Double]?
 }
 
+/// Calibrated thresholds for creation-pair classification (spec 1.2).
+/// Decoded from the `creationPins` top-level key of the leagueNorms/2025-26 doc.
+/// Missing or partial -> the whole struct is nil (fail-closed).
+struct CreationPins: Codable, Equatable {
+    let version: Int
+    let source: String
+    let initiator: Double
+    let divergence: Double
+    let season: String
+}
+
 /// League norms for one season (the singleton `leagueNorms/2025-26` doc). Maps
 /// each feature name to its `FeatureNorm`. Provides the two primitives
 /// (`percentile`, `zscore`) and the per-player lookups (`percentile`,
@@ -16,9 +27,11 @@ struct FeatureNorm: Codable, Equatable, Hashable {
 /// math/conventions) from scripts/lineup_labeling/norms.py.
 struct LeagueNorms: Equatable {
     let byFeature: [String: FeatureNorm]
+    let creationPins: CreationPins?
 
-    init(byFeature: [String: FeatureNorm]) {
+    init(byFeature: [String: FeatureNorm], creationPins: CreationPins? = nil) {
         self.byFeature = byFeature
+        self.creationPins = creationPins
     }
 
     // MARK: - Primitives (mirror norms.py)
@@ -76,14 +89,15 @@ extension LeagueNorms: Codable {
         // Try the wrapped {season, features} shape first.
         if let keyed = try? decoder.container(keyedBy: WrapperKeys.self),
            let features = try? keyed.decode([String: FeatureNorm].self, forKey: .features) {
-            self.byFeature = features
+            let pins = try? keyed.decode(CreationPins.self, forKey: .creationPins)
+            self.init(byFeature: features, creationPins: pins)
             return
         }
         // Fall back to a flat {feature: {mean,std,sorted}} map, ignoring any
         // scalar metadata keys (e.g. "season") that aren't a FeatureNorm.
         let flat = try decoder.singleValueContainer()
         if let raw = try? flat.decode([String: FeatureNorm].self) {
-            self.byFeature = raw
+            self.init(byFeature: raw, creationPins: nil)
         } else {
             let dyn = try decoder.container(keyedBy: DynamicKey.self)
             var out: [String: FeatureNorm] = [:]
@@ -92,17 +106,18 @@ extension LeagueNorms: Codable {
                     out[key.stringValue] = fn
                 }
             }
-            self.byFeature = out
+            self.init(byFeature: out, creationPins: nil)
         }
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: WrapperKeys.self)
         try c.encode(byFeature, forKey: .features)
+        try c.encodeIfPresent(creationPins, forKey: .creationPins)
     }
 
     private enum WrapperKeys: String, CodingKey {
-        case season, features
+        case season, features, creationPins
     }
 
     private struct DynamicKey: CodingKey {
