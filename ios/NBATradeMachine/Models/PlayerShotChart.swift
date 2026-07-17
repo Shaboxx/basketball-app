@@ -53,7 +53,11 @@ nonisolated struct PlayerShotChart: Codable, Equatable {
         let season: String
         let fga, fgm, droppedNoCoord: Int
         let asOf: String?
-        enum CodingKeys: String, CodingKey { case season, fga, fgm, droppedNoCoord, asOf }
+        let seasonFallback: Bool     // true when `season` is a prior season (walk-back chart)
+        let currentSeason: String?   // the pipeline's current season; set alongside seasonFallback
+        enum CodingKeys: String, CodingKey {
+            case season, fga, fgm, droppedNoCoord, asOf, seasonFallback, currentSeason
+        }
         init(from d: Decoder) throws {
             let c = try d.container(keyedBy: CodingKeys.self)
             season = try c.decodeIfPresent(String.self, forKey: .season) ?? ""
@@ -61,10 +65,14 @@ nonisolated struct PlayerShotChart: Codable, Equatable {
             fgm = try c.decodeIfPresent(Int.self, forKey: .fgm) ?? 0
             droppedNoCoord = try c.decodeIfPresent(Int.self, forKey: .droppedNoCoord) ?? 0
             asOf = try c.decodeIfPresent(String.self, forKey: .asOf)
+            seasonFallback = try c.decodeIfPresent(Bool.self, forKey: .seasonFallback) ?? false
+            currentSeason = try c.decodeIfPresent(String.self, forKey: .currentSeason)
         }
-        init(season: String, fga: Int, fgm: Int, droppedNoCoord: Int, asOf: String?) {
+        init(season: String, fga: Int, fgm: Int, droppedNoCoord: Int, asOf: String?,
+             seasonFallback: Bool = false, currentSeason: String? = nil) {
             self.season = season; self.fga = fga; self.fgm = fgm
             self.droppedNoCoord = droppedNoCoord; self.asOf = asOf
+            self.seasonFallback = seasonFallback; self.currentSeason = currentSeason
         }
         static let zero = ShotMeta(season: "", fga: 0, fgm: 0, droppedNoCoord: 0, asOf: nil)
     }

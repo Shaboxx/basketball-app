@@ -152,7 +152,15 @@ struct MatchupCourtSection: View {
                                   heatBlend: heatBlend,
                                   heatGrid: active,                       // parent swaps mode-1 / EP
                                   onTap: { zoneLabelMode = zoneLabelMode.next })
-                    caption("\(chart.meta.fga) FGA · season \(chart.meta.season)")
+                    HStack(spacing: 6) {
+                        caption("\(chart.meta.fga) FGA")
+                        if !chart.meta.season.isEmpty { seasonBadge(chart.meta) }
+                    }
+                    if let note = Self.seasonFallbackCaption(seasonFallback: chart.meta.seasonFallback,
+                                                             season: chart.meta.season,
+                                                             currentSeason: chart.meta.currentSeason) {
+                        caption(note)
+                    }
                     HStack(spacing: 8) {
                         Text("Dot").font(.caption2).foregroundStyle(.secondary)
                         Slider(value: $heatBlend, in: 0...1).disabled(unavailable)
@@ -216,6 +224,18 @@ struct MatchupCourtSection: View {
                 .padding(.top, 2)
             }
         }
+    }
+
+    // Season badge on every chart: the season the plotted data actually comes from
+    // (meta.season, never hardcoded). Orange tint marks a walk-back (prior-season) chart.
+    private func seasonBadge(_ meta: PlayerShotChart.ShotMeta) -> some View {
+        Text(Self.shortSeason(meta.season))
+            .font(.caption2).bold().monospacedDigit()
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background((meta.seasonFallback ? Color.orange : Color.accentColor)
+                            .opacity(meta.seasonFallback ? 0.25 : 0.12),
+                        in: Capsule())
+            .foregroundStyle(meta.seasonFallback ? .primary : .secondary)
     }
 
     private func confidenceChip(_ c: ShotProfileInsight.Confidence) -> some View {
@@ -352,6 +372,23 @@ struct MatchupCourtSection: View {
     nonisolated static func unavailableCaption(pointsEmpty: Bool, metaFGA: Int, leagueMissing: Bool) -> String {
         if leagueMissing && !pointsEmpty && metaFGA != 0 { return unavailableNoLeague }
         return unavailableNoShots
+    }
+
+    /// Compact badge label: "2024-25" -> "24-25". Anything not in the expected
+    /// "20YY-YY" shape passes through unchanged (never fabricates a year).
+    nonisolated static func shortSeason(_ season: String) -> String {
+        season.count == 7 && season.hasPrefix("20") ? String(season.dropFirst(2)) : season
+    }
+
+    /// One-line disclosure under a walk-back chart; nil for a current-season chart.
+    /// Both season strings come from the doc's meta — never hardcoded.
+    nonisolated static func seasonFallbackCaption(seasonFallback: Bool, season: String,
+                                                  currentSeason: String?) -> String? {
+        guard seasonFallback, !season.isEmpty else { return nil }
+        if let cur = currentSeason, !cur.isEmpty {
+            return "No \(cur) shots yet — showing the \(season) season."
+        }
+        return "Showing the \(season) season."
     }
 
     /// The one-line disclosure shown ONLY when some shots lacked a location; nil otherwise.
