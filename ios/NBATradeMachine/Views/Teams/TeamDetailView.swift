@@ -10,10 +10,14 @@ struct TeamDetailView: View {
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var fantasyStore: FantasyValueStore
     @State private var showingDepthChart = false
+    @State private var showingStartersBreakdown = false
 
     var body: some View {
         let roster = teamsVM.players(for: team.teamId)
         let total = teamsVM.totalSalary(for: team.teamId)
+        // Shared by the Starting Lineup section AND the depth-chart sheet, so the
+        // panel's five + score always match the chart's Starters row exactly.
+        let columns = TeamDepthChartBuilder.columns(for: roster, cap: 5)
 
         List {
             Section {
@@ -29,7 +33,7 @@ struct TeamDetailView: View {
             }
 
             rosterValueSection(roster: roster)
-            teamLeadersSection(roster: roster)
+            startingLineupSection(columns: columns)
 
             Section("Roster (\(roster.count))") {
                 ForEach(roster) { p in
@@ -84,7 +88,7 @@ struct TeamDetailView: View {
         .sheet(isPresented: $showingDepthChart) {
             NavigationStack {
                 DepthChartLayersView(
-                    columns: TeamDepthChartBuilder.columns(for: roster, cap: 5),
+                    columns: columns,
                     league: teamsVM.leagueLayerStats,   // cached; rebuilt only on data reload
                     norms: normsVM.norms,
                     roster: roster
@@ -107,6 +111,35 @@ struct TeamDetailView: View {
             // The sheet strips the environment; re-inject so both the depth-chart's own
             // player pushes AND DepthChartLayersView's breakdown sub-sheet can present
             // PlayerDetailView (which reads all four).
+            .environmentObject(teamsVM)
+            .environmentObject(normsVM)
+            .environmentObject(appSettings)
+            .environmentObject(fantasyStore)
+        }
+        .sheet(isPresented: $showingStartersBreakdown) {
+            let five = starters(columns)
+            NavigationStack {
+                LineupBreakdownView(
+                    players: five,
+                    norms: normsVM.norms,
+                    impacts: five.map { $0.thetaV2?.l2Signed },
+                    tier: "starters"
+                )
+                .navigationDestination(for: Player.self) { p in
+                    PlayerDetailView(player: p)
+                        .environmentObject(teamsVM)
+                        .environmentObject(normsVM)
+                        .environmentObject(appSettings)
+                        .environmentObject(fantasyStore)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showingStartersBreakdown = false }
+                    }
+                }
+            }
+            // The sheet strips the environment; re-inject so the breakdown's
+            // player pushes can present PlayerDetailView (which reads all four).
             .environmentObject(teamsVM)
             .environmentObject(normsVM)
             .environmentObject(appSettings)
@@ -150,55 +183,82 @@ struct TeamDetailView: View {
     }
 
 
-    /// Top-3 OFF and top-3 DEF on the roster by display value. Lets you eyeball
-    /// who actually carries each side of the ball. Section auto-hides when
-    /// fewer than 2 rated players exist on the roster — under 2 it's not a
-    /// "leaderboard," it's just one name.
+    /// The depth chart's Starters row surfaced on the team page: the five
+    /// starting-layer players (PG-SG-SF-PF-C) plus that layer's summed
+    /// TOT/OFF/DEF lineup score — the same numbers as the Starters Lineup cell
+    /// in the depth chart, colored against the league's starters-layer
+    /// distribution. Tapping opens the generated LineupBreakdownView for the
+    /// five. Auto-hides when no starter cell fills (no canonical-position
+    /// players on the roster yet).
     @ViewBuilder
-    private func teamLeadersSection(roster: [Player]) -> some View {
-        let rated = roster.filter { $0.dispOff != nil || $0.dispDef != nil }
-        if rated.count >= 2 {
-            let topOff = rated
-                .compactMap { p -> (Player, Double)? in
-                    guard let z = p.dispOff else { return nil }
-                    return (p, z)
+    private func startingLineupSection(columns: [String: ColumnResult]) -> some View {
+        let five = starters(columns)
+        if !five.isEmpty {
+            let sums = TeamDepthChartBuilder.layerTotals(columns, layer: 0)
+            let stats = teamsVM.leagueLayerStats.totalByLayer[0]
+            Section("Starting Lineup") {
+                Button {
+                    showingStartersBreakdown = true
+                } label: {
+                    VStack(spacing: 10) {
+                        HStack(alignment: .top, spacing: 4) {
+                            ForEach(five) { p in
+                                VStack(spacing: 2) {
+                                    HeadshotImage(slug: p.slug, size: 36)
+                                    Text(p.name)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .foregroundStyle(.primary)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                        HStack(spacing: 12) {
+                            scoreCell("TOT", sums.tot, stats?.tot)
+                            scoreCell("OFF", sums.off, stats?.off)
+                            scoreCell("DEF", sums.def, stats?.def)
+                            Spacer()
+                            Text("Lineup Analysis")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                            Image(systemName: "chevron.right.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .padding(.vertical, 4)
                 }
-                .sorted { $0.1 > $1.1 }
-                .prefix(3)
-            let topDef = rated
-                .compactMap { p -> (Player, Double)? in
-                    guard let z = p.dispDef else { return nil }
-                    return (p, z)
-                }
-                .sorted { $0.1 > $1.1 }
-                .prefix(3)
-            Section("Team Leaders") {
-                leaderColumn(title: "OFF", items: Array(topOff))
-                leaderColumn(title: "DEF", items: Array(topDef))
+                .buttonStyle(.plain)
             }
         }
     }
 
-    @ViewBuilder
-    private func leaderColumn(title: String, items: [(Player, Double)]) -> some View {
-        if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                ForEach(items, id: \.0.id) { (player, value) in
-                    NavigationLink(value: player) {
-                        HStack {
-                            Text(player.name).font(.subheadline)
-                            Spacer()
-                            Text(Player.fmtVal(value))
-                                .font(.caption.monospacedDigit().bold())
-                                .foregroundStyle(value >= 0 ? .green : .red)
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+    /// First-layer (Starters) player of each filled position column, in
+    /// PG-SG-SF-PF-C order. Mirrors DepthChartLayersView.layerPlayers(0).
+    private func starters(_ columns: [String: ColumnResult]) -> [Player] {
+        TeamDepthChartBuilder.positions.compactMap { pos -> Player? in
+            guard let shown = columns[pos]?.shown, !shown.isEmpty else { return nil }
+            return shown[0].player
+        }
+    }
+
+    private func scoreCell(_ label: String, _ value: Double,
+                           _ stats: TeamDepthChartBuilder.MetricStats?) -> some View {
+        HStack(spacing: 3) {
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(Player.fmtVal(value))
+                .font(.caption.monospacedDigit().bold())
+                .foregroundStyle(scoreColor(TeamDepthChartBuilder.highlight(
+                    value, stats ?? TeamDepthChartBuilder.MetricStats(mean: 0, std: 0))))
+        }
+    }
+
+    private func scoreColor(_ h: TeamDepthChartBuilder.Highlight) -> Color {
+        switch h {
+        case .above: return .green
+        case .below: return .red
+        case .neutral: return .primary
         }
     }
 
