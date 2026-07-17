@@ -96,6 +96,16 @@ nonisolated enum LineupNorms {
         }
     }
 
+    /// How many players have z-score(`name`) >= `tau`. Abstainers (nil z) do not count.
+    /// Mirrors norms.count_z_atleast used by tags.switchable (calibration 2026-07-17).
+    nonisolated static func countZAtLeast(_ players: [LineupFeatures?], _ name: String,
+                              _ tau: Double, _ norms: LeagueNorms) -> Int {
+        players.reduce(0) { acc, pl in
+            if let zv = z(pl, name, norms), zv >= tau { return acc + 1 }
+            return acc
+        }
+    }
+
     /// Highest percentile for `name` across the lineup (nil if all abstain).
     nonisolated static func maxPctl(_ players: [LineupFeatures?], _ name: String,
                         _ norms: LeagueNorms) -> Double? {

@@ -17,7 +17,7 @@ import Foundation
 nonisolated enum LineupNarrator {
 
     // Percent-scale features (fg3_pct/blk_pct/usg are 0..100); box_creation/pace raw.
-    private static let coldPctile = 0.40        // 3P% below this percentile -> a spacing tax
+    private static let coldPctile = 0.25     // C=0.25 per A1-NARRATOR (lineup-tag-calibration-2026-07-17.md)
     private static let hotPctile = 0.60         // 3P% at/above -> a live shooter
     private static let lowVolumeThreePar = 20.0  // 3PA share (% of FGA) below this -> "untested", not "can't shoot"
     private static let anchorBlkPctile = 0.65   // rim-anchor cutoff (block rate)
@@ -81,51 +81,63 @@ nonisolated enum LineupNarrator {
         let shooters = ranked(players, "fg3_pct", norms)
         guard !shooters.isEmpty else { return nil }
 
-        // A spacing tax (a cold shooter) is the most actionable finding — surface it first.
-        let cold = shooters.filter { ($0.pctile ?? 1) < coldPctile }
-        if let worst = cold.min(by: { $0.value < $1.value }) {
-            let threeParVal = worst.player.lineupFeatures?.three_par   // nil = unmeasured
-            let threePar = threeParVal ?? 0
-            let ev = [SuggestionEvidence(player: worst.name, stat: "3PT%", value: pctOf(worst.value),
-                                         pct: pctStr(worst.pctile), sample: nil)]
-            if threePar < lowVolumeThreePar {
-                // An OBSERVED near-zero attempt rate with a valid bottom-decile clip is a
-                // tendency read ("doesn't take threes"), scoped to the available data —
-                // not a career claim, and not an "untested" hedge that reads comic on an
-                // established non-shooting big. A MISSING attempt rate stays "untested":
-                // missingness is never converted into negative scouting evidence.
-                if let tp = threeParVal, tp <= nearZeroThreePar,
-                   let pct = worst.pctile, pct < 0.10 {
-                    return Finding(
-                        key: "spacing", headline: "Non-shooter — \(worst.name) doesn't take threes; plan the spacing around them.",
-                        explanation: "\(worst.name) attempts almost no threes in the available data, so their defender can help off. Use them as a screener and roller and let the other four space.",
-                        grade: "Average", tags: ["Non-shooter (by role)"], evidence: ev,
-                        salience: 0.7, confidence: "high")
-                }
-                // Low volume -> untested, not a proven liability (conservative-negative).
-                return Finding(
-                    key: "spacing", headline: "Spacing question — \(worst.name) rarely shoots from deep; untested as a floor-spacer.",
-                    explanation: "\(worst.name) takes very few threes, so their \(pctOf(worst.value)) clip is a small sample — treat the spacing as unproven, not bad. Give them room to prove it or run them as a screener/cutter.",
-                    grade: "Average", tags: ["Non-shooter (untested)"], evidence: ev,
-                    salience: 0.7, confidence: "low")
-            }
-            // Role-aware tactical copy: the dunker spot is big-man positioning; a cold
-            // GUARD gets movement copy instead (missing height also routes to movement
-            // — absence of a height is not a big-man classification).
-            let isInterior = (worst.player.lineupFeatures?.height_in ?? 0) >= 80.0
-            let plan = isInterior
-                ? "Park them in the dunker spot and let the other four space."
-                : "Keep them moving — screen, cut, and relocate rather than spotting up — and let the other four space."
+        // Cold-shooter gate: three_par feature PRESENT (non-nil) AND fg3_pct pctl < coldPctile.
+        let cold = shooters.filter { r in
+            guard r.player.lineupFeatures?.three_par != nil else { return false }
+            return (r.pctile ?? 1) < coldPctile
+        }
+
+        // Suppression 1: spread_high_spacing tag fired -> suppress lineup headline (player note OK).
+        // Suppression 2: formationsViable["five_out"] == true -> suppress headline.
+        // Missing formations data imposes no constraint.
+        let spreadFired = label.tags.contains { $0.key == "spread_high_spacing" }
+        let fiveOutViable = label.formationsViable["five_out"] == true
+        let headlineSuppressed = spreadFired || fiveOutViable
+
+        if cold.count >= 2 && !headlineSuppressed {
+            let named = cold.prefix(2).sorted { ($0.pctile ?? 1) < ($1.pctile ?? 1) }
+            let nameStr = named.map { "\($0.name) (\(pctOf($0.value)))" }.joined(separator: ", ")
+            let ev = named.map { SuggestionEvidence(player: $0.name, stat: "3PT%", value: pctOf($0.value),
+                                                     pct: pctStr($0.pctile), sample: nil) }
             return Finding(
-                key: "spacing", headline: "Clogged paint — \(worst.name) doesn't stretch it (\(pctOf(worst.value)) from three); defenses sag.",
-                explanation: "\(worst.name) hits just \(pctOf(worst.value)) from deep (\(pctStr(worst.pctile) ?? "low") percentile) on real volume, so their defender helps off. \(plan)",
+                key: "spacing",
+                headline: "Clogged paint \u{2014} \(nameStr) don\u{2019}t stretch the floor; defenses sag.",
+                explanation: "Two or more players convert below the \(Int(coldPctile * 100))th percentile from three on real three-point volume. Their defenders can sag into the paint. Park them in the dunker spot or stagger their minutes with better spacers.",
                 grade: "Poor", tags: ["Clogged paint", "Non-shooter"], evidence: ev,
                 salience: 0.7, confidence: "high")
         }
 
-        // No cold shooter -> if multiple are live ON VOLUME, call out the spacing
-        // strength. The volume gate keeps a 2-for-4 fluke from being named the lead
-        // shooter (symmetry with the cold-shooter gate).
+        if cold.count == 1, let solo = cold.first {
+            // Player-level note: exactly one cold shooter; no lineup-level headline.
+            let threeParVal = solo.player.lineupFeatures?.three_par ?? 0
+            let ev = [SuggestionEvidence(player: solo.name, stat: "3PT%", value: pctOf(solo.value),
+                                         pct: pctStr(solo.pctile), sample: nil)]
+            if threeParVal < lowVolumeThreePar {
+                if let tp = solo.player.lineupFeatures?.three_par, tp <= nearZeroThreePar,
+                   let pct = solo.pctile, pct < 0.10 {
+                    return Finding(
+                        key: "spacing",
+                        headline: "Non-shooter \u{2014} \(solo.name) doesn\u{2019}t take threes; plan the spacing around them.",
+                        explanation: "\(solo.name) attempts almost no threes in the available data, so their defender can help off. Use them as a screener and roller and let the other four space.",
+                        grade: "Average", tags: ["Non-shooter (by role)"], evidence: ev,
+                        salience: 0.7, confidence: "high")
+                }
+                return Finding(
+                    key: "spacing",
+                    headline: "Spacing question \u{2014} \(solo.name) rarely shoots from deep; untested as a floor-spacer.",
+                    explanation: "\(solo.name) takes very few threes, so their \(pctOf(solo.value)) clip is a small sample \u{2014} treat the spacing as unproven, not bad.",
+                    grade: "Average", tags: ["Non-shooter (untested)"], evidence: ev,
+                    salience: 0.7, confidence: "low")
+            }
+            return Finding(
+                key: "spacing",
+                headline: "Defenses can help off \(solo.name) (\(pctStr(solo.pctile) ?? "low") percentile from three).",
+                explanation: "\(solo.name) hits \(pctOf(solo.value)) from deep on real volume (\(pctStr(solo.pctile) ?? "low") percentile). One cold shooter doesn\u{2019}t clog the paint on its own, but scheming around them improves the shot diet.",
+                grade: "Average", tags: ["Cold shooter (solo)"], evidence: ev,
+                salience: 0.65, confidence: "high")
+        }
+
+        // No cold shooter -> look for spacing strength.
         let hot = shooters
             .filter { ($0.pctile ?? 0) >= hotPctile && ($0.player.lineupFeatures?.three_par ?? 0) >= lowVolumeThreePar }
             .sorted { $0.value > $1.value }
@@ -133,16 +145,12 @@ nonisolated enum LineupNarrator {
             let lead = hot[0]
             let ev = hot.prefix(3).map { SuggestionEvidence(player: $0.name, stat: "3PT%", value: pctOf($0.value),
                                                             pct: pctStr($0.pctile), sample: nil) }
-            // Formation words route through the SHARED formation predicate: two hot
-            // shooters are a conversion fact, not a five-out license — the labeler's
-            // own five_out viability (0 non-shooters + spacing magnitude) decides.
-            let fiveOutViable = label.formationsViable["five_out"] == true
             let closing = fiveOutViable
                 ? "play 5-out and drive-and-kick into the corners."
                 : "attack closeouts and drive-and-kick into the corners."
             return Finding(
-                key: "spacing", headline: "Knockdown shooting — \(lead.name) (\(pctOf(lead.value))) leads \(hot.count) live shooters; attack closeouts.",
-                explanation: "\(hot.count) players convert at or above league from three (led by \(lead.name) at \(pctOf(lead.value))). Defenses can't sag — \(closing)",
+                key: "spacing", headline: "Knockdown shooting \u{2014} \(lead.name) (\(pctOf(lead.value))) leads \(hot.count) live shooters; attack closeouts.",
+                explanation: "\(hot.count) players convert at or above league from three (led by \(lead.name) at \(pctOf(lead.value))). Defenses can\u{2019}t sag \u{2014} \(closing)",
                 grade: "Good", tags: ["Knockdown shooters", "Spacing"], evidence: ev,
                 salience: 0.6, confidence: "high")
         }
@@ -291,8 +299,13 @@ nonisolated enum LineupNarrator {
     private static func switchability(_ players: [Player], _ norms: LeagueNorms) -> Finding? {
         let vers = ranked(players, "versatility", norms)
         guard vers.count >= 3 else { return nil }
-        let switchable = vers.filter { ($0.pctile ?? 0) >= switchPctile }.sorted { $0.value > $1.value }
-        if switchable.count >= 3 {
+        // Unified bar: count(versatility z >= SWITCH_TAU) >= 4 per A1-SWITCH.
+        let switchZMin = 0.10   // matches LineupTags.SWITCH_TAU (lineup-tag-calibration-2026-07-17.md)
+        let switchable = vers.filter { r in
+            guard let v = r.player.lineupFeatures?.versatility else { return false }
+            return (norms.zscore(v, feature: "versatility") ?? -999) >= switchZMin
+        }.sorted { $0.value > $1.value }
+        if switchable.count >= 4 {
             let names = switchable.prefix(2).map(\.name).joined(separator: " and ")
             // "switch 1-4" presupposes 4 observed versatile defenders; avoid that
             // over-claim when fewer than all five were measured.

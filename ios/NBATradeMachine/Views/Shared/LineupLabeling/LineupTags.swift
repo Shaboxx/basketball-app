@@ -16,12 +16,15 @@ nonisolated struct LineupTag: Equatable, Hashable, Identifiable {
 /// enables and strains; the engine consumes both predicates and registry.
 nonisolated enum LineupTags {
 
-    // MARK: - Tunable thresholds (mirror tags.py)
+    // MARK: - Tunable thresholds (mirror tags.py, calibrated 2026-07-17)
+    // Provenance: lineup-tag-calibration-2026-07-17.md (+Amendment 1 where noted)
 
-    // Offensive
-    nonisolated static let SPACING_CORNER_PCTL = 0.50
-    nonisolated static let SPACING_MIN_SPACERS = 4
-    nonisolated static let SPACING_SHOOTQ_PCTL = 0.40
+    // spread_high_spacing -- per-player dual gate (A1-SPREAD): rare-flag band 5-15%
+    // K=3, R=0.50, Q=0.50 selected in band (fire=7.8%, 30/30 LOO folds)
+    nonisolated static let SPACING_K = 3
+    nonisolated static let SPACING_R_PCTL = 0.50       // z_corner3 role percentile per player
+    nonisolated static let SPACING_Q_PCTL = 0.50       // corner3_fg_pct quality percentile per player
+
     nonisolated static let CLOG_THREEPAR_PCTL = 0.20
     nonisolated static let CLOG_MIN_CLOGGERS = 2
     nonisolated static let CLOG_SQ_PCTL = 0.45
@@ -30,47 +33,53 @@ nonisolated enum LineupTags {
     nonisolated static let RIM_PRESSURE_PCTL = 0.60
     nonisolated static let INTERIOR_POST_PCTL = 0.60
     nonisolated static let INTERIOR_TS_PCTL = 0.50
+
+    // midrange_tough -- SQ window narrowed [0.35, 0.65]; M=0.62 accepted (A1-MIDRANGE)
     nonisolated static let MIDRANGE_PCTL = 0.62
-    nonisolated static let MIDRANGE_SQ_MIN = 0.30
-    nonisolated static let MIDRANGE_SQ_MAX = 0.70
+    nonisolated static let MIDRANGE_SQ_MIN = 0.35
+    nonisolated static let MIDRANGE_SQ_MAX = 0.65
+
     nonisolated static let PLAYMAKING_CREATION_PCTL = 0.58
     nonisolated static let PLAYMAKING_PASSER_PCTL = 0.55
     nonisolated static let PLAYMAKING_MAX_HHI = 0.30
-    nonisolated static let BALL_DOM_LOAD_PCTL = 0.85
-    nonisolated static let BALL_DOM_MIN_HHI = 0.28
-    nonisolated static let BALL_DOM_SECOND_CREATION_PCTL = 0.45
 
-    // Defensive (REAL tracking features as of the Phase-1 de-proxy)
-    nonisolated static let SWITCH_VERSATILITY_PCTL = 0.50
+    // ball_dominant -- creator-GAP form (L=0.80, H=0.26, G=0.25, fire=8.3%)
+    nonisolated static let BALL_DOM_LOAD_PCTL = 0.80
+    nonisolated static let BALL_DOM_MIN_HHI = 0.26
+    nonisolated static let BALL_DOM_CREATION_GAP = 0.25
+
+    // switchable -- z-score form; TAU=0.10 accepted per A1-SWITCH
+    // residual: tag bar (z>=0.10) is looser than synergy pair bar (z>=0.25)
+    nonisolated static let SWITCH_TAU = 0.10
     nonisolated static let SWITCH_MIN_SWITCHERS = 4
 
-    // rim_protection: >=1 player with real rim volume AND below-expected rim FG%.
-    nonisolated static let RIM_VOL_PCTL = 0.60       // rim_dfga_per36 percentile (gate on volume)
-    nonisolated static let RIM_DELTA_PCTL = 0.80     // rim_def_delta percentile (defends better than expected)
+    // rim_protection -- (A1-RIM): V=0.85, D=0.90; fixed rim_opp_fg_pct corroboration
+    nonisolated static let RIM_VOL_PCTL = 0.85
+    nonisolated static let RIM_DELTA_PCTL = 0.90
+    nonisolated static let RIM_OPP_PCTL = 0.50
 
-    // poa_d: >=2 real perimeter defenders / deflectors who don't foul.
-    nonisolated static let POA_PERIM_PCTL = 0.75     // perim_def_delta percentile
-    nonisolated static let POA_DEFLECT_PCTL = 0.78   // deflections_per36 percentile (OR with perim D)
-    nonisolated static let POA_RPF_PCTL = 0.50       // but they don't foul a lot (low rpf)
+    nonisolated static let POA_PERIM_PCTL = 0.75
+    nonisolated static let POA_DEFLECT_PCTL = 0.78
+    nonisolated static let POA_RPF_PCTL = 0.50
     nonisolated static let POA_MIN_DEFENDERS = 2
-
-    // disruptive: high lineup-mean deflections.
     nonisolated static let DISRUPTIVE_DEFLECT_PCTL = 0.62
-
-    // drop_bound: tall interior defender who CANNOT switch (+ P&R-roll D when known).
     nonisolated static let DROP_HEIGHT_IN = 82.0
-    nonisolated static let DROP_RIM_DELTA_PCTL = 0.55   // real interior defense (rim_def_delta)
-    nonisolated static let DROP_VERSATILITY_PCTL = 0.40 // ...and NOT switchable (low versatility)
-    nonisolated static let DROP_PNR_PCTL = 0.55         // Synergy P&R-roll defense (null -> not required)
+    nonisolated static let DROP_RIM_DELTA_PCTL = 0.55
+    nonisolated static let DROP_VERSATILITY_PCTL = 0.40
+    nonisolated static let DROP_PNR_PCTL = 0.55
 
-    // Possession / physical
     nonisolated static let GLASS_PCTL = 0.58
-    nonisolated static let FOUL_DRAW_FTR_PCTL = 0.60
-    nonisolated static let YOUTH_AGE_MAX = 24.0
-    nonisolated static let VETERAN_AGE_MIN = 31.0
-    nonisolated static let UP_TEMPO_PACE_PCTL = 0.62    // lineup-mean pace percentile clearly above league
+    nonisolated static let FOUL_DRAW_FTR_PCTL = 0.62
 
-    // Liability
+    nonisolated static let YOUTH_AGE_MAX = 24.0
+
+    // veteran -- count-based (A_CORE=29, A_ELDER=33, fire=6.7%); label "Veteran Core"
+    nonisolated static let VETERAN_A_CORE = 29.0
+    nonisolated static let VETERAN_A_ELDER = 33.0
+
+    // up_tempo -- T=0.65 calibrated 2026-07-17
+    nonisolated static let UP_TEMPO_PACE_PCTL = 0.65
+
     nonisolated static let HACK_FT_PCT = 65.0
     nonisolated static let HACK_MIN_HACKERS = 2
     nonisolated static let TURNOVER_TOV_PCTL = 0.60
@@ -92,10 +101,17 @@ nonisolated enum LineupTags {
     // MARK: - Offensive tags
 
     nonisolated static func spreadHighSpacing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
-        let spacers = N.countAbove(players, "z_corner3", SPACING_CORNER_PCTL, norms)
-        let shootOk = ge(N.meanPctl(players, "fg3_pct", norms), SPACING_SHOOTQ_PCTL)
-            || ge(N.meanPctl(players, "sq", norms), SPACING_SHOOTQ_PCTL)
-        return spacers >= SPACING_MIN_SPACERS && shootOk
+        // Per-player dual gate: z_corner3 pctl >= R AND corner3_fg_pct pctl >= Q; count >= K
+        // Calibrated 2026-07-17 (A1-SPREAD): K=3, R=0.50, Q=0.50
+        var count = 0
+        for p in players {
+            let z3 = N.pctl(p, "z_corner3", norms)
+            let c3fg = N.pctl(p, "corner3_fg_pct", norms)
+            if let z3v = z3, let c3v = c3fg, z3v >= SPACING_R_PCTL, c3v >= SPACING_Q_PCTL {
+                count += 1
+            }
+        }
+        return count >= SPACING_K
     }
 
     nonisolated static func cloggedLowSpacing(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
@@ -140,12 +156,14 @@ nonisolated enum LineupTags {
     }
 
     nonisolated static func ballDominant(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
-        let topLoad = ge(N.maxPctl(players, "load", norms), BALL_DOM_LOAD_PCTL)
+        // Creator-GAP form: both top and second box_creation pctl must be present.
+        // Either missing -> false. Calibrated 2026-07-17.
+        guard ge(N.maxPctl(players, "load", norms), BALL_DOM_LOAD_PCTL) else { return false }
         let hhi = N.loadHHI(players.map { N.feat($0, "load") })
-        let concentrated = hhi != nil && hhi! >= BALL_DOM_MIN_HHI
-        let second = N.secondPctl(players, "box_creation", norms)
-        let noSecond = second == nil || second! <= BALL_DOM_SECOND_CREATION_PCTL
-        return topLoad && concentrated && noSecond
+        guard let hhiv = hhi, hhiv >= BALL_DOM_MIN_HHI else { return false }
+        guard let top = N.maxPctl(players, "box_creation", norms),
+              let second = N.secondPctl(players, "box_creation", norms) else { return false }
+        return (top - second) >= BALL_DOM_CREATION_GAP
     }
 
     // MARK: - Defensive tags
@@ -155,9 +173,14 @@ nonisolated enum LineupTags {
     /// rim_def_delta (normal − allowed, positive = defends the rim better than
     /// expected). Mirrors tags.rim_protection.
     nonisolated static func rimProtection(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
+        // Exists player with rim_dfga_per36 pctl >= V AND rim_def_delta pctl >= D
+        // AND rim_opp_fg_pct pctl <= 0.50 (lower opp FG% = better; missing -> cannot qualify).
+        // Calibrated 2026-07-17 (A1-RIM): V=0.85, D=0.90.
         for p in players {
-            if ge(N.pctl(p, "rim_dfga_per36", norms), RIM_VOL_PCTL)
-                && ge(N.pctl(p, "rim_def_delta", norms), RIM_DELTA_PCTL) {
+            guard let v = N.pctl(p, "rim_dfga_per36", norms),
+                  let d = N.pctl(p, "rim_def_delta", norms),
+                  let o = N.pctl(p, "rim_opp_fg_pct", norms) else { continue }
+            if v >= RIM_VOL_PCTL && d >= RIM_DELTA_PCTL && o <= RIM_OPP_PCTL {
                 return true
             }
         }
@@ -165,7 +188,9 @@ nonisolated enum LineupTags {
     }
 
     nonisolated static func switchable(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
-        N.countAbove(players, "versatility", SWITCH_VERSATILITY_PCTL, norms) >= SWITCH_MIN_SWITCHERS
+        // count >= 4 players with versatility z-score >= SWITCH_TAU (nil abstains).
+        // TAU=0.10 accepted per A1-SWITCH.
+        N.countZAtLeast(players, "versatility", SWITCH_TAU, norms) >= SWITCH_MIN_SWITCHERS
     }
 
     /// >=2 REAL point-of-attack defenders: contain on the perimeter OR get a lot
@@ -234,8 +259,11 @@ nonisolated enum LineupTags {
     }
 
     nonisolated static func veteran(_ players: [LineupFeatures?], _ norms: LeagueNorms) -> Bool {
-        guard let age = N.avgAge(players) else { return false }
-        return age > VETERAN_AGE_MIN
+        // count >= 3 players aged >= A_CORE AND >= 1 aged >= A_ELDER.
+        // Players missing age do not count. Calibrated 2026-07-17.
+        let core = N.countRawAtLeast(players, "age", VETERAN_A_CORE)
+        let elder = N.countRawAtLeast(players, "age", VETERAN_A_ELDER)
+        return core >= 3 && elder >= 1
     }
 
     // MARK: - Liability tags
@@ -376,7 +404,7 @@ nonisolated enum LineupTags {
             strains: ["late-game execution"]),
         "veteran": TagMeta(
             fn: veteran, category: "possession",
-            label: "Veteran Lineup",
+            label: "Veteran Core",
             enables: ["late-game execution", "poise"],
             strains: ["transition athleticism"]),
         "hack_risk": TagMeta(

@@ -261,7 +261,7 @@ struct LineupBreakdownView: View {
     }
     private func capabilityLabel(_ k: String) -> String {
         ["spacing": "Spacing", "pnr_fit": "PnR Fit", "creation_redundancy": "Creation Overlap",
-         "switchable": "Switchability", "rim_protection": "Rim Protection"][k] ?? k
+         "switchable": "Switch Pairs", "rim_protection": "Rim Protection"][k] ?? k
     }
 
     // MARK: - Tags grouped by category

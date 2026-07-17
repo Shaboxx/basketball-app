@@ -24,6 +24,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
     let efg: Double?
     let three_par: Double?
     let fg3_pct: Double?
+    let corner3_fg_pct: Double?
     let sq: Double?
 
     // Creation / load.
@@ -81,7 +82,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
     init(
         z_ra: Double?, z_paint: Double?, z_mid: Double?, z_lc3: Double?, z_rc3: Double?,
         z_atb3: Double?, z_corner3: Double?, fga_total: Double?, ts: Double?, efg: Double?,
-        three_par: Double?, fg3_pct: Double?, sq: Double?, load: Double?, box_creation: Double?,
+        three_par: Double?, fg3_pct: Double?, corner3_fg_pct: Double? = nil, sq: Double?, load: Double?, box_creation: Double?,
         passer_rtg: Double?, usg: Double?, ctov_pct: Double?, orb_pct: Double?, drb_pct: Double?,
         reb_pct: Double?, versatility: Double?, blk_pct: Double?, stl_pct: Double?, rpf: Double?,
         portability: Double?, pace: Double?, deflections_per36: Double?, contested_per36: Double?,
@@ -96,7 +97,8 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         self.z_ra = z_ra; self.z_paint = z_paint; self.z_mid = z_mid
         self.z_lc3 = z_lc3; self.z_rc3 = z_rc3; self.z_atb3 = z_atb3
         self.z_corner3 = z_corner3; self.fga_total = fga_total; self.ts = ts; self.efg = efg
-        self.three_par = three_par; self.fg3_pct = fg3_pct; self.sq = sq; self.load = load
+        self.three_par = three_par; self.fg3_pct = fg3_pct; self.corner3_fg_pct = corner3_fg_pct
+        self.sq = sq; self.load = load
         self.box_creation = box_creation; self.passer_rtg = passer_rtg; self.usg = usg
         self.ctov_pct = ctov_pct; self.orb_pct = orb_pct; self.drb_pct = drb_pct; self.reb_pct = reb_pct
         self.versatility = versatility; self.blk_pct = blk_pct; self.stl_pct = stl_pct
@@ -130,6 +132,7 @@ struct LineupFeatures: Codable, Equatable, Hashable {
         case "efg": return efg
         case "three_par": return three_par
         case "fg3_pct": return fg3_pct
+        case "corner3_fg_pct": return corner3_fg_pct
         case "sq": return sq
         case "load": return load
         case "box_creation": return box_creation
