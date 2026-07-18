@@ -66,7 +66,13 @@ struct PlayerGameLogView: View {
                     description: Text("Game-by-game data is not available for this player yet.")
                 )
             } else {
-                ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    // Fixed column-label header — always on screen, labeling the stat
+                    // columns. The per-season average rows pin directly beneath it.
+                    columnLabelHeader
+                    Divider()
+
+                    ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                             ForEach(Array(seasons.enumerated()), id: \.element.season) { idx, seasonDoc in
@@ -95,6 +101,7 @@ struct PlayerGameLogView: View {
                         }
                     }
                 }
+                }
             }
         }
         .navigationTitle("Game Log")
@@ -103,6 +110,45 @@ struct PlayerGameLogView: View {
         // `else` branch's ScrollView — that branch only mounts after `seasons` is
         // non-empty, which created a deadlock that pinned the page on "No game logs".
         .task { await loadAllSeasons() }
+    }
+
+    // MARK: - Fixed column-label header
+
+    /// Advanced mode in the drill-down shows a 4-stat set (matching `advancedHeaderCells`
+    /// and `advancedGameCells`), not the full `StatColumns.advancedColumns`.
+    private static let advancedColumnTitles = ["TS%", "eFG%", "GmSc", "+/-"]
+
+    /// A non-scrolling row of column titles pinned above the scroll view so the columns
+    /// are always labeled. Mirrors the season-header / game-row column layout exactly
+    /// (same first-column and GP widths, same per-stat `colWidth`, same order) so each
+    /// label sits directly over its values.
+    private var columnLabelHeader: some View {
+        HStack(spacing: 0) {
+            Text("Season")
+                .frame(width: 64, alignment: .leading)
+                .padding(.leading, 8)
+            Text("GP")
+                .frame(width: 36, alignment: .trailing)
+                .padding(.horizontal, 2)
+            if mode == .box {
+                ForEach(StatColumns.boxColumns, id: \.title) { col in
+                    Text(col.title)
+                        .frame(width: colWidth(col.title), alignment: .trailing)
+                        .padding(.horizontal, 2)
+                }
+            } else {
+                ForEach(Self.advancedColumnTitles, id: \.self) { title in
+                    Text(title)
+                        .frame(width: colWidth(title), alignment: .trailing)
+                        .padding(.horizontal, 2)
+                }
+            }
+            Spacer()
+        }
+        .font(.caption2.bold())
+        .foregroundStyle(.secondary)
+        .padding(.vertical, 6)
+        .background(Color(.secondarySystemBackground))
     }
 
     // MARK: - Season header (sticky)
