@@ -33,6 +33,7 @@ nonisolated enum StatComparison {
     static func percentDelta(_ dir: StatDirection, this: Double?, prev: Double?) -> StatCell {
         guard let t = this else { return .dash }
         guard let p = prev else { return .neutral }
+        guard t.isFinite, p.isFinite else { return .dash }
         let betterUp = dir == .higherBetter
         if abs(p) < zeroBaselineEps {
             if abs(t) < zeroBaselineEps { return .neutral }
@@ -48,6 +49,10 @@ nonisolated enum StatComparison {
 
     static func seasonCell(_ dir: StatDirection, this: Double?, prev: Double?,
                            thisComparable: Bool, prevComparable: Bool) -> StatCell {
+        // Absence of a value wins over the injury flag: you cannot color a cell
+        // that has no number. Dash for no current value, neutral for no prior.
+        guard this != nil else { return .dash }
+        guard prev != nil else { return .neutral }
         if !thisComparable || !prevComparable { return .injury }
         return percentDelta(dir, this: this, prev: prev)
     }
@@ -90,21 +95,25 @@ nonisolated enum StatComparison {
     struct AdvHeader { let ts, efg, gmsc: Double? }
 
     static func advancedSeasonHeader(_ games: [any BoxLine]) -> AdvHeader {
-        func sum(_ kp: (any BoxLine) -> Int?) -> Double? {
-            let vs = games.compactMap(kp)
-            return vs.isEmpty ? nil : Double(vs.reduce(0, +))
-        }
-        let pts = sum { $0.pts }, fga = sum { $0.fga }, fta = sum { $0.fta }
-        let fgm = sum { $0.fgm }, fg3m = sum { $0.fg3m }
+        // Complete-case aggregation: a ratio must sum numerator and denominator
+        // over the SAME games, else a game missing pts but carrying fga would
+        // inflate the denominator only and corrupt the aggregate.
+        let tsGames = games.filter { $0.pts != nil && $0.fga != nil && $0.fta != nil }
         let ts: Double? = {
-            guard let p = pts, let a = fga, let t = fta, (a + 0.44 * t) > 0
-            else { return nil }
-            return p / (2 * (a + 0.44 * t))
+            guard !tsGames.isEmpty else { return nil }
+            let p = tsGames.reduce(0.0) { $0 + Double($1.pts!) }
+            let a = tsGames.reduce(0.0) { $0 + Double($1.fga!) }
+            let t = tsGames.reduce(0.0) { $0 + Double($1.fta!) }
+            let denom = 2 * (a + 0.44 * t)
+            return denom > 0 ? p / denom : nil
         }()
+        let efgGames = games.filter { $0.fgm != nil && $0.fg3m != nil && $0.fga != nil }
         let efg: Double? = {
-            guard let m = fgm, let t3 = fg3m, let a = fga, a > 0
-            else { return nil }
-            return (m + 0.5 * t3) / a
+            guard !efgGames.isEmpty else { return nil }
+            let m = efgGames.reduce(0.0) { $0 + Double($1.fgm!) }
+            let t3 = efgGames.reduce(0.0) { $0 + Double($1.fg3m!) }
+            let a = efgGames.reduce(0.0) { $0 + Double($1.fga!) }
+            return a > 0 ? (m + 0.5 * t3) / a : nil
         }()
         let scores = games.compactMap { gameScore($0) }
         let gmsc = scores.isEmpty ? nil : scores.reduce(0, +) / Double(scores.count)
