@@ -85,8 +85,9 @@ struct PlayerGameLogView: View {
                         }
                     }
                     .task {
-                        await loadAllSeasons()
-                        // Scroll to the requested season after data loads
+                        // Data is loaded by the root `.task` on the VStack below. This
+                        // ScrollView only mounts once `seasons` is non-empty, so it's the
+                        // right place to jump to the requested season.
                         if seasons.contains(where: { $0.season == initialSeason }) {
                             withAnimation {
                                 proxy.scrollTo(initialSeason, anchor: .top)
@@ -98,6 +99,10 @@ struct PlayerGameLogView: View {
         }
         .navigationTitle("Game Log")
         .navigationBarTitleDisplayMode(.inline)
+        // The data-loading task MUST live on the always-present root, not inside the
+        // `else` branch's ScrollView — that branch only mounts after `seasons` is
+        // non-empty, which created a deadlock that pinned the page on "No game logs".
+        .task { await loadAllSeasons() }
     }
 
     // MARK: - Season header (sticky)
@@ -243,7 +248,9 @@ struct PlayerGameLogView: View {
     // MARK: - Data loading
 
     private func loadAllSeasons() async {
-        guard !isLoading else { return }
+        // Load-once: skip if already loading or already populated (so a re-appear doesn't
+        // re-fetch), but retry if a previous attempt failed and left `seasons` empty.
+        guard !isLoading, seasons.isEmpty else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -251,6 +258,7 @@ struct PlayerGameLogView: View {
         do {
             allSeasons = try await FirestoreService.shared.listPlayerGameLogSeasons(slug: slug)
         } catch {
+            print("[PlayerGameLogView] listPlayerGameLogSeasons(\(slug)) failed: \(error)")
             return
         }
 
