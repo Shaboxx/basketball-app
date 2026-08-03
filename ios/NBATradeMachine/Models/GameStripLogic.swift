@@ -84,7 +84,9 @@ nonisolated enum GameStripLogic {
         return etTimeFmt.string(from: d) + " ET"
     }
 
-    private static let isoParser: ISO8601DateFormatter = {
+    // Configured once, only read (parse/format) afterward, and invoked solely on
+    // the main actor (store/view/tests). Safe to share; opt out of Sendable checking.
+    nonisolated(unsafe) private static let isoParser: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]     // handles "yyyy-MM-dd'T'HH:mm:ssZ"
         return f
