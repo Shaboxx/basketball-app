@@ -13,6 +13,7 @@ struct NewsListView: View {
     @EnvironmentObject private var appSettings: AppSettings
     @EnvironmentObject private var fantasyStore: FantasyValueStore
     @EnvironmentObject private var footerState: FooterState
+    @EnvironmentObject private var gameStripStore: GameStripStore
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLoad = false
     @Binding var path: NavigationPath   // owned by ContentView so depth survives tab switches (NAV-19)
@@ -33,6 +34,12 @@ struct NewsListView: View {
                     )
                 } else {
                     List {
+                        Section {
+                            NewsGameStripView(store: gameStripStore)
+                                .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        }
                         if !vm.hotPlayers.isEmpty {
                             Section {
                                 hotPlayersStrip
@@ -77,10 +84,12 @@ struct NewsListView: View {
         .task {
             await vm.load()
             didLoad = true
+            await gameStripStore.load()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active && didLoad {
                 Task { await vm.reload() }
+                Task { await gameStripStore.load() }
             }
         }
     }
