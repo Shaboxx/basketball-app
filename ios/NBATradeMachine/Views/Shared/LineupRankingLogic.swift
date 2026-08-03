@@ -4,7 +4,7 @@ import Foundation
 /// PG->C, and the Σ dispTotal ranking metric. `Hashable` so it can drive a
 /// `navigationDestination(for: LineupRankRow.self)` (synthesized — Team and
 /// Player are both Hashable).
-nonisolated struct LineupRankRow: Identifiable, Hashable {
+struct LineupRankRow: Identifiable, Hashable {
     let rank: Int
     let team: Team
     let starters: [Player]   // ordered PG, SG, SF, PF, C
@@ -13,14 +13,17 @@ nonisolated struct LineupRankRow: Identifiable, Hashable {
 }
 
 /// Ranked rows plus the teams dropped for incomplete data (surfaced honestly).
-nonisolated struct LineupRankingResult: Equatable {
+struct LineupRankingResult: Equatable {
     let ranked: [LineupRankRow]
     let excluded: [Team]     // sorted by fullName asc
 }
 
-/// Pure, testable ranking of every team's depth-chart layer-0 starting five by
-/// Σ `dispTotal`. No SwiftUI; runs off in-memory rosters.
-nonisolated enum LineupRankingLogic {
+/// Testable ranking of every team's depth-chart layer-0 starting five by
+/// Σ `dispTotal`. No SwiftUI, but `@MainActor` because its inputs
+/// (`TeamDepthChartBuilder.columns`/`.positions`, `Player.dispTotal`) are
+/// MainActor-isolated in this MainActor-default target; the ranking already
+/// runs on the main actor (View body / in-memory roster).
+@MainActor enum LineupRankingLogic {
 
     /// Layer-0 starter per position (PG->C) from the depth chart, or nil for a
     /// position with no filled layer-0 cell.
