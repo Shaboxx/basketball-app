@@ -25,7 +25,7 @@ struct GameSetupView: View {
 
     var body: some View {
         Form {
-            Section("Participants") {
+            Section {
                 Stepper("Players: \(humans)", value: $humans,
                         in: caps.minHumans...caps.effectiveCap)
                     .onChange(of: humans) { _, _ in reclamp() }
@@ -34,6 +34,8 @@ struct GameSetupView: View {
                             in: 0...max(0, caps.effectiveCap - humans))
                         .onChange(of: cpus) { _, _ in reclamp() }
                 }
+            } header: {
+                Text("Participants")
             } footer: {
                 Text("Up to \(caps.effectiveCap) total (players + CPUs).")
             }
