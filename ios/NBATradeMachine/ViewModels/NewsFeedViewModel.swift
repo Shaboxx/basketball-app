@@ -6,6 +6,11 @@ import Combine
 /// ranking. A failed reload keeps existing items, surfacing an error only when empty.
 @MainActor
 final class NewsFeedViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var items: [NewsItem] = []
     @Published var hotPlayers: [HotPlayer] = []
     @Published var sort: NewsSort = .top

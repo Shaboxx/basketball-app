@@ -8,6 +8,11 @@ import Combine
 /// renders nothing), not an error.
 @MainActor
 final class GameStripStore: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published private(set) var daysWithGames: [String] = []   // sorted ascending
     @Published private(set) var selectedDate: String?
     @Published private(set) var phase: FantasyPhase = .idle

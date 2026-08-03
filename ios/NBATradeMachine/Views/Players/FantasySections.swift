@@ -189,3 +189,67 @@ struct FantasyBoxSection: View {
     }
 }
 
+// MARK: - Seasonal Outlook (SP-4 Rdur: talent × durability projected season total)
+
+/// Draft/keeper value: the projected full-season fantasy-points total, decomposed into its two
+/// validated drivers — talent (last-season fantasy pts/game) and durability (expected games =
+/// EB games-played rate × 82). Reads the isolated `fantasySeasonalValues` collection via
+/// `FantasyValueStore` (the ubiquitous store); empty-safe until that collection is populated.
+struct FantasySeasonalValueSection: View {
+    let player: Player
+    @EnvironmentObject var fantasyStore: FantasyValueStore   // seasonal data rides on this ubiquitous store
+    @State private var isExpanded: Bool = true
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            content
+        } label: {
+            Text("Seasonal Outlook").font(.headline)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        let fsv = fantasyStore.seasonalValue(for: player.slug)
+        switch FantasyEmptyState.decide(phase: fantasyStore.seasonalPhase, hasData: fsv != nil) {
+        case .loading:
+            HStack(spacing: 8) { ProgressView(); Text("Loading seasonal outlook…").foregroundStyle(.secondary) }
+                .padding(.top, 6)
+        case .collectionEmpty, .playerMissing:
+            noDataRow
+        case .data:
+            if let fsv { loaded(fsv) } else { noDataRow }   // .data ⇒ non-nil
+        }
+    }
+
+    @ViewBuilder
+    private func loaded(_ fsv: FantasySeasonalValue) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            row("Projected fantasy pts (season)", fsv.projectedSeasonTotalText)
+            row("Talent (fantasy pts/game)", String(format: "%.1f", fsv.talentFpPerGame))
+            row("Expected games", "\(fsv.expectedGamesText) / 82")
+            row("Durability", fsv.durabilityBand)
+            Text("Season fantasy points = talent × games played. Ranges are the typical (middle-50%) "
+                 + "outcome; games played is the big driver of the spread. Draft value; season \(fsv.season).")
+                .font(.caption2).foregroundStyle(.secondary).padding(.top, 2)
+        }
+    }
+
+    private func row(_ key: String, _ value: String) -> some View {
+        HStack {
+            Text(key).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).monospacedDigit().bold()
+        }
+        .padding(.top, 6)
+    }
+
+    private var noDataRow: some View {
+        Text("Seasonal outlook not available yet.")
+            .foregroundStyle(.secondary)
+            .padding(.top, 6)
+    }
+}
+

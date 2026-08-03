@@ -3,6 +3,11 @@ import Combine
 
 @MainActor
 final class LeagueRulesViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var rules: LeagueRules?
 
     private let service: FirestoreReading

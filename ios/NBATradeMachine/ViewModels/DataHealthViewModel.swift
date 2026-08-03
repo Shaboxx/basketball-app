@@ -5,6 +5,11 @@ import Combine
 /// mirroring the server-side watchdog's cadences (scripts/data_health.py).
 @MainActor
 final class DataHealthViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var health: DataHealth?
     /// True when the last fetch threw (e.g. permission denied / offline) so we
     /// have no freshness data to judge from. Distinct from "the data is old" —

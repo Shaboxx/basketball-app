@@ -8,6 +8,11 @@ import Combine
 /// swap through `FantasyTeamStore` before stamping the trade executed.
 @MainActor
 final class FantasyTradeStore: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     private static let tradesKey = "fantasyTrades"
     private let defaults: UserDefaults
 

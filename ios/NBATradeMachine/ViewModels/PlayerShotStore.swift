@@ -7,6 +7,11 @@ import Combine
 /// fetch leaves the seed in place (section 8.3). In-memory per session (no disk cache, F4).
 @MainActor
 final class PlayerShotStore: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     static let shared = PlayerShotStore()
     @Published private(set) var charts: [String: PlayerShotChart] = [:]
     @Published private(set) var phase: FantasyPhase = .idle

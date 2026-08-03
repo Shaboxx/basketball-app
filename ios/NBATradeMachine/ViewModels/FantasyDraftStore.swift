@@ -6,6 +6,11 @@ import Combine
 /// persist-per-mutation); every transition routes through `FantasyDraftEngine`.
 @MainActor
 final class FantasyDraftStore: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     private static let draftsKey = "fantasyDrafts"
     private let defaults: UserDefaults
 

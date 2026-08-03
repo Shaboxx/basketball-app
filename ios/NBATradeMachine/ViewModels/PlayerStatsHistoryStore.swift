@@ -10,6 +10,11 @@ import Combine
 @MainActor
 final class PlayerStatsHistoryStore: ObservableObject {
 
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
+
     // MARK: - Published state
 
     /// Keyed by canonical slug. `nil` means the doc was missing or failed to decode.

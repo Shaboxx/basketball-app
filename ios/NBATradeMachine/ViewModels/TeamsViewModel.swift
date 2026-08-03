@@ -3,6 +3,11 @@ import Combine
 
 @MainActor
 final class TeamsViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     /// How the Teams grid is sorted (persisted by the view via @AppStorage).
     enum SortMode: String, CaseIterable, Identifiable {
         case name, totalSigmaDesc, offSigmaDesc, defSigmaDesc
@@ -10,7 +15,7 @@ final class TeamsViewModel: ObservableObject {
         var label: String {
             switch self {
             case .name:           return "Name"
-            case .totalSigmaDesc: return "Overall"
+            case .totalSigmaDesc: return "SwishScore"
             case .offSigmaDesc:   return "Offense"
             case .defSigmaDesc:   return "Defense"
             }

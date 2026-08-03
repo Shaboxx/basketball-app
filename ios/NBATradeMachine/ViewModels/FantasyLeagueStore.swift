@@ -25,6 +25,13 @@ final class FantasyLeagueStore: ObservableObject {
         }
     }
 
+    // Under this target's default-MainActor isolation, a synthesized deinit is
+    // MainActor-isolated, so dealloc hops via `swift_task_deinitOnExecutorImpl`
+    // and trips a Swift-runtime task-local double-free when the store is released
+    // inside XCTest's task-local error-observation scope. No isolated state to
+    // tear down, so keep the deinit `nonisolated` to avoid the hop.
+    nonisolated deinit {}
+
     // MARK: Derived
     func league(_ id: UUID) -> FantasyLeague? { leagues.first { $0.id == id } }
 

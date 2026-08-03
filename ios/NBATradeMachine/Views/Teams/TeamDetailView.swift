@@ -122,7 +122,7 @@ struct TeamDetailView: View {
                 LineupBreakdownView(
                     players: five,
                     norms: normsVM.norms,
-                    impacts: five.map { $0.thetaV2?.l2Signed },
+                    impacts: five.map { $0.thetaV2?.theta },
                     tier: "starters"
                 )
                 .navigationDestination(for: Player.self) { p in
@@ -203,28 +203,29 @@ struct TeamDetailView: View {
                     VStack(spacing: 10) {
                         HStack(alignment: .top, spacing: 4) {
                             ForEach(five) { p in
-                                VStack(spacing: 2) {
-                                    HeadshotImage(slug: p.slug, size: 36)
-                                    Text(p.name)
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(2)
-                                        .foregroundStyle(.primary)
-                                }
-                                .frame(maxWidth: .infinity)
+                                HeadshotImage(slug: p.slug, size: 36)
+                                    .frame(maxWidth: .infinity)
                             }
                         }
-                        HStack(spacing: 12) {
-                            scoreCell("TOT", sums.tot, stats?.tot)
-                            scoreCell("OFF", sums.off, stats?.off)
-                            scoreCell("DEF", sums.def, stats?.def)
-                            Spacer()
-                            Text("Lineup Analysis")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.accentColor)
-                            Image(systemName: "chevron.right.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("SwishScore")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("Lineup Analysis")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                Image(systemName: "chevron.right.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            HStack(spacing: 12) {
+                                scoreCell("OVR", sums.tot, stats?.tot)
+                                scoreCell("OFF", sums.off, stats?.off)
+                                scoreCell("DEF", sums.def, stats?.def)
+                                Spacer()
+                            }
                         }
                     }
                     .padding(.vertical, 4)

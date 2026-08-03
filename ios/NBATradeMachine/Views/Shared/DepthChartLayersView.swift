@@ -49,10 +49,10 @@ struct DepthChartLayersView: View {
         }
     }
 
-    /// Per-player composite impact (thetaV2.l2Signed) for `layer`, same order as
+    /// Per-player composite impact (thetaV2.theta / SwishScore) for `layer`, same order as
     /// `layerPlayers`.
     private func layerImpacts(_ layer: Int) -> [Double?] {
-        layerPlayers(layer).map { $0.thetaV2?.l2Signed }
+        layerPlayers(layer).map { $0.thetaV2?.theta }
     }
 
     /// Tier label the labeler uses: the first (starters) layer is "starters",
@@ -204,7 +204,7 @@ struct DepthChartLayersView: View {
                             .lineLimit(2)
                             .foregroundStyle(isRepeat ? .secondary : .primary)
                             .opacity(isRepeat ? 0.4 : 1)
-                        metricLine("TOT", slot.total,
+                        metricLine("OVR", slot.total,
                                    TeamDepthChartBuilder.highlight(slot.total, stats?.tot ?? zero))
                         metricLine("OFF", slot.off,
                                    TeamDepthChartBuilder.highlight(slot.off, stats?.off ?? zero))
@@ -236,7 +236,10 @@ struct DepthChartLayersView: View {
                     Text(layerName(layer))
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Color.accentColor)
-                    metricLine("TOT", sums.tot,
+                    Text("SwishScore")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                    metricLine("OVR", sums.tot,
                                TeamDepthChartBuilder.highlight(sums.tot, stats?.tot ?? zero))
                     metricLine("OFF", sums.off,
                                TeamDepthChartBuilder.highlight(sums.off, stats?.off ?? zero))

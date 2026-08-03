@@ -6,6 +6,11 @@ import Combine
 /// load-once guard keeps the productions map SYNCHRONOUS (no async in the detail view).
 @MainActor
 final class FantasyActualsStore: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published private(set) var actualsBySlug: [String: FantasyActuals] = [:]
     @Published private(set) var meta: FantasyActualsMeta?
     @Published private(set) var phase: FantasyPhase = .idle

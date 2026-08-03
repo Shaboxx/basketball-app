@@ -61,11 +61,15 @@ nonisolated enum TradeChemistry {
 
     // MARK: - Helpers
 
-    /// Top five players by signed L2 impact — the engine's "starters" proxy.
+    /// Top five players by SwishScore (theta) impact — the engine's "starters" proxy.
+    /// Tie-broken by name ascending for stable ordering when impacts are equal.
     private static func starters(_ roster: [Player]) -> [Player] {
         roster
-            .sorted { ($0.thetaV2?.l2Signed ?? -.greatestFiniteMagnitude)
-                    > ($1.thetaV2?.l2Signed ?? -.greatestFiniteMagnitude) }
+            .sorted {
+                let a = $0.thetaV2?.theta ?? -.greatestFiniteMagnitude
+                let b = $1.thetaV2?.theta ?? -.greatestFiniteMagnitude
+                return a != b ? a > b : $0.name < $1.name
+            }
             .prefix(5)
             .map { $0 }
     }
@@ -76,7 +80,7 @@ nonisolated enum TradeChemistry {
 
     private static func label(_ players: [Player], norms: LeagueNorms) -> LineupLabel {
         LineupLabeler.label(players: players, norms: norms,
-                            impacts: players.map { $0.thetaV2?.l2Signed })
+                            impacts: players.map { $0.thetaV2?.theta })
     }
 
     /// Fixed capability order → deterministic ties.

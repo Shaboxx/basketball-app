@@ -4,6 +4,11 @@ import Combine
 /// Loads the whole `matchups` collection once, keyed by canonical slug.
 @MainActor
 final class MatchupStore: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     /// App-wide singleton — see PlayerShotStore.shared for why the matchup card consumes
     /// this directly instead of via @EnvironmentObject (crash-proof across nav boundaries).
     static let shared = MatchupStore()

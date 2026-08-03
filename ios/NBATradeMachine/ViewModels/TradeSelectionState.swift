@@ -6,6 +6,11 @@ import Combine
 /// can-begin rules are unit-testable without standing up any SwiftUI view.
 @MainActor
 final class TradeSelectionState: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     static let maxTeams = 6
 
     /// Result of a `toggle` so the view can react (show the max-teams alert).

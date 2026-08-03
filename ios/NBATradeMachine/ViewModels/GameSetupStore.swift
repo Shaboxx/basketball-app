@@ -15,6 +15,13 @@ final class GameSetupStore: ObservableObject {
         self.defaults = defaults
     }
 
+    // Under this target's default-MainActor isolation, a synthesized deinit is
+    // MainActor-isolated, so dealloc hops via `swift_task_deinitOnExecutorImpl`
+    // and trips a Swift-runtime task-local double-free when the store is released
+    // inside XCTest's task-local error-observation scope. There's no isolated
+    // state to tear down, so keep the deinit `nonisolated` to avoid the hop.
+    nonisolated deinit {}
+
     private func key(_ gameId: String) -> String { Self.keyPrefix + gameId }
 
     /// The cached settings for a game, CLAMPED to the game's current capabilities

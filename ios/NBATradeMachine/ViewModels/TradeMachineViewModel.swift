@@ -3,6 +3,11 @@ import Combine
 
 @MainActor
 final class TradeMachineViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     static let maxTeams = 6
     private static let historyLimit = 50
 

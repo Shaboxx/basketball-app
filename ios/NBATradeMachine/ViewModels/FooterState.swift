@@ -7,6 +7,11 @@ import UIKit
 /// user-chosen position of the dragged collapsed button.
 @MainActor
 final class FooterState: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var isExpanded = true
     /// Offset of the collapsed button from its default bottom-leading spot (drag-to-move).
     @Published var collapsedOffset: CGSize = .zero

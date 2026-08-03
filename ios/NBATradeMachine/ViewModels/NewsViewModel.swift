@@ -6,6 +6,11 @@ import Combine
 /// section simply hides rather than erroring.
 @MainActor
 final class NewsViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var items: [NewsItem] = []
     private var loadedSlug: String?
 

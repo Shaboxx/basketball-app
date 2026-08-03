@@ -7,6 +7,11 @@ import Combine
 /// rather than crashing.
 @MainActor
 final class LeagueNormsViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var norms: LeagueNorms?
 
     private let service: FirestoreReading

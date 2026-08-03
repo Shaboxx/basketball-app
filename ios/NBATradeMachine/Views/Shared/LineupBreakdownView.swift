@@ -191,8 +191,9 @@ struct LineupBreakdownView: View {
                         HeadshotImage(slug: p.slug, size: 28)
                         Text(p.name).font(.subheadline)
                         Spacer()
-                        valueBadge(p)
+                        swishScoreBadge(p)
                         Text(p.position).font(.caption).foregroundStyle(.secondary)
+                            .frame(width: 26, alignment: .trailing)
                     }
                 }
                 .buttonStyle(.plain)
@@ -200,18 +201,20 @@ struct LineupBreakdownView: View {
         }
     }
 
-    // MARK: - SP-C: marginal value, formation viability, capability magnitudes
+    // MARK: - SP-C: per-player SwishScore, formation viability, capability magnitudes
 
-    /// All roster players share a team; the marginal-value badge is the player's value to it.
-    private var teamId: String? { players.first?.teamId }
-
-    @ViewBuilder private func valueBadge(_ p: Player) -> some View {
-        if let tri = teamId, let v = p.rosterValue?.value(for: tri) {
-            Text("$\(v / 1_000_000, specifier: "%.1f")M")
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 5).padding(.vertical, 2)
-                .background(Color.green.opacity(0.18), in: Capsule())
-                .foregroundStyle(Color.green)
+    /// Per-player SwishScore (the app-authoritative headline rating) shown in the
+    /// roster strip in place of the old marginal-$ badge. Reads `dispTotal`, which
+    /// yields a value ONLY on a combined-axis doc, so a legacy/non-combined doc
+    /// renders "—" rather than silently showing a different axis as SwishScore.
+    private func swishScoreBadge(_ p: Player) -> some View {
+        HStack(spacing: 5) {
+            Text("SwishScore")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(Player.fmtVal(p.dispTotal))
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.primary)
         }
     }
 

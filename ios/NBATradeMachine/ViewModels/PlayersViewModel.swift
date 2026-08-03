@@ -3,6 +3,11 @@ import Combine
 
 @MainActor
 final class PlayersViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     enum SortMode: String, CaseIterable, Identifiable {
         case name
         case totalSigmaDesc
@@ -14,7 +19,7 @@ final class PlayersViewModel: ObservableObject {
         var label: String {
             switch self {
             case .name: return "Name"
-            case .totalSigmaDesc: return "Overall"
+            case .totalSigmaDesc: return "SwishScore"
             case .offSigmaDesc: return "Offense"
             case .defSigmaDesc: return "Defense"
             case .salaryDesc: return "Salary"

@@ -5,6 +5,11 @@ import Combine
 /// `calendar` stays nil and callers fall back to `AppConfig`/`fallbackSeason`.
 @MainActor
 final class LeagueCalendarViewModel: ObservableObject {
+
+    // Avoid the default-MainActor isolated-deinit executor hop
+    // (`swift_task_deinitOnExecutorImpl` → Swift-runtime task-local
+    // double-free when released inside XCTest). No isolated teardown needed.
+    nonisolated deinit {}
     @Published var calendar: LeagueCalendar?
 
     private let service: FirestoreReading

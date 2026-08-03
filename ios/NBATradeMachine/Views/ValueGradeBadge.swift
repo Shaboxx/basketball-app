@@ -23,7 +23,7 @@ struct ValueGradeBadge: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Overall rating \(grade) of 100" + (caption.map { ", \($0)" } ?? ""))
+        .accessibilityLabel("SwishScore rating \(grade) of 100" + (caption.map { ", \($0)" } ?? ""))
     }
 
     /// Tier color for a 0-100 grade — green standouts, red liabilities, neutral around the

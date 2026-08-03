@@ -146,7 +146,7 @@ struct LineupMakerView: View {
                 LineupBreakdownView(
                     players: players,
                     norms: norms,
-                    impacts: players.map { $0.thetaV2?.l2Signed },
+                    impacts: players.map { $0.thetaV2?.theta },
                     tier: row == 0 ? "starters" : "bench"
                 )
                 .navigationDestination(for: Player.self) { p in
@@ -230,7 +230,10 @@ struct LineupMakerView: View {
                 Text(layerName(row))
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.accentColor)
-                metricLine("TOT", totals.tot,
+                Text("SwishScore")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                metricLine("OVR", totals.tot,
                            TeamDepthChartBuilder.highlight(totals.tot, stats?.tot ?? zero))
                 metricLine("OFF", totals.off,
                            TeamDepthChartBuilder.highlight(totals.off, stats?.off ?? zero))
@@ -261,7 +264,10 @@ struct LineupMakerView: View {
                             .font(.system(size: 10, weight: .bold))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
-                        metricLine("TOT", player.dispTotal,
+                        Text("SwishScore")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                        metricLine("OVR", player.dispTotal,
                                    TeamDepthChartBuilder.highlight(player.dispTotal, stats?.tot ?? zero))
                         metricLine("OFF", player.dispOff,
                                    TeamDepthChartBuilder.highlight(player.dispOff, stats?.off ?? zero))
@@ -374,7 +380,10 @@ private struct PlayerPickerSheet: View {
             Text(p.name).font(.subheadline.weight(.semibold))
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                metricLine("TOT", p.dispTotal,
+                Text("SwishScore")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                metricLine("OVR", p.dispTotal,
                            TeamDepthChartBuilder.highlight(p.dispTotal, layerStats?.tot ?? zero))
                 metricLine("OFF", p.dispOff,
                            TeamDepthChartBuilder.highlight(p.dispOff, layerStats?.off ?? zero))
