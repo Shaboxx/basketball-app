@@ -5,10 +5,22 @@ import Foundation
 /// scheduled game with null scores or a partial doc still decodes.
 nonisolated struct GameDay: Codable, Equatable {
     let gameId: String?
-    let gameDate: String?     // "yyyy-MM-dd"
+    let gameDate: String?           // "yyyy-MM-dd"
     let homeTeamId: String?
     let awayTeamId: String?
     let status: String?
+    let homeScore: Int?             // nil for scheduled games
+    let awayScore: Int?             // nil for scheduled games
+    let gameDateTimeEst: String?    // full ISO tip-off datetime; nil on older/partial docs
+
+    init(gameId: String? = nil, gameDate: String? = nil, homeTeamId: String? = nil,
+         awayTeamId: String? = nil, status: String? = nil,
+         homeScore: Int? = nil, awayScore: Int? = nil, gameDateTimeEst: String? = nil) {
+        self.gameId = gameId; self.gameDate = gameDate
+        self.homeTeamId = homeTeamId; self.awayTeamId = awayTeamId
+        self.status = status; self.homeScore = homeScore; self.awayScore = awayScore
+        self.gameDateTimeEst = gameDateTimeEst
+    }
 }
 
 nonisolated enum GameDaySchedule {
