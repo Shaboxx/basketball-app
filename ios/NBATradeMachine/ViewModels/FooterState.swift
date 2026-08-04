@@ -23,23 +23,65 @@ final class FooterState: ObservableObject {
     }
 
     private var lastOffset: CGFloat = 0
-    /// Movement must exceed this (points) to flip state — absorbs bounce jitter.
-    private let threshold: CGFloat = 12
+    /// Signed accumulator of directional scroll travel since the last flip or the
+    /// last direction reversal. Positive = net downward, negative = net upward.
+    /// A flip only fires once this exceeds the (asymmetric) travel budget, and it
+    /// resets to 0 on every direction reversal — so a jittery back-and-forth
+    /// gesture can never sum its way to a flip. That accumulate-then-reset rule is
+    /// the "requires sustained movement / rate-limit" the footer needs: rapid tiny
+    /// wiggles cancel out instead of repeatedly opening and closing the bar.
+    private var travel: CGFloat = 0
+    /// Sustained UP-scroll (points) required to re-show the footer.
+    private let expandTravel: CGFloat = 26
+    /// Sustained DOWN-scroll (points) required to hide it — deliberately larger
+    /// than `expandTravel` so the bar biases toward staying visible (hysteresis:
+    /// the show/hide thresholds are asymmetric, preventing flutter near a single
+    /// boundary).
+    private let collapseTravel: CGFloat = 48
     /// Within this top band (incl. the rubber-band zone) we always stay expanded.
     private let topZone: CGFloat = 8
+    /// Ignore samples this far beyond the in-bounds range — rubber-band / bounce
+    /// at either edge must never move the footer.
+    private let overscrollSlack: CGFloat = 2
 
     /// Called by the active scroll view as its vertical content offset changes.
-    func onScroll(old: CGFloat, new: CGFloat) {
+    /// `maxOffset` is the largest in-bounds content offset (0 when the content is
+    /// too short to scroll).
+    func onScroll(offset: CGFloat, maxOffset: CGFloat) {
         guard !lockedExpanded else { return }
-        if new <= topZone {            // at/above the top (incl. bounce) → expanded
-            lastOffset = new
+
+        // Rubber-band / bounce at either edge: freeze. We neither flip nor update
+        // `lastOffset`, so when the content springs back to its in-bounds resting
+        // position the delta is ~0 and the footer is unaffected — bouncing off the
+        // bottom of a screen leaves the menu exactly as it was.
+        if offset < -overscrollSlack || (maxOffset > 0 && offset > maxOffset + overscrollSlack) {
+            return
+        }
+
+        // At/above the top → always expanded, and reset the accumulator.
+        if offset <= topZone {
+            lastOffset = offset
+            travel = 0
             setExpanded(true)
             return
         }
-        let delta = new - lastOffset
-        guard abs(delta) > threshold else { return }   // ignore tiny/jittery moves
-        lastOffset = new
-        setExpanded(delta < 0)         // scrolling up (offset decreasing) expands
+
+        let delta = offset - lastOffset
+        lastOffset = offset
+        if delta == 0 { return }
+
+        // Reset the accumulator whenever direction reverses, so jitter / a fling
+        // that reverses mid-flight can never accumulate its way to a flip.
+        if travel != 0, (delta > 0) != (travel > 0) { travel = 0 }
+        travel += delta
+
+        if travel <= -expandTravel {
+            travel = 0
+            setExpanded(true)
+        } else if travel >= collapseTravel {
+            travel = 0
+            setExpanded(false)
+        }
     }
 
     /// Tap on the collapsed button.
@@ -48,6 +90,7 @@ final class FooterState: ObservableObject {
     /// Reset to expanded when switching screens/tabs.
     func resetForScreenChange() {
         lastOffset = 0
+        travel = 0
         setExpanded(true)
     }
 
@@ -78,8 +121,21 @@ extension View {
     /// and collapses on scroll-down. Clearance for the expanded bar is handled centrally by
     /// `.appFooter` via `safeAreaInset` (no per-scroll-view inset needed here).
     func reportsFooterScroll(_ state: FooterState) -> some View {
-        onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { old, new in
-            state.onScroll(old: old, new: new)
+        onScrollGeometryChange(for: FooterScrollSample.self) { geo in
+            FooterScrollSample(
+                offset: geo.contentOffset.y,
+                // Largest in-bounds offset; anything past it (± slack) is bounce.
+                maxOffset: max(0, geo.contentSize.height - geo.containerSize.height)
+            )
+        } action: { _, new in
+            state.onScroll(offset: new.offset, maxOffset: new.maxOffset)
         }
     }
+}
+
+/// Minimal Equatable snapshot of a scroll view's vertical geometry, so
+/// `onScrollGeometryChange` only re-runs the footer logic when it actually moves.
+struct FooterScrollSample: Equatable {
+    var offset: CGFloat
+    var maxOffset: CGFloat
 }

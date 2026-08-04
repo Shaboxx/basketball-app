@@ -23,6 +23,33 @@ final class NewsFeedViewModel: ObservableObject {
     /// Hot players the user has tapped to filter the feed. Empty -> full feed.
     @Published private(set) var selectedSlugs: Set<String> = []
 
+    // MARK: - Snapshot
+
+    /// UserDefaults key for the top-of-feed snapshot (S1).
+    static let snapshotKey = "NewsFeedSnapshot"
+    /// Maximum items persisted in the snapshot — bounds UserDefaults size.
+    static let snapshotCap = 15
+
+    /// Persist up to `snapshotCap` items so the next cold-start can paint instantly.
+    /// Silently swallows encode errors (best-effort).
+    static func saveSnapshot(_ items: [NewsItem]) {
+        guard let data = try? JSONEncoder().encode(Array(items.prefix(snapshotCap))) else { return }
+        UserDefaults.standard.set(data, forKey: snapshotKey)
+    }
+
+    /// Restore the last-saved snapshot. Returns [] when absent or undecodable.
+    static func loadSnapshot() -> [NewsItem] {
+        guard let data = UserDefaults.standard.data(forKey: snapshotKey),
+              let items = try? JSONDecoder().decode([NewsItem].self, from: data) else { return [] }
+        return items
+    }
+
+    // MARK: - State
+
+    /// True once `reload()` has been called at least once; prevents `load()` from
+    /// re-entering on subsequent calls while preserving the snapshot-paint path.
+    private var didFetch = false
+
     private let service: FirestoreReading
     init(service: FirestoreReading = FirestoreService.shared) { self.service = service }
 
@@ -36,6 +63,10 @@ final class NewsFeedViewModel: ObservableObject {
     /// The feed actually rendered: full list when nothing is selected, else only items
     /// mentioning a selected player, most-relevant first.
     var displayedItems: [NewsItem] { Self.display(items, selected: selectedSlugs) }
+
+    /// True when a hot player is selected but the feed has no matching articles — the
+    /// view uses this to trigger the per-player fallback fetch (S2).
+    var displayedItemsEmpty: Bool { displayedItems.isEmpty && !selectedSlugs.isEmpty }
 
     /// Pure relevance filter. No selection -> input order. Otherwise keep items whose
     /// playerSlugs intersect `selected`, ordered (overlap desc, hotnessScore desc,
@@ -58,7 +89,12 @@ final class NewsFeedViewModel: ObservableObject {
     }
 
     func load() async {
-        guard items.isEmpty else { return }
+        // Paint the snapshot synchronously (zero network wait) on the very first call.
+        if !didFetch {
+            let snap = Self.loadSnapshot()
+            if !snap.isEmpty { items = snap }
+        }
+        guard !didFetch else { return }
         await reload()
     }
 
@@ -69,10 +105,13 @@ final class NewsFeedViewModel: ObservableObject {
     }
 
     func reload() async {
+        didFetch = true
         isLoading = true
         defer { isLoading = false }
         do {
             items = try await service.fetchLeagueNews(sort: sort, limit: 30)
+            // Persist the fresh top-15 so the next cold-start paints instantly.
+            Self.saveSnapshot(items)
             errorMessage = nil
         } catch {
             // Full-screen error only with NOTHING to show; otherwise keep the loaded feed and
@@ -81,5 +120,20 @@ final class NewsFeedViewModel: ObservableObject {
         }
         // Hot Players is best-effort: a failure here must not blank the feed.
         hotPlayers = (try? await service.fetchHotPlayers()) ?? hotPlayers
+    }
+
+    // MARK: - S2: Hot-player fallback coverage
+
+    /// When a single hot player is selected but the loaded feed has no matching articles,
+    /// fetch that player's own articles and merge them in (no duplicates, no reorder of
+    /// existing items). Multi-select: no-op (union results are already shown).
+    func fetchPlayerFallback(slug: String) async {
+        guard selectedSlugs == [slug] else { return }
+        guard let fetched = try? await service.fetchNews(for: slug, limit: 10),
+              !fetched.isEmpty else { return }
+        let existingIds = Set(items.map(\.id))
+        let novel = fetched.filter { !existingIds.contains($0.id) }
+        guard !novel.isEmpty else { return }
+        items += novel
     }
 }

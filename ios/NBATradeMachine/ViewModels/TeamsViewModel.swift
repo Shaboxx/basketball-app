@@ -119,6 +119,12 @@ final class TeamsViewModel: ObservableObject {
             .mapValues { $0.sorted { $0.currentSalary > $1.currentSalary } }
         self.playerBySlug = Dictionary(rosters.players.map { ($0.slug, $0) }, uniquingKeysWith: { a, _ in a })
         self.dataVersion += 1
+        // Best-effort prefetch: warm the StorageService URL cache for all players and teams
+        // so the first image render hits cache instead of waiting for a download URL request.
+        // Fully detached — never blocks startup or the main actor.
+        Task.detached(priority: .utility) { [teams = rosters.teams, players = rosters.players] in
+            await StorageService.shared.prefetchURLs(teams: teams, players: players)
+        }
     }
 
     func players(for teamId: String) -> [Player] {

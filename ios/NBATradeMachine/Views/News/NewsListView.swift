@@ -67,6 +67,11 @@ struct NewsListView: View {
                     .reportsFooterScroll(footerState)
                     .refreshFailureBanner(vm.refreshFailures)
                     .refreshable { await vm.reload() }
+                    .task(id: vm.selectedSlugs) {
+                        guard vm.displayedItemsEmpty, vm.selectedSlugs.count == 1,
+                              let slug = vm.selectedSlugs.first else { return }
+                        await vm.fetchPlayerFallback(slug: slug)
+                    }
                 }
             }
             // No large title — the app header row already reads "News" (avoid the duplicate).

@@ -3,8 +3,8 @@ import SwiftUI
 /// Ranked list of every team's starting five (Σ dispTotal / dispOff / dispDef),
 /// each rendered as a card in the SAME cell format as the "Create Lineups" pages
 /// (player portrait + name + SwishScore OVR/OFF/DEF, colored vs the league's
-/// layer-0 distribution). Cards show TOT/OFF/DEF colored relative to the mean
-/// across all ranked teams as a vertical TOT/OFF/DEF strip. A top-bar sort menu
+/// layer-0 distribution). Cards show OVR/OFF/DEF colored relative to the mean
+/// across all ranked teams as a vertical OVR/OFF/DEF strip. A top-bar sort menu
 /// re-sorts by Total/Offense/Defense.
 /// Each card has a compact "Customize {name}'s Lineups" button and a
 /// "Starter Lineup Analysis" button. Derives on the fly from the in-memory
@@ -192,10 +192,10 @@ struct LineupsRankingView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 8)
-                    // TOT/OFF/DEF stacked vertically, each with room for a full
+                    // OVR/OFF/DEF stacked vertically, each with room for a full
                     // "+xx.x" value (OFF/DEF show "—" when nil).
                     VStack(alignment: .trailing, spacing: 4) {
-                        scoreRow("TOT", Player.fmtVal(row.total),
+                        scoreRow("OVR", Player.fmtVal(row.total),
                                  axisColor(row.total, mean: meanTot))
                         scoreRowOptional("OFF", row.off, mean: meanOff)
                         scoreRowOptional("DEF", row.def, mean: meanDef)
