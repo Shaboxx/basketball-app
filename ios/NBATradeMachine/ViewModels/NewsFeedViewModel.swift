@@ -64,6 +64,36 @@ final class NewsFeedViewModel: ObservableObject {
     /// mentioning a selected player, most-relevant first.
     var displayedItems: [NewsItem] { Self.display(items, selected: selectedSlugs) }
 
+    // MARK: - Dedupe
+
+    /// A story identity for de-duplication: the title reduced to lowercase
+    /// alphanumeric words. Collapses punctuation / smart-quote / casing differences
+    /// so the same headline from two sources (e.g. a direct feed AND a Google-News
+    /// wrapper) — or a stale doc left behind under a drifted clusterId — maps to one key.
+    nonisolated static func storyKey(_ title: String) -> String {
+        let scalars = title.lowercased().unicodeScalars.map {
+            CharacterSet.alphanumerics.contains($0) ? Character($0) : " "
+        }
+        return String(scalars).split(separator: " ").joined(separator: " ")
+    }
+
+    /// Collapse items that are the same story (identical `storyKey`), keeping the FIRST
+    /// occurrence — the input is already ranked (hotness for Top, recency for Newest), so
+    /// the first copy is the best-ranked one. Order-preserving. Empty-title items (which
+    /// shouldn't exist) are never merged together. This is the client-side safety net so
+    /// duplicate docs never render side by side even before the Firestore dedupe runs.
+    nonisolated static func dedupe(_ items: [NewsItem]) -> [NewsItem] {
+        var seen = Set<String>()
+        var result: [NewsItem] = []
+        result.reserveCapacity(items.count)
+        for item in items {
+            let key = storyKey(item.title)
+            if key.isEmpty { result.append(item); continue }
+            if seen.insert(key).inserted { result.append(item) }
+        }
+        return result
+    }
+
     /// True when a hot player is selected but the feed has no matching articles — the
     /// view uses this to trigger the per-player fallback fetch (S2).
     var displayedItemsEmpty: Bool { displayedItems.isEmpty && !selectedSlugs.isEmpty }
@@ -92,7 +122,7 @@ final class NewsFeedViewModel: ObservableObject {
         // Paint the snapshot synchronously (zero network wait) on the very first call.
         if !didFetch {
             let snap = Self.loadSnapshot()
-            if !snap.isEmpty { items = snap }
+            if !snap.isEmpty { items = Self.dedupe(snap) }
         }
         guard !didFetch else { return }
         await reload()
@@ -109,7 +139,9 @@ final class NewsFeedViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            items = try await service.fetchLeagueNews(sort: sort, limit: 30)
+            // Dedupe defensively: the news collection can hold duplicate docs for one
+            // story (stale drifted clusterIds, or the same article from two feeds).
+            items = Self.dedupe(try await service.fetchLeagueNews(sort: sort, limit: 30))
             // Persist the fresh top-15 so the next cold-start paints instantly.
             Self.saveSnapshot(items)
             errorMessage = nil
@@ -134,6 +166,8 @@ final class NewsFeedViewModel: ObservableObject {
         let existingIds = Set(items.map(\.id))
         let novel = fetched.filter { !existingIds.contains($0.id) }
         guard !novel.isEmpty else { return }
-        items += novel
+        // Dedupe by story so a fallback article that duplicates a shown headline
+        // (different doc id, same title) isn't appended twice.
+        items = Self.dedupe(items + novel)
     }
 }
