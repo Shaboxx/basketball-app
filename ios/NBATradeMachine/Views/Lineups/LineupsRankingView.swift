@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Ranked list of every team's starting five (Σ dispTotal), each rendered as a
-/// card in the SAME cell format as the "Create Lineups" pages (player portrait +
-/// name + SwishScore OVR/OFF/DEF, colored vs the league's layer-0 distribution).
-/// Every card has a "Customize Lineups" button that pushes that team's Lineup
-/// Maker, and tapping the team header pushes that team's full depth chart.
-/// Derives on the fly from the in-memory league roster (no new fetch).
+/// Ranked list of every team's starting five (Σ dispTotal / dispOff / dispDef),
+/// each rendered as a card in the SAME cell format as the "Create Lineups" pages
+/// (player portrait + name + SwishScore OVR/OFF/DEF, colored vs the league's
+/// layer-0 distribution). Cards show TOT/OFF/DEF colored relative to the mean
+/// across all ranked teams. A segmented picker re-sorts by Total/Offense/Defense.
+/// Each card has a compact "Customize {name}'s Lineups" button and a
+/// "Starter Lineup Analysis" button. Derives on the fly from the in-memory
+/// league roster (no new fetch).
 struct LineupsRankingView: View {
     @EnvironmentObject private var teamsVM: TeamsViewModel
     @EnvironmentObject private var normsVM: LeagueNormsViewModel
@@ -15,30 +17,92 @@ struct LineupsRankingView: View {
 
     @Binding var path: NavigationPath
 
+    /// Sort axis for the ranked list.
+    @State private var sortAxis: SortAxis = .total
+    private enum SortAxis: String, CaseIterable {
+        case total    = "Total"
+        case offense  = "Offense"
+        case defense  = "Defense"
+    }
+
     /// Push target for a team's Lineup Maker. Distinct type from `Team` (whose
     /// destination is the depth chart) so the two taps route to different screens.
     private struct CustomizeTarget: Hashable { let teamId: String }
 
+    /// Push target for the starter lineup breakdown analysis.
+    private struct StarterAnalysisTarget: Hashable { let teamId: String }
+
     private static let zero = TeamDepthChartBuilder.MetricStats(mean: 0, std: 0)
 
-    private var result: LineupRankingResult {
-        LineupRankingLogic.rank(teams: teamsVM.teams,
-                                rostersByTeamId: teamsVM.playersByTeamId)
+    /// Base ranking (always sorted by total desc) re-sorted and re-numbered
+    /// according to the current `sortAxis`. Nil-axis rows sink to the bottom
+    /// when sorting by Offense or Defense.
+    private var sortedResult: LineupRankingResult {
+        let base = LineupRankingLogic.rank(teams: teamsVM.teams,
+                                           rostersByTeamId: teamsVM.playersByTeamId)
+        let resorted: [LineupRankRow]
+        switch sortAxis {
+        case .total:
+            resorted = base.ranked
+        case .offense:
+            resorted = base.ranked.sorted { a, b in
+                switch (a.off, b.off) {
+                case (.none, .none):
+                    if a.team.fullName != b.team.fullName { return a.team.fullName < b.team.fullName }
+                    return a.team.teamId < b.team.teamId
+                case (.none, _): return false   // nil sinks to bottom
+                case (_, .none): return true    // non-nil floats to top
+                case let (.some(av), .some(bv)):
+                    if av != bv { return av > bv }
+                    if a.team.fullName != b.team.fullName { return a.team.fullName < b.team.fullName }
+                    return a.team.teamId < b.team.teamId
+                }
+            }
+        case .defense:
+            resorted = base.ranked.sorted { a, b in
+                switch (a.def, b.def) {
+                case (.none, .none):
+                    if a.team.fullName != b.team.fullName { return a.team.fullName < b.team.fullName }
+                    return a.team.teamId < b.team.teamId
+                case (.none, _): return false   // nil sinks to bottom
+                case (_, .none): return true    // non-nil floats to top
+                case let (.some(av), .some(bv)):
+                    if av != bv { return av > bv }
+                    if a.team.fullName != b.team.fullName { return a.team.fullName < b.team.fullName }
+                    return a.team.teamId < b.team.teamId
+                }
+            }
+        }
+        let renumbered = resorted.enumerated().map { i, r in
+            LineupRankRow(rank: i + 1, team: r.team, starters: r.starters,
+                          total: r.total, off: r.off, def: r.def)
+        }
+        return LineupRankingResult(ranked: renumbered, excluded: base.excluded)
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 if teamsVM.isLoading && teamsVM.teams.isEmpty {
-                    PlayerListSkeleton()            // reuse the shared row skeleton
+                    PlayerListSkeleton()
                 } else {
-                    let res = result
+                    let res = sortedResult
                     if res.ranked.isEmpty {
                         empty
                     } else {
+                        // Sort picker.
+                        Picker("Sort by", selection: $sortAxis) {
+                            ForEach(SortAxis.allCases, id: \.self) { axis in
+                                Text(axis.rawValue).tag(axis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
                         LazyVStack(spacing: 14) {
                             ForEach(res.ranked) { row in
-                                teamCard(row)
+                                teamCard(row, ranked: res.ranked)
                             }
                         }
                         .padding(.vertical, 10)
@@ -47,17 +111,21 @@ struct LineupsRankingView: View {
                 }
             }
             .reportsFooterScroll(footerState)
-            .navigationTitle("")   // app header already reads "Lineups"
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             // Team header tap → that team's depth chart.
             .navigationDestination(for: Team.self) { team in
                 depthChart(for: team)
             }
-            // "Customize Lineups" → that team's Lineup Maker (create-lineups page).
+            // "Customize Lineups" → that team's Lineup Maker.
             .navigationDestination(for: CustomizeTarget.self) { target in
                 lineupMaker(for: target.teamId)
             }
-            // Player cells inside the depth chart push PlayerDetailView.
+            // "Starter Lineup Analysis" → LineupBreakdownView for that team's starters.
+            .navigationDestination(for: StarterAnalysisTarget.self) { target in
+                starterAnalysis(for: target.teamId)
+            }
+            // Player cells inside depth chart / breakdown push PlayerDetailView.
             .navigationDestination(for: Player.self) { p in
                 PlayerDetailView(player: p)
                     .environmentObject(teamsVM)
@@ -71,8 +139,23 @@ struct LineupsRankingView: View {
 
     // MARK: - Team card
 
-    private func teamCard(_ row: LineupRankRow) -> some View {
+    private func teamCard(_ row: LineupRankRow, ranked: [LineupRankRow]) -> some View {
         let stats = teamsVM.leagueLayerStats.playerByLayer[0]
+
+        // Mean over non-nil off/def values only (avoids pulling nil into the average).
+        let meanTot: Double = {
+            guard !ranked.isEmpty else { return 0 }
+            return ranked.map(\.total).reduce(0, +) / Double(ranked.count)
+        }()
+        let meanOff: Double = {
+            let vals = ranked.compactMap(\.off)
+            return vals.isEmpty ? 0.0 : vals.reduce(0, +) / Double(vals.count)
+        }()
+        let meanDef: Double = {
+            let vals = ranked.compactMap(\.def)
+            return vals.isEmpty ? 0.0 : vals.reduce(0, +) / Double(vals.count)
+        }()
+
         return VStack(alignment: .leading, spacing: 10) {
             // Header — tap for depth chart.
             NavigationLink(value: row.team) {
@@ -88,10 +171,11 @@ struct LineupsRankingView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(Player.fmtVal(row.total))
-                            .font(.subheadline.monospacedDigit().weight(.bold))
-                        Text("TOTAL").font(.system(size: 8)).foregroundStyle(.secondary)
+                    // TOT always colored; OFF/DEF show "—" when nil.
+                    HStack(spacing: 10) {
+                        scoreCol("TOT", row.total, axisColor(row.total, mean: meanTot))
+                        scoreColOptional("OFF", row.off, mean: meanOff)
+                        scoreColOptional("DEF", row.def, mean: meanDef)
                     }
                     Image(systemName: "chevron.right")
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -109,14 +193,28 @@ struct LineupsRankingView: View {
                 }
             }
 
-            // Customize → that team's Lineup Maker.
-            NavigationLink(value: CustomizeTarget(teamId: row.team.teamId)) {
-                Label("Customize Lineups", systemImage: "slider.horizontal.3")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+            // Button row: Customize + Starter Lineup Analysis side-by-side.
+            HStack(spacing: 8) {
+                NavigationLink(value: CustomizeTarget(teamId: row.team.teamId)) {
+                    Text("Customize \(row.team.tricode) Lineups")
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                }
+                .buttonStyle(.bordered)
+
+                NavigationLink(value: StarterAnalysisTarget(teamId: row.team.teamId)) {
+                    Text("Starter Lineup Analysis")
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .padding(12)
         .background(Color(.secondarySystemBackground),
@@ -124,8 +222,7 @@ struct LineupsRankingView: View {
         .padding(.horizontal)
     }
 
-    /// One starter cell mirroring `LineupMakerView`/`DepthChartLayersView`:
-    /// position label + portrait + name + colored OVR/OFF/DEF.
+    /// One starter cell mirroring `LineupMakerView`/`DepthChartLayersView`.
     private func starterCell(pos: String, player: Player,
                              stats: (tot: TeamDepthChartBuilder.MetricStats,
                                      off: TeamDepthChartBuilder.MetricStats,
@@ -175,6 +272,65 @@ struct LineupsRankingView: View {
         return LineupMakerView(roster: roster,
                                league: teamsVM.leagueLayerStats,
                                norms: normsVM.norms)
+    }
+
+    private func starterAnalysis(for teamId: String) -> some View {
+        let roster   = teamsVM.playersByTeamId[teamId] ?? []
+        let starters = LineupRankingLogic.starters(for: roster).compactMap { $0 }
+        return LineupBreakdownView(
+            players: starters,
+            norms:   normsVM.norms,
+            impacts: starters.map { $0.thetaV2?.theta },
+            tier:    "starters"
+        )
+        .navigationTitle("Starter Lineup Analysis")
+        .navigationBarTitleDisplayMode(.inline)
+        .environmentObject(teamsVM)
+        .environmentObject(normsVM)
+        .environmentObject(appSettings)
+        .environmentObject(fantasyStore)
+    }
+
+    // MARK: - Axis coloring helpers
+
+    /// Green when value >= mean across ranked teams; red otherwise.
+    private func axisColor(_ value: Double, mean: Double) -> Color {
+        value >= mean ? .green : .red
+    }
+
+    /// Trailing-aligned label+value column for the header score strip (non-nil value).
+    private func scoreCol(_ label: String, _ val: Double, _ color: Color) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(Player.fmtVal(val))
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label).font(.system(size: 8)).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Trailing-aligned label+em-dash column rendered in secondary color when
+    /// the axis value is nil (data unavailable for this team).
+    private func scoreColNil(_ label: String) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("\u{2014}")   // em dash
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label).font(.system(size: 8)).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Renders scoreCol when val is present, scoreColNil when absent.
+    @ViewBuilder
+    private func scoreColOptional(_ label: String, _ val: Double?, mean: Double) -> some View {
+        if let v = val {
+            scoreCol(label, v, axisColor(v, mean: mean))
+        } else {
+            scoreColNil(label)
+        }
     }
 
     // MARK: - Cell helpers (mirror DepthChartLayersView)

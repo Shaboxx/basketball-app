@@ -1,7 +1,23 @@
 import Foundation
 extension Team {
     /// NBA-stats numeric teamId -> 3-letter tricode (matches the Python team_map / upload byTeam keys).
-    var tricode: String { Team._tricodeByTeamId[teamId] ?? teamId }
+    /// Falls back to a derived <=3-char uppercase abbreviation from the team name when the id is
+    /// not in the lookup table — never returns the raw numeric teamId as display copy.
+    var tricode: String {
+        if let known = Team._tricodeByTeamId[teamId] { return known }
+        // Derive up to 3-char uppercase abbreviation from the short team name (e.g. "Warriors").
+        let words = name.split(separator: " ").map { String($0) }
+        if words.count >= 3 {
+            return String(words.prefix(3).compactMap { $0.first }).uppercased()
+        } else if words.count == 2 {
+            let first  = String(words[0].prefix(2))
+            let second = String(words[1].prefix(1))
+            return (first + second).uppercased()
+        } else {
+            return String(name.prefix(3)).uppercased()
+        }
+    }
+
     static let _tricodeByTeamId: [String: String] = [
         "1610612737":"ATL","1610612738":"BOS","1610612739":"CLE","1610612740":"NOP",
         "1610612741":"CHI","1610612742":"DAL","1610612743":"DEN","1610612744":"GSW",
