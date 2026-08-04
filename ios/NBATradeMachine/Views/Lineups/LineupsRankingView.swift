@@ -4,7 +4,8 @@ import SwiftUI
 /// each rendered as a card in the SAME cell format as the "Create Lineups" pages
 /// (player portrait + name + SwishScore OVR/OFF/DEF, colored vs the league's
 /// layer-0 distribution). Cards show TOT/OFF/DEF colored relative to the mean
-/// across all ranked teams. A segmented picker re-sorts by Total/Offense/Defense.
+/// across all ranked teams as a vertical TOT/OFF/DEF strip. A top-bar sort menu
+/// re-sorts by Total/Offense/Defense.
 /// Each card has a compact "Customize {name}'s Lineups" button and a
 /// "Starter Lineup Analysis" button. Derives on the fly from the in-memory
 /// league roster (no new fetch).
@@ -166,23 +167,32 @@ struct LineupsRankingView: View {
         return VStack(alignment: .leading, spacing: 10) {
             // Header — tap for depth chart.
             NavigationLink(value: row.team) {
-                HStack(spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
                     Text("\(row.rank)")
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .frame(width: 24, alignment: .trailing)
                     TeamLogoMark(teamId: row.team.teamId, size: 34, showsAlias: false)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(row.team.fullName).font(.subheadline.weight(.semibold))
+                    // Title always split into two rows (city / name) so the header
+                    // height is uniform across cards, whether or not the name wraps.
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(row.team.city)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                        Text(row.team.name)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1).minimumScaleFactor(0.8)
                         Text("Tap for depth chart")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    // TOT always colored; OFF/DEF show "—" when nil.
-                    HStack(spacing: 10) {
-                        scoreCol("TOT", row.total, axisColor(row.total, mean: meanTot))
-                        scoreColOptional("OFF", row.off, mean: meanOff)
-                        scoreColOptional("DEF", row.def, mean: meanDef)
+                    Spacer(minLength: 8)
+                    // TOT/OFF/DEF stacked vertically, each with room for a full
+                    // "+xx.x" value (OFF/DEF show "—" when nil).
+                    VStack(alignment: .trailing, spacing: 4) {
+                        scoreRow("TOT", Player.fmtVal(row.total),
+                                 axisColor(row.total, mean: meanTot))
+                        scoreRowOptional("OFF", row.off, mean: meanOff)
+                        scoreRowOptional("DEF", row.def, mean: meanDef)
                     }
                     Image(systemName: "chevron.right")
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -305,38 +315,32 @@ struct LineupsRankingView: View {
         value >= mean ? .green : .red
     }
 
-    /// Trailing-aligned label+value column for the header score strip (non-nil value).
-    private func scoreCol(_ label: String, _ val: Double, _ color: Color) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(Player.fmtVal(val))
-                .font(.system(size: 11, weight: .bold).monospacedDigit())
+    /// One row of the vertical header score strip: fixed-width label on the left
+    /// and a large right-aligned value sized to always fit a full "+xx.x" without
+    /// truncating/ellipsizing. `minimumScaleFactor` is only a safety net — real
+    /// values fit the 60pt column at full size.
+    private func scoreRow(_ label: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 30, alignment: .leading)
+            Text(text)
+                .font(.system(size: 16, weight: .bold).monospacedDigit())
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(label).font(.system(size: 8)).foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .trailing)
         }
     }
 
-    /// Trailing-aligned label+em-dash column rendered in secondary color when
-    /// the axis value is nil (data unavailable for this team).
-    private func scoreColNil(_ label: String) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("\u{2014}")   // em dash
-                .font(.system(size: 11, weight: .bold).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label).font(.system(size: 8)).foregroundStyle(.secondary)
-        }
-    }
-
-    /// Renders scoreCol when val is present, scoreColNil when absent.
+    /// Renders a colored value row when `val` is present, an em-dash row when absent.
     @ViewBuilder
-    private func scoreColOptional(_ label: String, _ val: Double?, mean: Double) -> some View {
+    private func scoreRowOptional(_ label: String, _ val: Double?, mean: Double) -> some View {
         if let v = val {
-            scoreCol(label, v, axisColor(v, mean: mean))
+            scoreRow(label, Player.fmtVal(v), axisColor(v, mean: mean))
         } else {
-            scoreColNil(label)
+            scoreRow(label, "\u{2014}", .secondary)   // em dash
         }
     }
 
