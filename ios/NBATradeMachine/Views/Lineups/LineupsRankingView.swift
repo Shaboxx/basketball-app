@@ -19,10 +19,12 @@ struct LineupsRankingView: View {
 
     /// Sort axis for the ranked list.
     @State private var sortAxis: SortAxis = .total
-    private enum SortAxis: String, CaseIterable {
+    private enum SortAxis: String, CaseIterable, Identifiable {
         case total    = "Total"
         case offense  = "Offense"
         case defense  = "Defense"
+        var id: String { rawValue }
+        var label: String { rawValue }
     }
 
     /// Push target for a team's Lineup Maker. Distinct type from `Team` (whose
@@ -90,16 +92,6 @@ struct LineupsRankingView: View {
                     if res.ranked.isEmpty {
                         empty
                     } else {
-                        // Sort picker.
-                        Picker("Sort by", selection: $sortAxis) {
-                            ForEach(SortAxis.allCases, id: \.self) { axis in
-                                Text(axis.rawValue).tag(axis)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-
                         LazyVStack(spacing: 14) {
                             ForEach(res.ranked) { row in
                                 teamCard(row, ranked: res.ranked)
@@ -113,6 +105,21 @@ struct LineupsRankingView: View {
             .reportsFooterScroll(footerState)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Sort", selection: $sortAxis) {
+                            ForEach(SortAxis.allCases) { axis in
+                                Text(axis.label).tag(axis)
+                            }
+                        }
+                    } label: {
+                        Label("Sort: \(sortAxis.label)",
+                              systemImage: "arrow.up.arrow.down")
+                            .font(.caption)
+                    }
+                }
+            }
             // Team header tap → that team's depth chart.
             .navigationDestination(for: Team.self) { team in
                 depthChart(for: team)

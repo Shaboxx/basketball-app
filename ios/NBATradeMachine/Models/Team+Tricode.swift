@@ -4,6 +4,14 @@ extension Team {
     /// Falls back to a derived <=3-char uppercase abbreviation from the team name when the id is
     /// not in the lookup table — never returns the raw numeric teamId as display copy.
     var tricode: String {
+        // The Firestore team docs are keyed by tricode, so `teamId` is normally the
+        // 2–3-letter code already (e.g. "SAS"). Return it directly so this matches
+        // the abbreviation the Teams grid shows; the numeric-id lookup below only
+        // applies to any legacy numeric ids that still flow through.
+        let id = teamId.trimmingCharacters(in: .whitespaces)
+        if (2...3).contains(id.count), id.allSatisfy({ $0.isLetter }) {
+            return id.uppercased()
+        }
         if let known = Team._tricodeByTeamId[teamId] { return known }
         // Derive up to 3-char uppercase abbreviation from the short team name (e.g. "Warriors").
         let words = name.split(separator: " ").map { String($0) }
