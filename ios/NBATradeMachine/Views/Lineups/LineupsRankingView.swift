@@ -168,11 +168,17 @@ struct LineupsRankingView: View {
             // Header — tap for depth chart.
             NavigationLink(value: row.team) {
                 HStack(alignment: .center, spacing: 12) {
-                    Text("\(row.rank)")
-                        .font(.headline.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24, alignment: .trailing)
-                    TeamLogoMark(teamId: row.team.teamId, size: 34, showsAlias: false)
+                    // Rank stacked ABOVE the logo so it gets the logo's full
+                    // width (room for two digits "xx") on every screen size,
+                    // instead of competing for a narrow trailing gutter.
+                    VStack(spacing: 2) {
+                        Text("\(row.rank)")
+                            .font(.headline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                        TeamLogoMark(teamId: row.team.teamId, size: 34, showsAlias: false)
+                    }
                     // Title always split into two rows (city / name) so the header
                     // height is uniform across cards, whether or not the name wraps.
                     VStack(alignment: .leading, spacing: 1) {
@@ -244,15 +250,30 @@ struct LineupsRankingView: View {
                              stats: (tot: TeamDepthChartBuilder.MetricStats,
                                      off: TeamDepthChartBuilder.MetricStats,
                                      def: TeamDepthChartBuilder.MetricStats)?) -> some View {
-        VStack(spacing: 2) {
+        // Split the full name into first / last so BOTH parts always occupy
+        // their own line — every cell's name block is exactly two lines tall,
+        // keeping the SwishScore rows below aligned across cards regardless of
+        // whether a name is short ("Josh Hart") or long.
+        let nameParts = player.name.split(separator: " ", maxSplits: 1).map(String.init)
+        let firstName = nameParts.first ?? player.name
+        let lastName  = nameParts.count > 1 ? nameParts[1] : " "   // space preserves the 2nd line's height
+
+        return VStack(spacing: 2) {
             Text(pos)
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.secondary)
             HeadshotImage(slug: player.slug, size: 30)
-            Text(player.name)
-                .font(.system(size: 10, weight: .bold))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
+            VStack(spacing: 0) {
+                Text(firstName)
+                    .font(.system(size: 10, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(lastName)
+                    .font(.system(size: 10, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .multilineTextAlignment(.center)
             Text("SwishScore")
                 .font(.system(size: 8))
                 .foregroundStyle(.secondary)
