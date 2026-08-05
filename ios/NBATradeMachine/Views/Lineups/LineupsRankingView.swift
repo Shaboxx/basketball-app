@@ -303,13 +303,28 @@ struct LineupsRankingView: View {
         )
         .navigationTitle(team.fullName)
         .navigationBarTitleDisplayMode(.inline)
+        // Same reason as lineupMaker/starterAnalysis: navigationDestination content
+        // doesn't inherit environmentObjects, and DepthChartLayersView pushes
+        // LineupMakerView + PlayerDetailView which need these.
+        .environmentObject(teamsVM)
+        .environmentObject(normsVM)
+        .environmentObject(appSettings)
+        .environmentObject(fantasyStore)
     }
 
     private func lineupMaker(for teamId: String) -> some View {
         let roster = teamsVM.playersByTeamId[teamId] ?? []
+        // `.navigationDestination` content does NOT inherit environmentObjects, so
+        // re-inject the four LineupMakerView (and its breakdown sub-sheet → PlayerDetailView)
+        // depend on — otherwise opening a lineup breakdown fatal-errors on a missing
+        // TeamsViewModel. Mirrors starterAnalysis(for:) and the Player destination.
         return LineupMakerView(roster: roster,
                                league: teamsVM.leagueLayerStats,
                                norms: normsVM.norms)
+            .environmentObject(teamsVM)
+            .environmentObject(normsVM)
+            .environmentObject(appSettings)
+            .environmentObject(fantasyStore)
     }
 
     private func starterAnalysis(for teamId: String) -> some View {
