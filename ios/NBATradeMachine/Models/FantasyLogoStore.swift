@@ -10,8 +10,12 @@ nonisolated enum FantasyLogoStore {
     static let maxDimension: CGFloat = 512
 
     static func directory(base: URL? = nil) -> URL {
-        let root = base ?? FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        // Fallback chain instead of a force-index: Application Support is effectively always
+        // present, but a bad-index trap here would crash the fantasy team builder on logo save.
+        let root = base
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let dir = root.appendingPathComponent("FantasyLogos", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir

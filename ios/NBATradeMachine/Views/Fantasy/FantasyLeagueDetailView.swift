@@ -158,7 +158,7 @@ struct FantasyLeagueDetailView: View {
                                                     hasData: !liveNoData) {
                     case .loading:
                         Section { loadingRow }
-                    case .collectionEmpty:
+                    case .collectionEmpty, .failed:   // a failed live fetch reads as "unavailable — switch to Projected"
                         Section { liveUnavailableCard }
                     case .playerMissing:
                         Section { liveNoDataCard }

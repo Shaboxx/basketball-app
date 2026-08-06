@@ -61,6 +61,12 @@ struct TeamsListView: View {
                         Button("Try Again") { Task { await teamsVM.reload() } }
                             .buttonStyle(.borderedProminent)
                     }.padding().padding(.top, 60)
+                } else if teamsVM.displayedTeams(sort: sortMode, query: searchState.text).isEmpty
+                            && !searchState.text.isEmpty {
+                    // Teams loaded, but the search matches nothing — distinguish "no matches" from
+                    // the unavailable/error states (mirrors the Players tab) instead of a blank grid.
+                    ContentUnavailableView.search(text: searchState.text)
+                        .padding(.top, 60)
                 } else {
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(teamsVM.displayedTeams(sort: sortMode, query: searchState.text)) { team in

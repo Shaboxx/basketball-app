@@ -86,14 +86,18 @@ final class TeamsViewModel: ObservableObject {
         await reload()
     }
 
-    func reload() async {
+    /// - Parameter skipCache: when true, don't paint the on-disk cache before the server fetch.
+    ///   Used on a reconnect refresh where the grid already shows loaded data — painting the
+    ///   stale cache first would flash old state (e.g. a just-applied trade reverting) before the
+    ///   fresh server value lands.
+    func reload(skipCache: Bool = false) async {
         isLoading = true
         defer { isLoading = false }
         // Stale-while-revalidate: paint the on-disk cache INSTANTLY (skip a cache miss), then
         // overwrite from the SERVER. On a flaky network the cache shows immediately instead of
         // blocking on a slow server round-trip; ContentView's ConnectivityMonitor re-runs this
         // on reconnect so the fresh server value still lands.
-        if let cached = try? await fetchRosters(source: .cache), !cached.players.isEmpty {
+        if !skipCache, let cached = try? await fetchRosters(source: .cache), !cached.players.isEmpty {
             apply(cached)
         }
         do {

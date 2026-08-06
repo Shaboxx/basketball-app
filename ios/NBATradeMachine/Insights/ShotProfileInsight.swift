@@ -535,8 +535,11 @@ extension ShotProfileInsight {
             }
             driving = ordered.prefix(2).map { $0.1.pct }
         } else {
-            let headZone = ordered.first(where: { $0.1.pct > 50 }) ?? ordered[0]
-            let otherZone = ordered.first(where: { $0.0 != headZone.0 })!
+            // `ordered` is always the 3 distinct zones (rim/mid/three), so both lookups resolve
+            // in practice; the fallbacks just remove the force-unwraps so a future change to the
+            // zone set can never trap here.
+            let headZone = ordered.first(where: { $0.1.pct > 50 }) ?? ordered.first ?? ("rim", rim)
+            let otherZone = ordered.first(where: { $0.0 != headZone.0 }) ?? headZone
             headline = "\(capFirst(zoneWord(headZone.0)))-tilted shot diet"
             evidence = [ "\u{2022} " + pctBullet("\(headZone.0) share", headZone.1, bucket: label,
                                                  suffix: " \u{2014} the tilt zone, outside the 25th\u{2013}75th balanced band"),

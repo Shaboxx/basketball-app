@@ -242,7 +242,7 @@ nonisolated enum FantasyFirstUse {
 /// Pure decision for what a fantasy section renders. Three independent triggers over
 /// the top-level `FantasyPhase`, so this stays off the MainActor.
 nonisolated enum FantasyEmptyState {
-    enum Decision: Equatable { case data, collectionEmpty, playerMissing, loading }
+    enum Decision: Equatable { case data, collectionEmpty, playerMissing, loading, failed }
     static func decide(phase: FantasyPhase, value: FantasyValue?) -> Decision {
         decide(phase: phase, hasData: value != nil)
     }
@@ -254,7 +254,7 @@ nonisolated enum FantasyEmptyState {
     static func decide(phase: FantasyPhase, hasData: Bool) -> Decision {
         switch phase {
         case .empty:          return .collectionEmpty        // whole collection unpopulated (pre-launch)
-        case .failed:         return .collectionEmpty        // fetch failure → "not available yet"
+        case .failed:         return hasData ? .data : .failed // keep cached data if any; else a retry affordance (not a silent "not available")
         case .idle, .loading: return hasData ? .data : .loading
         case .loaded:         return hasData ? .data : .playerMissing
         }

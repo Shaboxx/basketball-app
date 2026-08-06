@@ -134,6 +134,12 @@ struct MatchupCourtSection: View {
                                                  hasData: shotStore.chart(for: player.slug) != nil)
             switch phase {
             case .loading: loadingRow("Loading shot chart…")
+            case .failed:
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Couldn't load shot chart.").font(.caption).foregroundStyle(.secondary)
+                    Button("Retry") { Task { await shotStore.load() } }
+                        .buttonStyle(.bordered).controlSize(.small)
+                }
             case .collectionEmpty, .playerMissing: notAvailable("Shot chart")
             case .data:
                 if let chart = shotStore.chart(for: player.slug) {
@@ -251,6 +257,12 @@ struct MatchupCourtSection: View {
         let mu = matchupStore.matchup(for: player.slug)
         switch FantasyEmptyState.decide(phase: matchupStore.phase, hasData: mu != nil) {
         case .loading: loadingRow("Loading matchup data…")
+        case .failed:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Couldn't load matchup data.").font(.caption).foregroundStyle(.secondary)
+                Button("Retry") { Task { await matchupStore.load() } }
+                    .buttonStyle(.bordered).controlSize(.small)
+            }
         case .collectionEmpty, .playerMissing: notAvailable("Matchup scouting")
         case .data:
             if let mu {

@@ -1,5 +1,23 @@
 import SwiftUI
 
+/// Shared "couldn't load — retry" row for fantasy sections. A fetch failure must be
+/// distinguishable from an empty collection (no silent "not available yet"), and the
+/// user needs a way to recover a transient network failure without relaunching. The
+/// retry funnels back through the store's load-once-with-retry guard.
+private struct FantasyRetryRow: View {
+    let message: String
+    let retry: () async -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(message).foregroundStyle(.secondary)
+            Button("Retry") { Task { await retry() } }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(.top, 6)
+    }
+}
+
 // MARK: - Fantasy Value (value + rank [+ fpPerGame] [+ dynasty])
 
 struct FantasyValueSection: View {
@@ -25,6 +43,8 @@ struct FantasyValueSection: View {
         case .loading:
             HStack(spacing: 8) { ProgressView(); Text("Loading fantasy values…").foregroundStyle(.secondary) }
                 .padding(.top, 6)
+        case .failed:
+            FantasyRetryRow(message: "Couldn't load fantasy values.") { await fantasyStore.load() }
         case .collectionEmpty, .playerMissing:
             noDataRow
         case .data:
@@ -80,10 +100,12 @@ struct CategoryBreakdownSection: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            if let fv = fantasyStore.value(for: player.slug),
-               FantasyEmptyState.decide(phase: fantasyStore.phase, value: fv) == .data {
-                content(fv)
-            } else {
+            switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: fantasyStore.value(for: player.slug)) {
+            case .data:
+                if let fv = fantasyStore.value(for: player.slug) { content(fv) } else { noDataRow }
+            case .failed:
+                FantasyRetryRow(message: "Couldn't load fantasy values.") { await fantasyStore.load() }
+            default:
                 noDataRow
             }
         } label: {
@@ -145,10 +167,12 @@ struct FantasyBoxSection: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            if let fv = fantasyStore.value(for: player.slug),
-               FantasyEmptyState.decide(phase: fantasyStore.phase, value: fv) == .data {
-                content(fv.scoringMeans)
-            } else {
+            switch FantasyEmptyState.decide(phase: fantasyStore.phase, value: fantasyStore.value(for: player.slug)) {
+            case .data:
+                if let fv = fantasyStore.value(for: player.slug) { content(fv.scoringMeans) } else { noDataRow }
+            case .failed:
+                FantasyRetryRow(message: "Couldn't load fantasy values.") { await fantasyStore.load() }
+            default:
                 noDataRow
             }
         } label: {
@@ -217,6 +241,8 @@ struct FantasySeasonalValueSection: View {
         case .loading:
             HStack(spacing: 8) { ProgressView(); Text("Loading seasonal outlook…").foregroundStyle(.secondary) }
                 .padding(.top, 6)
+        case .failed:
+            FantasyRetryRow(message: "Couldn't load seasonal outlook.") { await fantasyStore.load() }
         case .collectionEmpty, .playerMissing:
             noDataRow
         case .data:
