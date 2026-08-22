@@ -223,6 +223,93 @@ nonisolated enum HostedTransactionTimeline {
 
         return RosterEligibility(intervals: intervals)
     }
+
+    // MARK: Draft-roster reconstruction
+
+    /// Reconstruct the roster each team held at draft-completion time by starting from the
+    /// CURRENT rosters and reversing every post-draft transaction (newest → oldest).
+    ///
+    /// Why this is needed: `build(transactions:draftRosters:uidToTeamId:)` opens the initial
+    /// intervals at `draftAt` from the `draftRosters` it is handed. Those MUST be the rosters as
+    /// they stood at the draft, NOT the live post-trade/add-drop rosters — otherwise a traded or
+    /// dropped player's pre-move window is never opened (so it can never be closed at the move
+    /// timestamp), silently wiping that player's production for the team that held them first.
+    /// Since the app only keeps the live roster in Firestore, we undo the move log to recover the
+    /// draft-time snapshot. Pure + deterministic on every client.
+    ///
+    /// Undo semantics (each move only relocates slugs between team roster sets):
+    ///   • trade: fromSlugs went from→to and toSlugs went to→from, so swap them back.
+    ///   • addDrop: addSlug was added to the team and dropSlug (if any) was dropped, so remove
+    ///     the added slug and restore the dropped slug.
+    ///
+    /// Slugs added by a move but no longer present in the current roster (e.g. dropped again later,
+    /// but processed newest-first this cannot happen for a well-formed log) are still removed
+    /// idempotently; slugs restored by an undo are inserted whether or not they were present.
+    ///
+    /// - Parameters:
+    ///   - transactions: All docs from `hostedLeagues/{id}/transactions`, in any order.
+    ///   - currentRosters: The live roster for each team (teamId → [slug]).
+    ///   - uidToTeamId: Maps a Firebase uid to the engine's `UUID` for that team.
+    /// - Returns: teamId → [slug] as of draft completion. Order within a team is not meaningful
+    ///   for eligibility (a set), but a stable sorted order is returned for determinism.
+    static func buildDraftRosters(
+        transactions: [HostedTransaction],
+        currentRosters: [UUID: [String]],
+        uidToTeamId: (String) -> UUID?
+    ) -> [UUID: [String]] {
+
+        func canonicalize(_ slug: String) -> String { FantasyValueStore.canonicalSlug(slug) }
+
+        // Work over canonical-slug sets so add/remove is order-independent.
+        var rosters: [UUID: Set<String>] = [:]
+        for (teamId, slugs) in currentRosters {
+            rosters[teamId] = Set(slugs.map(canonicalize))
+        }
+
+        // Post-draft moves, newest first (reverse of build's chronological pass).
+        let postDraft = transactions
+            .filter { $0.type == "trade" || $0.type == "addDrop" }
+            .compactMap { tx -> (HostedTransaction, Date)? in
+                guard let at = tx.at else { return nil }
+                return (tx, at)
+            }
+            .sorted { $0.1 > $1.1 }
+
+        for (tx, _) in postDraft {
+            switch tx.type {
+            case "trade":
+                guard let fromUid = tx.fromUid, let toUid = tx.toUid,
+                      let fromTeam = uidToTeamId(fromUid), let toTeam = uidToTeamId(toUid)
+                else { continue }
+                // Undo: fromSlugs go back to `from`, toSlugs go back to `to`.
+                for slug in tx.fromSlugs ?? [] {
+                    let c = canonicalize(slug)
+                    rosters[toTeam]?.remove(c)
+                    rosters[fromTeam, default: []].insert(c)
+                }
+                for slug in tx.toSlugs ?? [] {
+                    let c = canonicalize(slug)
+                    rosters[fromTeam]?.remove(c)
+                    rosters[toTeam, default: []].insert(c)
+                }
+
+            case "addDrop":
+                guard let uid = tx.uid, let team = uidToTeamId(uid) else { continue }
+                // Undo: remove the added slug, restore the dropped slug.
+                if let addSlug = tx.addSlug {
+                    rosters[team]?.remove(canonicalize(addSlug))
+                }
+                if let dropSlug = tx.dropSlug {
+                    rosters[team, default: []].insert(canonicalize(dropSlug))
+                }
+
+            default:
+                break
+            }
+        }
+
+        return rosters.mapValues { $0.sorted() }
+    }
 }
 
 // MARK: - RosterEligibility.SlugTeamKey public surface

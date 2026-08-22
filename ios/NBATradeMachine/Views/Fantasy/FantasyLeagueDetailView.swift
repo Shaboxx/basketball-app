@@ -611,25 +611,9 @@ struct FantasyLeagueDetailView: View {
     }
 
     @ViewBuilder private func weeklyStandingRow(rank: Int, teamId: UUID, record: FantasyRecord) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text("\(rank)").frame(width: 24, alignment: .leading)
-                Text(fantasyTeamStore.team(teamId)?.name ?? "Removed team")
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Spacer()
-                Text("\(record.wins)-\(record.losses)-\(record.ties)")
-                    .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(width: 64, alignment: .trailing)
-                if pointsScoring {
-                    Text(String(format: "%.0f", record.pointsFor))
-                        .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-                        .frame(width: 52, alignment: .trailing)
-                } else {
-                    Text("\(record.categoryWins)-\(record.categoryLosses)")
-                        .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-                        .frame(width: 52, alignment: .trailing)
-                }
-            }
+        WeeklyStandingRow(rank: rank, teamId: teamId, record: record,
+                          pointsScoring: pointsScoring) { id in
+            fantasyTeamStore.team(id)?.name ?? "Removed team"
         }
     }
 
@@ -722,116 +706,15 @@ struct FantasyLeagueDetailView: View {
                                   outcome: FantasyWeekOutcome?) -> some View {
         let homeName = fantasyTeamStore.team(pairing.home)?.name ?? "Team"
         let awayName = fantasyTeamStore.team(pairing.away)?.name ?? "Team"
-        let status = outcome?.status ?? .future
-
-        Button {
-            selectedPairingWeekIndex = weekIndex
-            selectedPairing = pairing
-        } label: {
-            HStack(spacing: 6) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(homeName)  vs  \(awayName)")
-                        .foregroundStyle(.primary)
-                        .lineLimit(1).minimumScaleFactor(0.75)
-
-                    // Outcome chip or status badge
-                    weeklyMatchupChip(pairing: pairing, weekIndex: weekIndex,
-                                      outcome: outcome, weekStatus: status)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func weeklyMatchupChip(pairing: FantasyMatchupPairing,
-                                   weekIndex: Int,
-                                   outcome: FantasyWeekOutcome?,
-                                   weekStatus: FantasyWeekStatus) -> some View {
-        switch weekStatus {
-        case .future:
-            // Future weeks: projected badge (existing behavior)
-            Text("Projected")
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Color(.secondarySystemBackground), in: Capsule())
-                .foregroundStyle(.secondary)
-
-        case .current:
-            // Current in-progress week: show live provisional totals if resolved, else pending
-            if let mo = outcome?.matchupOutcomes.first(where: { $0.pairing == pairing }) {
-                if mo.status == .pending {
-                    Text("Awaiting stats")
-                        .font(.caption2).foregroundStyle(.orange)
-                } else if let result = mo.result {
-                    HStack(spacing: 4) {
-                        matchupResultChip(result, home: pairing.home)
-                        Text("In progress")
-                            .font(.caption2).foregroundStyle(.secondary)
-                    }
-                } else {
-                    Text("In progress")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-            } else {
-                Text("In progress")
-                    .font(.caption2).foregroundStyle(.secondary)
-            }
-
-        case .completed:
-            // Completed weeks: real result chips or pending
-            if let mo = outcome?.matchupOutcomes.first(where: { $0.pairing == pairing }) {
-                if mo.status == .pending {
-                    Text("Awaiting stats")
-                        .font(.caption2).foregroundStyle(.orange)
-                } else if let result = mo.result {
-                    matchupResultChip(result, home: pairing.home)
-                } else {
-                    Text("Awaiting stats")
-                        .font(.caption2).foregroundStyle(.orange)
-                }
-            } else {
-                Text("Awaiting stats")
-                    .font(.caption2).foregroundStyle(.orange)
-            }
-        }
-    }
-
-    /// Category tally chip "6-3" or weekly fp totals chip, styled green/red for the winner.
-    @ViewBuilder
-    private func matchupResultChip(_ result: FantasyMatchupResult,
-                                   home: UUID) -> some View {
-        let isHomeTeam = true   // the chip always shows from the "home" perspective in pairing order
-        let _ = isHomeTeam      // suppress unused warning
-        Group {
-            if result.isPoints {
-                // Points: show weekly fp totals
-                HStack(spacing: 2) {
-                    Text(String(format: "%.0f", result.homePoints))
-                        .foregroundStyle(result.outcome == .home ? .green :
-                                         result.outcome == .away ? .red : .primary)
-                    Text("–").foregroundStyle(.secondary)
-                    Text(String(format: "%.0f", result.awayPoints))
-                        .foregroundStyle(result.outcome == .away ? .green :
-                                         result.outcome == .home ? .red : .primary)
-                }
-                .font(.caption2.monospacedDigit().weight(.semibold))
-            } else {
-                // Category: show "homeCatWins-awayCatWins" tally
-                HStack(spacing: 2) {
-                    Text("\(result.homeCategoryWins)")
-                        .foregroundStyle(result.outcome == .home ? .green :
-                                         result.outcome == .away ? .red : .primary)
-                    Text("–").foregroundStyle(.secondary)
-                    Text("\(result.awayCategoryWins)")
-                        .foregroundStyle(result.outcome == .away ? .green :
-                                         result.outcome == .home ? .red : .primary)
-                }
-                .font(.caption2.monospacedDigit().weight(.semibold))
-            }
+        WeeklyMatchupRow(
+            pairing: pairing,
+            weekIndex: weekIndex,
+            homeName: homeName,
+            awayName: awayName,
+            outcome: outcome
+        ) { wi, p in
+            selectedPairingWeekIndex = wi
+            selectedPairing = p
         }
     }
 

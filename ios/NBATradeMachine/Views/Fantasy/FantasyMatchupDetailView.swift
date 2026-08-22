@@ -16,6 +16,12 @@ struct FantasyMatchupDetailView: View {
     /// Dream Team leagues score on raw ownership-divided stats (like live) — the bars
     /// need league-SD normalization, not the projected z-window.
     var dreamTeam: Bool = false
+    /// When true, `productions` holds weekly aggregated TOTALS (pts 52 vs 47 etc.) rather
+    /// than season-to-date per-game rates. The detail view renders raw integer totals in the
+    /// subtitle rows instead of z-scores, and the footer reflects the real-week context.
+    var weeklyTotalsMode: Bool = false
+    /// The status of the week this matchup belongs to (nil when not in weekly mode).
+    var weekStatus: FantasyWeekStatus? = nil
 
     /// Raw-scale productions (live OR Dream Team) — normalize bars by the league spread.
     private var rawScale: Bool { isLive || dreamTeam }
@@ -34,9 +40,11 @@ struct FantasyMatchupDetailView: View {
                 Section { header }
 
                 if result.isPoints {
-                    Section("Fantasy Points / Game") { pointsCard }
+                    let ptsSectionTitle = weeklyTotalsMode ? "Fantasy Points (Week)" : "Fantasy Points / Game"
+                    Section(ptsSectionTitle) { pointsCard }
                 } else {
-                    Section("Categories") {
+                    let catSectionTitle = weeklyTotalsMode ? "Categories (Week Totals)" : "Categories"
+                    Section(catSectionTitle) {
                         ForEach(result.lines, id: \.category) { line in categoryRow(line) }
                     }
                 }
@@ -65,6 +73,19 @@ struct FantasyMatchupDetailView: View {
                 }
             }
             Text(winnerLine).font(.subheadline).foregroundStyle(.secondary)
+            if weeklyTotalsMode, let status = weekStatus {
+                switch status {
+                case .current:
+                    Label("In progress", systemImage: "clock")
+                        .font(.caption).foregroundStyle(.orange)
+                case .completed:
+                    Label("Completed week", systemImage: "checkmark.circle")
+                        .font(.caption).foregroundStyle(.green)
+                case .future:
+                    Label("Projected", systemImage: "chart.line.uptrend.xyaxis")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -81,11 +102,17 @@ struct FantasyMatchupDetailView: View {
             VStack(spacing: 2) {
                 Text(homeName).font(.caption).foregroundStyle(.secondary)
                 Text(String(format: "%.1f", result.homePoints)).font(.title3.monospacedDigit())
+                if weeklyTotalsMode {
+                    Text("pts this week").font(.caption2).foregroundStyle(.secondary)
+                }
             }
             Spacer()
             VStack(spacing: 2) {
                 Text(awayName).font(.caption).foregroundStyle(.secondary)
                 Text(String(format: "%.1f", result.awayPoints)).font(.title3.monospacedDigit())
+                if weeklyTotalsMode {
+                    Text("pts this week").font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -106,6 +133,16 @@ struct FantasyMatchupDetailView: View {
         if dreamTeam {
             return "Dream Team — shared players' counting stats are split by ownership, so these totals already reflect the split. \(isLive ? "Live season-to-date." : "Projected season-long.")"
         }
+        if weeklyTotalsMode {
+            switch weekStatus {
+            case .current:
+                return "In progress — these are live week-to-date totals. They will update as more games are played this week."
+            case .completed:
+                return "Completed week — totals reflect all games played during this calendar week."
+            default:
+                return "Weekly totals for this matchup week."
+            }
+        }
         return isLive
             ? "Live — season-to-date production; totals are static, so the result is the same every meeting."
             : "Projected — this matchup is the same every time these teams meet until live scoring is available."
@@ -115,14 +152,33 @@ struct FantasyMatchupDetailView: View {
         VStack(spacing: 2) {
             CategoryBarRow(label: line.category.label, z: barValue(line))
             HStack {
-                Text(String(format: "%.2f", line.homeZ))
+                Text(weeklyTotalsMode
+                     ? formatWeeklyTotal(line.homeZ, category: line.category)
+                     : String(format: "%.2f", line.homeZ))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(line.outcome == .home ? .green : .secondary)
                 Spacer()
-                Text(String(format: "%.2f", line.awayZ))
+                Text(weeklyTotalsMode
+                     ? formatWeeklyTotal(line.awayZ, category: line.category)
+                     : String(format: "%.2f", line.awayZ))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(line.outcome == .away ? .green : .secondary)
             }
+        }
+    }
+
+    /// Format a weekly-total value for display. Counting stats are whole numbers; FG%/FT% are
+    /// ratios; TO was sign-flipped (stored as -Σtov so higher is better) — we display it as
+    /// the raw positive turnover count (negate back) for legibility.
+    private func formatWeeklyTotal(_ value: Double, category: FantasyLeagueCategory) -> String {
+        switch category {
+        case .fgPct, .ftPct:
+            return String(format: "%.1f%%", value * 100)
+        case .to:
+            // value == -Σtov (engine convention: higher is better); display as positive count
+            return String(format: "%.0f", -value)
+        default:
+            return String(format: "%.0f", value)
         }
     }
 }

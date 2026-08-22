@@ -15,6 +15,7 @@ struct FantasyLeaguesListView: View {
     // doesn't inherit this stack's environment — the team-detail crash class).
     @EnvironmentObject var fantasyStore: FantasyValueStore
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
+    @EnvironmentObject var playerGameLogsStore: PlayerGameLogsStore
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var footerState: FooterState
 
@@ -96,6 +97,7 @@ struct FantasyLeaguesListView: View {
                     .environmentObject(fantasyTeamStore)
                     .environmentObject(fantasyStore)
                     .environmentObject(fantasyActualsStore)
+                    .environmentObject(playerGameLogsStore)
                     .environmentObject(appSettings)
                     .environmentObject(fantasyDraftStore)
                     .environmentObject(fantasyTradeStore)
