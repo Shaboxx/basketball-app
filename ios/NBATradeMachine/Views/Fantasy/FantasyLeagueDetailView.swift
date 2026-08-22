@@ -12,6 +12,7 @@ struct FantasyLeagueDetailView: View {
     @EnvironmentObject var fantasyTeamStore: FantasyTeamStore
     @EnvironmentObject var fantasyStore: FantasyValueStore
     @EnvironmentObject var fantasyActualsStore: FantasyActualsStore
+    @EnvironmentObject var playerGameLogsStore: PlayerGameLogsStore
     @EnvironmentObject var appSettings: AppSettings
 
     let leagueId: UUID
@@ -22,6 +23,9 @@ struct FantasyLeagueDetailView: View {
     }
     @SceneStorage("fantasyLeagueSegment") private var segment: Segment = .standings   // NAV-07
     @State private var selectedPairing: FantasyMatchupPairing?
+    /// The 0-based schedule week index for the tapped matchup row (nil for non-weekly or
+    /// when the sheet was opened without a specific week context).
+    @State private var selectedPairingWeekIndex: Int?
     @State private var showLeagueSettings = false
     @State private var showDraftRoom = false
     @State private var showTrades = false
@@ -34,6 +38,22 @@ struct FantasyLeagueDetailView: View {
 
     // MARK: Derived (recomputed each render — cheap; the engine is pure)
     private var league: FantasyLeague? { fantasyLeagueStore.league(leagueId) }
+
+    // MARK: Weekly mode gate
+    /// Weekly H2H scoring is active when ALL four conditions are met (spec §UI):
+    ///   1. User has selected Live stat source.
+    ///   2. The fantasy calendar is configured (regularStart + playoffsStart known).
+    ///   3. The scoring format is H2H category or H2H points (NOT roto).
+    ///   4. The league is in standard mode (not Dream Team).
+    /// When false, all existing projected/live-season-to-date behavior is unchanged.
+    private var isWeeklyMode: Bool {
+        guard appSettings.statSource == .live else { return false }
+        guard appSettings.fantasyCalendar.isConfigured else { return false }
+        guard !isDreamTeam else { return false }
+        // Roto stays season-cumulative (spec §4); custom categories are H2H, points are H2H.
+        guard format != .roto else { return false }
+        return true
+    }
 
     /// This league's scoring: its own rules when set, else the app-wide format.
     private var format: FantasyFormat {
@@ -67,6 +87,79 @@ struct FantasyLeagueDetailView: View {
     /// stats split by ownership count. Productions come from the ownership-division
     /// engine (raw scale) instead of the per-team source.
     private var isDreamTeam: Bool { league?.mode == .dreamTeam }
+
+    // MARK: Weekly mode helpers
+
+    /// All canonical player slugs rostered across every member team (de-duplicated).
+    /// Used to determine which logs to request from `PlayerGameLogsStore`.
+    private var allRosteredSlugs: [String] {
+        Array(Set(memberTeams.flatMap(\.playerSlugs).map(FantasyValueStore.canonicalSlug)))
+    }
+
+    /// Local leagues always use alwaysCurrent eligibility (spec §6 local).
+    /// `playerGameLogsStore.logsBySlug` is a snapshot of already-loaded docs.
+    private var eligibility: RosterEligibility {
+        let rosters = Dictionary(uniqueKeysWithValues: memberTeams.map {
+            ($0.id, $0.playerSlugs)
+        })
+        return RosterEligibility.alwaysCurrent(rosters: rosters)
+    }
+
+    /// Precomputed `[weekIndex: [teamId: (FantasyTeamProduction, resolved)]]` for
+    /// every schedule week, using `FantasyWeeklySeason.teamWeekProduction`. Only
+    /// computed when `isWeeklyMode` is true (callers guard on that flag).
+    private var weeklyProductionsByWeek: [Int: [UUID: (FantasyTeamProduction, Bool)]] {
+        let logs = playerGameLogsStore.logsBySlug
+        // Slugs whose Firestore fetch SUCCEEDED (incl. nil-doc "played zero games").
+        // Spec §3: resolved = a successful fetch for ≥1 rostered player, NOT that a
+        // log doc exists — a team of all-nil-doc players is an empty week, not pending.
+        let resolvedSlugs = playerGameLogsStore.loadedSlugs
+        let cal = appSettings.fantasyCalendar
+        let elig = eligibility
+
+        var result: [Int: [UUID: (FantasyTeamProduction, Bool)]] = [:]
+        for week in schedule {
+            let calendarWeek = week.index + 1           // schedule 0-based ↔ calendar 1-based
+            guard let range = cal.weekDateRange(week: calendarWeek) else { continue }
+            let interval = DateInterval(start: range.start, end: range.end)
+            var teamMap: [UUID: (FantasyTeamProduction, Bool)] = [:]
+            for team in memberTeams {
+                let pair = FantasyWeeklySeason.teamWeekProduction(
+                    rosterSlugs: team.playerSlugs,
+                    logs: logs,
+                    week: interval,
+                    eligibility: elig,
+                    teamId: team.id,
+                    format: format,
+                    resolvedSlugs: resolvedSlugs)
+                teamMap[team.id] = pair
+            }
+            result[week.index] = teamMap
+        }
+        return result
+    }
+
+    /// Outcomes for every schedule week, scored from the precomputed productions.
+    private var weekOutcomes: [FantasyWeekOutcome] {
+        FantasyWeeklySeason.weekOutcomes(
+            schedule: schedule,
+            calendar: appSettings.fantasyCalendar,
+            now: Date(),
+            productionsByWeek: weeklyProductionsByWeek,
+            format: format,
+            customCategories: customCats)
+    }
+
+    /// Per-team records accumulated from COMPLETED + fully-resolved weeks only
+    /// (spec §3: current week is provisional; pending matchups excluded).
+    private var weeklyRecords: [UUID: FantasyRecord] {
+        FantasyWeeklySeason.records(from: weekOutcomes)
+    }
+
+    /// Number of completed calendar weeks for the "Through Week N" caption.
+    private var completedWeekCount: Int {
+        FantasyWeeklySeason.completedWeeks(calendar: appSettings.fantasyCalendar, now: Date())
+    }
 
     /// One player's raw per-game line under the active stat source (Dream Team scoring).
     private func dreamRaw(_ canon: String) -> RawPerGame? {
@@ -189,6 +282,16 @@ struct FantasyLeagueDetailView: View {
         }
         .navigationTitle(fantasyLeagueStore.league(leagueId)?.name ?? "League")
         .navigationBarTitleDisplayMode(.inline)
+        // Weekly mode: load game logs for every rostered player the first time this
+        // view appears (and whenever the roster changes). `PlayerGameLogsStore.load`
+        // is incremental — already-loaded slugs are no-ops, so repeat calls are cheap.
+        // We gate on `fantasyActualsStore.season` (same season source as ActualsStatSource)
+        // so a season rollover clears and reloads without leaking stale logs.
+        .task(id: isWeeklyMode ? allRosteredSlugs.sorted().joined() : "") {
+            guard isWeeklyMode else { return }
+            let season = fantasyActualsStore.season
+            await playerGameLogsStore.load(slugs: allRosteredSlugs, season: season)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -269,11 +372,38 @@ struct FantasyLeagueDetailView: View {
                 .environmentObject(appSettings)
         }
         .sheet(item: $selectedPairing) { p in
-            FantasyMatchupDetailView(pairing: p, productions: productions, format: format,
-                                     customCategories: customCats,
-                                     nameFor: { fantasyTeamStore.team($0)?.name ?? "Team" },
-                                     isLive: appSettings.statSource == .live,
-                                     dreamTeam: isDreamTeam)
+            // In weekly mode, tapping a past or current week row from the schedule passes
+            // the week's real productions so the detail view shows weekly totals.
+            // `selectedPairingWeekIndex` is set alongside `selectedPairing`.
+            let weekStatus: FantasyWeekStatus? = selectedPairingWeekIndex.flatMap { wi in
+                weekOutcomes.first(where: { $0.weekIndex == wi })?.status
+            }
+            let weekProds: [UUID: FantasyTeamProduction]? = {
+                guard isWeeklyMode, let wi = selectedPairingWeekIndex else { return nil }
+                // Future weeks have no games yet, so `teamWeekProduction` returns
+                // resolved=true with all-zero totals once the logs are loaded. Showing
+                // those zeros as "Week Totals" contradicts the header's "Projected"
+                // badge, so fall through to the projected season-to-date matchup instead.
+                guard let ws = weekStatus, ws != .future else { return nil }
+                let map = weeklyProductionsByWeek[wi] ?? [:]
+                // Only use weekly prods when both sides are resolved; fall back to season
+                // productions for pending matchups so detail isn't empty.
+                let homeResolved = map[p.home]?.1 ?? false
+                let awayResolved = map[p.away]?.1 ?? false
+                guard homeResolved && awayResolved else { return nil }
+                return [p.home: map[p.home]?.0 ?? .zero,
+                        p.away: map[p.away]?.0 ?? .zero]
+            }()
+            FantasyMatchupDetailView(
+                pairing: p,
+                productions: weekProds ?? productions,
+                format: format,
+                customCategories: customCats,
+                nameFor: { fantasyTeamStore.team($0)?.name ?? "Team" },
+                isLive: appSettings.statSource == .live,
+                dreamTeam: isDreamTeam,
+                weeklyTotalsMode: weekProds != nil,
+                weekStatus: weekStatus)
         }
     }
 
@@ -303,8 +433,13 @@ struct FantasyLeagueDetailView: View {
                 Text("Projected mode — matchups reflect season-long projections, so results don't change week to week. Switch to Live above for real season-to-date scoring.")
                     .font(.caption).foregroundStyle(.secondary)
             case .live:
-                Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
-                    .font(.caption).foregroundStyle(.secondary)
+                if isWeeklyMode {
+                    Text("Weekly mode — standings and matchups reflect real per-week box scores. Completed weeks count; the current week is provisional.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Live mode — standings reflect real season-to-date per-game production. (Season-to-date totals are static, so the round-robin doesn't vary week to week.)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -404,6 +539,14 @@ struct FantasyLeagueDetailView: View {
 
     // MARK: Standings
     @ViewBuilder private var standingsSections: some View {
+        if isWeeklyMode {
+            weeklyStandingsSections
+        } else {
+            projectedOrLiveStandingsSections
+        }
+    }
+
+    @ViewBuilder private var projectedOrLiveStandingsSections: some View {
         let rows = FantasyStandings.standings(productions: productions, teamIds: teamIds,
                                               schedule: schedule, format: format,
                                               customCategories: customCats)
@@ -423,6 +566,69 @@ struct FantasyLeagueDetailView: View {
             Section {
                 Text("Roto standings sort by category rank-sum. The W-L column is an auxiliary head-to-head read (roto has no native head-to-head).")
                     .font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Weekly mode standings: records from COMPLETED + fully-resolved weeks only.
+    @ViewBuilder private var weeklyStandingsSections: some View {
+        let recs = weeklyRecords
+        let n = completedWeekCount
+        let header = n == 0 ? "Standings" : "Standings — Through Week \(n)"
+
+        // Sort: wins desc → category diff desc → name asc (deterministic, matches existing engine)
+        let sorted = teamIds.sorted { l, r in
+            let rl = recs[l] ?? .init()
+            let rr = recs[r] ?? .init()
+            if rl.wins != rr.wins { return rl.wins > rr.wins }
+            let dl = rl.categoryWins - rl.categoryLosses
+            let dr = rr.categoryWins - rr.categoryLosses
+            if dl != dr { return dl > dr }
+            if rl.pointsFor != rr.pointsFor { return rl.pointsFor > rr.pointsFor }
+            return (fantasyTeamStore.team(l)?.name ?? "") < (fantasyTeamStore.team(r)?.name ?? "")
+        }
+
+        Section(header) {
+            HStack {
+                Text("#").frame(width: 24, alignment: .leading)
+                Text("Team")
+                Spacer()
+                Text("W-L-T").frame(width: 64, alignment: .trailing)
+                Text(pointsScoring ? "FP" : "Cats").frame(width: 52, alignment: .trailing)
+            }
+            .font(.caption).foregroundStyle(.secondary)
+
+            ForEach(Array(sorted.enumerated()), id: \.element) { rank, teamId in
+                weeklyStandingRow(rank: rank + 1, teamId: teamId, record: recs[teamId] ?? .init())
+            }
+        }
+
+        // Local league approximate-history footnote (spec §UI local banner)
+        Section {
+            Text("Past weeks use current rosters — trades and adds are not reflected in historical results.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private func weeklyStandingRow(rank: Int, teamId: UUID, record: FantasyRecord) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("\(rank)").frame(width: 24, alignment: .leading)
+                Text(fantasyTeamStore.team(teamId)?.name ?? "Removed team")
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Spacer()
+                Text("\(record.wins)-\(record.losses)-\(record.ties)")
+                    .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: 64, alignment: .trailing)
+                if pointsScoring {
+                    Text(String(format: "%.0f", record.pointsFor))
+                        .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(width: 52, alignment: .trailing)
+                } else {
+                    Text("\(record.categoryWins)-\(record.categoryLosses)")
+                        .font(.subheadline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(width: 52, alignment: .trailing)
+                }
             }
         }
     }
@@ -460,10 +666,21 @@ struct FantasyLeagueDetailView: View {
     }
 
     @ViewBuilder private var scheduleSections: some View {
+        if isWeeklyMode {
+            weeklyScheduleSections
+        } else {
+            projectedScheduleSections
+        }
+    }
+
+    @ViewBuilder private var projectedScheduleSections: some View {
         ForEach(schedule) { week in
             Section(weekHeader(week.index)) {
                 ForEach(week.pairings) { p in
-                    Button { selectedPairing = p } label: {
+                    Button {
+                        selectedPairingWeekIndex = nil
+                        selectedPairing = p
+                    } label: {
                         HStack {
                             Text("\(fantasyTeamStore.team(p.home)?.name ?? "Team")  vs  \(fantasyTeamStore.team(p.away)?.name ?? "Team")")
                             Spacer()
@@ -479,6 +696,143 @@ struct FantasyLeagueDetailView: View {
             }
         }
         playoffsSection
+    }
+
+    /// Schedule in weekly mode: outcomes drive each row's appearance.
+    @ViewBuilder private var weeklyScheduleSections: some View {
+        let outcomes = weekOutcomes
+        ForEach(schedule) { week in
+            let outcome = outcomes.first(where: { $0.weekIndex == week.index })
+            Section(weekHeader(week.index)) {
+                ForEach(week.pairings) { p in
+                    weeklyMatchupRow(pairing: p, weekIndex: week.index, outcome: outcome)
+                }
+                if let bye = week.bye {
+                    Text("Bye: \(fantasyTeamStore.team(bye)?.name ?? "Team")")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        playoffsSection
+    }
+
+    @ViewBuilder
+    private func weeklyMatchupRow(pairing: FantasyMatchupPairing,
+                                  weekIndex: Int,
+                                  outcome: FantasyWeekOutcome?) -> some View {
+        let homeName = fantasyTeamStore.team(pairing.home)?.name ?? "Team"
+        let awayName = fantasyTeamStore.team(pairing.away)?.name ?? "Team"
+        let status = outcome?.status ?? .future
+
+        Button {
+            selectedPairingWeekIndex = weekIndex
+            selectedPairing = pairing
+        } label: {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(homeName)  vs  \(awayName)")
+                        .foregroundStyle(.primary)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+
+                    // Outcome chip or status badge
+                    weeklyMatchupChip(pairing: pairing, weekIndex: weekIndex,
+                                      outcome: outcome, weekStatus: status)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func weeklyMatchupChip(pairing: FantasyMatchupPairing,
+                                   weekIndex: Int,
+                                   outcome: FantasyWeekOutcome?,
+                                   weekStatus: FantasyWeekStatus) -> some View {
+        switch weekStatus {
+        case .future:
+            // Future weeks: projected badge (existing behavior)
+            Text("Projected")
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color(.secondarySystemBackground), in: Capsule())
+                .foregroundStyle(.secondary)
+
+        case .current:
+            // Current in-progress week: show live provisional totals if resolved, else pending
+            if let mo = outcome?.matchupOutcomes.first(where: { $0.pairing == pairing }) {
+                if mo.status == .pending {
+                    Text("Awaiting stats")
+                        .font(.caption2).foregroundStyle(.orange)
+                } else if let result = mo.result {
+                    HStack(spacing: 4) {
+                        matchupResultChip(result, home: pairing.home)
+                        Text("In progress")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("In progress")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("In progress")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+
+        case .completed:
+            // Completed weeks: real result chips or pending
+            if let mo = outcome?.matchupOutcomes.first(where: { $0.pairing == pairing }) {
+                if mo.status == .pending {
+                    Text("Awaiting stats")
+                        .font(.caption2).foregroundStyle(.orange)
+                } else if let result = mo.result {
+                    matchupResultChip(result, home: pairing.home)
+                } else {
+                    Text("Awaiting stats")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+            } else {
+                Text("Awaiting stats")
+                    .font(.caption2).foregroundStyle(.orange)
+            }
+        }
+    }
+
+    /// Category tally chip "6-3" or weekly fp totals chip, styled green/red for the winner.
+    @ViewBuilder
+    private func matchupResultChip(_ result: FantasyMatchupResult,
+                                   home: UUID) -> some View {
+        let isHomeTeam = true   // the chip always shows from the "home" perspective in pairing order
+        let _ = isHomeTeam      // suppress unused warning
+        Group {
+            if result.isPoints {
+                // Points: show weekly fp totals
+                HStack(spacing: 2) {
+                    Text(String(format: "%.0f", result.homePoints))
+                        .foregroundStyle(result.outcome == .home ? .green :
+                                         result.outcome == .away ? .red : .primary)
+                    Text("–").foregroundStyle(.secondary)
+                    Text(String(format: "%.0f", result.awayPoints))
+                        .foregroundStyle(result.outcome == .away ? .green :
+                                         result.outcome == .home ? .red : .primary)
+                }
+                .font(.caption2.monospacedDigit().weight(.semibold))
+            } else {
+                // Category: show "homeCatWins-awayCatWins" tally
+                HStack(spacing: 2) {
+                    Text("\(result.homeCategoryWins)")
+                        .foregroundStyle(result.outcome == .home ? .green :
+                                         result.outcome == .away ? .red : .primary)
+                    Text("–").foregroundStyle(.secondary)
+                    Text("\(result.awayCategoryWins)")
+                        .foregroundStyle(result.outcome == .away ? .green :
+                                         result.outcome == .home ? .red : .primary)
+                }
+                .font(.caption2.monospacedDigit().weight(.semibold))
+            }
+        }
     }
 
     /// Playoff preview: the configured bracket seeded by CURRENT standings (the

@@ -76,31 +76,46 @@ nonisolated enum FantasyWeeklySeason {
     ///   - rosterSlugs: The player slugs on this team's roster (current or historical,
     ///     depending on how `eligibility` was built).
     ///   - logs: All loaded log docs keyed by canonical slug. A slug present in
-    ///     `rosterSlugs` but absent from `logs` is treated as a fetch failure.
+    ///     `rosterSlugs` but absent from `logs` had no game doc for the season (a
+    ///     successful nil-doc fetch — see `resolvedSlugs`).
     ///   - week: The half-open `[start, end)` interval for this calendar week.
     ///   - eligibility: Per-player eligibility windows; gates which games count for
     ///     this team (local: always-current; hosted: transaction-reconstructed).
     ///   - teamId: The UUID identifying this team in the eligibility map.
     ///   - format: The scoring format (determines points scoring; category formats
     ///     use `categoryTotals`).
-    /// - Returns: A `(production, resolved)` tuple where `resolved == false` iff
-    ///   NO rostered slug has a loaded log doc (all slugs missing → fetch failure
-    ///   → pending). A team whose players all had zero eligible games IS resolved
-    ///   (the doc was fetched; they just didn't play) and produces `.zero`.
+    ///   - resolvedSlugs: The set of canonical slugs whose Firestore fetch SUCCEEDED
+    ///     (`PlayerGameLogsStore.loadedSlugs`) — this includes slugs that returned no
+    ///     doc (played zero games / no season row). Per spec §3, `resolved` = the fetch
+    ///     succeeded for ≥1 rostered player, NOT that a log doc exists. Pass `nil` to
+    ///     fall back to log-presence (`logs[$0] != nil`) for callers/tests that supply
+    ///     only a logs map.
+    /// - Returns: A `(production, resolved)` tuple where `resolved == false` iff NO
+    ///   rostered slug had a successful fetch (all fetches failed → pending). A team
+    ///   whose players all had zero eligible games — or a successful nil-doc fetch —
+    ///   IS resolved and produces `.zero` (an empty week, not a pending matchup).
     static func teamWeekProduction(
         rosterSlugs: [String],
         logs: [String: PlayerGameLogSeason],
         week: DateInterval,
         eligibility: RosterEligibility,
         teamId: UUID,
-        format: FantasyFormat
+        format: FantasyFormat,
+        resolvedSlugs: Set<String>? = nil
     ) -> (production: FantasyTeamProduction, resolved: Bool) {
 
         // Canonicalize all slugs up front so every lookup is consistent.
         let canonical = rosterSlugs.map { FantasyValueStore.canonicalSlug($0) }
 
-        // Resolved = at least one rostered slug has a loaded log doc.
-        let resolved = canonical.contains { logs[$0] != nil }
+        // Resolved = the log fetch SUCCEEDED for ≥1 rostered slug. A successful fetch
+        // that returned no doc (zero games) still counts (spec §3) — so prefer the
+        // explicit `resolvedSlugs` set; fall back to log-presence when it's absent.
+        let resolved: Bool
+        if let resolvedSlugs {
+            resolved = canonical.contains { resolvedSlugs.contains($0) }
+        } else {
+            resolved = canonical.contains { logs[$0] != nil }
+        }
         guard resolved else {
             return (.zero, false)
         }
