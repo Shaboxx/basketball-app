@@ -71,13 +71,8 @@ struct TeamDetailView: View {
 
             AdRow()   // bottom-of-page banner slot; self-hides when ads are off
         }
-        .navigationDestination(for: Player.self) { p in
-            PlayerDetailView(player: p)
-                .environmentObject(teamsVM)
-                .environmentObject(normsVM)
-                .environmentObject(appSettings)
-                .environmentObject(fantasyStore)
-        }
+        // Player destination intentionally NOT registered here — it lives at the Teams
+        // stack root (TeamsListView) so it exists before this view is ever pushed.
         .navigationTitle(team.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

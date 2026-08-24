@@ -118,6 +118,17 @@ struct TeamsListView: View {
                     .environmentObject(appSettings)
                     .environmentObject(fantasyStore)
             }
+            // Registered at the stack ROOT (not inside the pushed TeamDetailView) so the
+            // destination exists before any push — a child-declared destination could miss
+            // the first player tap (caution-triangle placeholder) and triggered the
+            // "declared earlier on the stack" duplicate warnings.
+            .navigationDestination(for: Player.self) { p in
+                PlayerDetailView(player: p)
+                    .environmentObject(teamsVM)
+                    .environmentObject(normsVM)
+                    .environmentObject(appSettings)
+                    .environmentObject(fantasyStore)
+            }
         }
         .task { await teamsVM.load() }
     }
