@@ -66,8 +66,8 @@ nonisolated enum TradeChemistry {
     private static func starters(_ roster: [Player]) -> [Player] {
         roster
             .sorted {
-                let a = $0.thetaBoard?.total ?? -.greatestFiniteMagnitude
-                let b = $1.thetaBoard?.total ?? -.greatestFiniteMagnitude
+                let a = $0.engineImpact ?? -.greatestFiniteMagnitude
+                let b = $1.engineImpact ?? -.greatestFiniteMagnitude
                 return a != b ? a > b : $0.name < $1.name
             }
             .prefix(5)
@@ -80,7 +80,7 @@ nonisolated enum TradeChemistry {
 
     private static func label(_ players: [Player], norms: LeagueNorms) -> LineupLabel {
         LineupLabeler.label(players: players, norms: norms,
-                            impacts: players.map { $0.thetaBoard?.total })
+                            impacts: players.map { $0.engineImpact })
     }
 
     /// Fixed capability order → deterministic ties.

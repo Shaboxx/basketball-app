@@ -117,7 +117,7 @@ struct TeamDetailView: View {
                 LineupBreakdownView(
                     players: five,
                     norms: normsVM.norms,
-                    impacts: five.map { $0.thetaBoard?.total },
+                    impacts: five.map { $0.engineImpact },
                     tier: "starters"
                 )
                 .navigationDestination(for: Player.self) { p in
