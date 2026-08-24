@@ -70,6 +70,10 @@ struct Player: Codable, Identifiable, Hashable {
     // Field names match the Firestore map keys exactly.
     let relevance: Relevance?
 
+    // θ-NN player-evaluation board value (written by the thetaboard pipeline).
+    // Optional — docs without it decode as nil.
+    let thetaBoard: ThetaBoardValue?
+
     /// Per-player relevance block used by the SP3 weighted team-OVR rollup.
     /// Written by scripts/upload_relevance.py; field names match the Firestore map keys.
     struct Relevance: Codable, Hashable {
@@ -105,6 +109,7 @@ struct Player: Codable, Identifiable, Hashable {
         case lineupFeatures
         case rosterValue
         case relevance
+        case thetaBoard
     }
 
     var id: String { docId ?? slug }
@@ -178,7 +183,8 @@ extension Player {
         tradeValue: TradeValue? = nil,
         lineupFeatures: LineupFeatures? = nil,
         rosterValue: RosterValue? = nil,
-        relevance: Relevance? = nil
+        relevance: Relevance? = nil,
+        thetaBoard: ThetaBoardValue? = nil
     ) -> Player {
         Player(
             slug: slug, name: name, teamId: teamId, position: position,
@@ -202,7 +208,8 @@ extension Player {
             thetaV2: thetaV2, tradeValue: tradeValue,
             lineupFeatures: lineupFeatures,
             rosterValue: rosterValue,
-            relevance: relevance
+            relevance: relevance,
+            thetaBoard: thetaBoard
         )
     }
 }

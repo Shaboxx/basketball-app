@@ -81,6 +81,7 @@ struct PlayerDetailView: View {
                     FantasyBoxSection(player: player)
                 } else {
                     LatentValueSection(player: player)
+                    ThetaBoardSection(player: player)
                     SalarySection(player: player)
                     ProjectedContractSection(player: player)
                     if AppConfig.matchupsEnabled {

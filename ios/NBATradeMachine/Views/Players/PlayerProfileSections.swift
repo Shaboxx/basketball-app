@@ -486,3 +486,92 @@ struct ProjectedContractSection: View {
             .padding(.top, 6)
     }
 }
+
+// MARK: - θ Board (ThetaBoard NN value)
+
+/// Current-season nowcast from the θ-NN player-evaluation board. Shows per-100-possession
+/// impact (Total, Off, Def), outcome-calibrated blend (when available), and projected
+/// availability. Collapsed by default; hidden behind no-data row when thetaBoard is nil
+/// or has no total.
+struct ThetaBoardSection: View {
+    let player: Player
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            if let tb = player.thetaBoard, tb.total != nil {
+                content(tb)
+            } else {
+                noDataRow
+            }
+        } label: {
+            Text("θ Board").font(.headline)
+        }
+        .padding()
+        .background(
+            Color(.secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+    }
+
+    @ViewBuilder
+    private func content(_ tb: ThetaBoardValue) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Main impact row
+            if let total = tb.total {
+                HStack {
+                    Text("θ impact / 100 poss").foregroundStyle(.secondary)
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(String(format: "%+.1f", total))
+                            .monospacedDigit()
+                            .bold()
+                        if let off = tb.off, let def = tb.def {
+                            Text(String(format: "OFF %+.1f  DEF %+.1f", off, def))
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.top, 6)
+            }
+
+            // Outcome-calibrated blend (only if present)
+            if let blend = tb.blend {
+                HStack {
+                    Text("Outcome-calibrated blend").foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "%+.1f", blend))
+                        .monospacedDigit()
+                        .bold()
+                }
+                .padding(.top, 6)
+            }
+
+            // Projected availability (only if present)
+            if let avail = tb.availShare {
+                HStack {
+                    Text("Projected availability").foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int((avail * 100).rounded()))%")
+                        .monospacedDigit()
+                        .bold()
+                }
+                .padding(.top, 6)
+            }
+
+            // Honest provenance caption sourced from the HTML footer
+            Text("Ratings are a production artifact separate from the sealed protocol candidate; not established as EPM-equivalent for team forecasting (Gate 2 pending the 2027 decisive).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 8)
+        }
+    }
+
+    private var noDataRow: some View {
+        Text("— No data")
+            .foregroundStyle(.secondary)
+            .padding(.top, 6)
+    }
+}
