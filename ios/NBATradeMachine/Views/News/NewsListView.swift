@@ -87,9 +87,10 @@ struct NewsListView: View {
             .navigationDestination(for: NewsItem.self) { NewsDetailView(item: $0) }
         }
         .task {
-            await vm.load()
+            async let news: Void = vm.load()
+            async let strip: Void = gameStripStore.load()
+            _ = await (news, strip)
             didLoad = true
-            await gameStripStore.load()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active && didLoad {

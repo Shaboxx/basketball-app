@@ -270,7 +270,16 @@ final class TeamsViewModel: ObservableObject {
     /// players of the roster carry a display value. Returns (0,0,0,total) when
     /// no roster player is rated yet — callers must treat `rated == 0` as "hide
     /// the summary," not as "team is exactly average."
+    /// Memoized per teamId keyed on dataVersion — called per team tile per body eval
+    /// (~30 tiles × ~15 players) so recomputing every render is wasted work.
+    private var _latentRollupCache: [String: (off: Double, def: Double, rated: Int, total: Int)] = [:]
+    private var _latentRollupVersion = -1
     func latentValueRollup(for teamId: String) -> (off: Double, def: Double, rated: Int, total: Int) {
+        if _latentRollupVersion != dataVersion {
+            _latentRollupCache = [:]
+            _latentRollupVersion = dataVersion
+        }
+        if let cached = _latentRollupCache[teamId] { return cached }
         let roster = players(for: teamId)
         var off = 0.0
         var def = 0.0
@@ -283,7 +292,9 @@ final class TeamsViewModel: ObservableObject {
             def += d ?? 0
             rated += 1
         }
-        return (off, def, rated, roster.count)
+        let result = (off, def, rated, roster.count)
+        _latentRollupCache[teamId] = result
+        return result
     }
 
     // MARK: - Sorted / filtered grid (memoized)

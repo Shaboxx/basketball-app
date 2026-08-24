@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlayersListView: View {
     @Binding var path: NavigationPath   // owned by ContentView so depth survives tab switches (NAV-19)
-    @StateObject private var vm = PlayersViewModel()
+    @EnvironmentObject private var vm: PlayersViewModel
     @EnvironmentObject var teamsVM: TeamsViewModel
     @EnvironmentObject var appSettings: AppSettings
     @EnvironmentObject var fantasyStore: FantasyValueStore
