@@ -108,11 +108,11 @@ nonisolated enum PlayerProfileLabels {
         0.5 * erfc(-x / 2.0.squareRoot())
     }
 
-    /// Impact percentile in [0,1] from thetaV2.combined (preferred) or
-    /// latentValue.thetaZ (fallback): pctl = Φ(theta / 2). nil when neither
-    /// signal is present.
+    /// Impact percentile in [0,1] from thetaBoard.blend (preferred; blend is z-scale-compatible
+    /// with the old combined) or latentValue.thetaZ (fallback): pctl = Φ(theta / 2).
+    /// nil when neither signal is present.
     private nonisolated static func impactPercentile(_ player: Player) -> Double? {
-        if let combined = player.thetaV2?.combined {
+        if let combined = player.thetaBoard?.blend {
             return phi(combined / 2.0)
         }
         if let thetaZ = player.latentValue?.thetaZ {

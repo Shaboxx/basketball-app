@@ -146,7 +146,7 @@ struct LineupMakerView: View {
                 LineupBreakdownView(
                     players: players,
                     norms: norms,
-                    impacts: players.map { $0.thetaV2?.theta },
+                    impacts: players.map { $0.thetaBoard?.total },
                     tier: row == 0 ? "starters" : "bench"
                 )
                 .navigationDestination(for: Player.self) { p in

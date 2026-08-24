@@ -49,10 +49,10 @@ struct DepthChartLayersView: View {
         }
     }
 
-    /// Per-player composite impact (thetaV2.theta / SwishScore) for `layer`, same order as
+    /// Per-player composite impact (θ-total from thetaBoard) for `layer`, same order as
     /// `layerPlayers`.
     private func layerImpacts(_ layer: Int) -> [Double?] {
-        layerPlayers(layer).map { $0.thetaV2?.theta }
+        layerPlayers(layer).map { $0.thetaBoard?.total }
     }
 
     /// Tier label the labeler uses: the first (starters) layer is "starters",

@@ -333,7 +333,7 @@ struct LineupsRankingView: View {
         return LineupBreakdownView(
             players: starters,
             norms:   normsVM.norms,
-            impacts: starters.map { $0.thetaV2?.theta },
+            impacts: starters.map { $0.thetaBoard?.total },
             tier:    "starters"
         )
         .navigationTitle("Starter Lineup Analysis")

@@ -75,7 +75,7 @@ nonisolated enum LineupLabeler {
 
     /// Label a five-man lineup. `players` are read for their `lineupFeatures`;
     /// players missing a feature record abstain gracefully (their slot is nil).
-    /// `impacts` carries each player's `thetaV2?.theta` (SwishScore), same order as
+    /// `impacts` carries each player's θ-total from thetaBoard, same order as
     /// `players`).
     static func label(players: [Player], norms: LeagueNorms,
                       tier: String = "starters",
