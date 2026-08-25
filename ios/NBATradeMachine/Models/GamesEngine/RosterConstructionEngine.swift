@@ -27,6 +27,7 @@ nonisolated enum GameEngineError: Error, Equatable {
     case slotFilled
     case slotRejectsEntity
     case rosterConstraintViolated
+    case cannotAfford
 }
 
 /// The whole session — a pure value. Codable so a future online session can
@@ -42,6 +43,7 @@ nonisolated struct RosterGameState: Codable, Equatable {
     var offerings: [String]?              // ids offered this turn (randomOffer)
     var rng: SeededRNG
     var status: GameStatus
+    var budgets: [Int]?                   // per-seat remaining budget; nil ⟺ no economy (co-seeded with definition.economy at init)
 }
 
 nonisolated enum RosterConstructionEngine {
@@ -74,7 +76,10 @@ nonisolated enum RosterConstructionEngine {
             turnIndex: 0,
             offerings: nil,
             rng: SeededRNG(seed: seed),
-            status: .active)
+            status: .active,
+            budgets: definition.economy.map {
+                Array(repeating: $0.startingBudget, count: participants.count)
+            })
         state = rollOfferingsIfNeeded(state)
         return state
     }
@@ -122,6 +127,10 @@ nonisolated enum RosterConstructionEngine {
                 return false
             }
             if ownIds.contains(e.id) { return false }
+            if let econ = state.definition.economy,
+               let budget = state.budgets?[seat], econ.price(e) > budget {
+                return false
+            }
             if let offered = state.offerings, !offered.contains(e.id) { return false }
             guard !validSlots(state, seat: seat, entity: e).isEmpty else { return false }
             return GameConstraintEvaluator.allowsPick(
@@ -159,10 +168,20 @@ nonisolated enum RosterConstructionEngine {
             constraints: state.definition.rosterConstraints) else {
             throw GameEngineError.rosterConstraintViolated
         }
+        let cost: Int
+        if let econ = state.definition.economy {
+            cost = econ.price(entity)
+            guard let budget = state.budgets?[seat], cost <= budget else {
+                throw GameEngineError.cannotAfford
+            }
+        } else {
+            cost = 0
+        }
 
         var next = state
         next.rosters[seat].append(RosterAssignment(slotId: slotId, entity: entity))
         next.pickedIds.insert(entityId)
+        if state.definition.economy != nil { next.budgets?[seat] -= cost }
         next.turnIndex += 1
         next.offerings = nil
         if next.turnIndex >= next.turnSequence.count {
