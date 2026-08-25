@@ -67,6 +67,41 @@ private struct RosterDraftContent: View {
     }
     private func teamLabel(_ id: String) -> String { teamNames[id] ?? id }
 
+    // MARK: modifier helpers
+
+    private var reveal: RevealConfig? { store.state.definition.reveal }
+    private var economy: EconomyConfig? { store.state.definition.economy }
+
+    /// Display name for an OFFERED (unplaced) entity, masked per the reveal config.
+    private func maskedName(_ e: GameEntityRecord) -> String {
+        (reveal?.masks(.identity) ?? false) ? "???" : e.name
+    }
+    private func maskedTeam(_ e: GameEntityRecord) -> String {
+        (reveal?.masks(.team) ?? false) ? "???" : teamLabel(e.team)
+    }
+    private func maskedRating(_ e: GameEntityRecord) -> String {
+        (reveal?.masks(.rating) ?? false) ? "???" : String(format: "%+.1f", e.rating)
+    }
+    /// Price label for an entity under the economy, or nil when no economy.
+    private func priceLabel(_ e: GameEntityRecord) -> String? {
+        guard let econ = economy else { return nil }
+        let p = econ.price(e)
+        switch econ.pricingMethod {
+        case .databaseValue: return "$\(p / 1_000_000)M"
+        case .tierPrice:     return "$\(p)"
+        }
+    }
+    private func remainingBudgetLabel(seat: Int) -> String? {
+        guard let econ = economy, let rem = store.state.budgets?[seat] else { return nil }
+        switch econ.pricingMethod {
+        case .databaseValue: return "Budget: $\(rem / 1_000_000)M left"
+        case .tierPrice:     return "Budget: $\(rem) left"
+        }
+    }
+    private func rerollsLeft(seat: Int) -> Int {
+        store.state.actionInventory?[seat].rerolls ?? 0
+    }
+
     var body: some View {
         switch store.phase {
         case .finished(let result):
@@ -109,31 +144,59 @@ private struct RosterDraftContent: View {
 
     private func pickingScreen(seat: Int) -> some View {
         let eligible = RosterConstructionEngine.eligibleEntities(store.state, seat: seat)
-        let shown = searchText.isEmpty
+        let isBlind = reveal?.masks(.identity) ?? false
+        let shown = (searchText.isEmpty || isBlind)
             ? eligible
             : eligible.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        // Show the reroll whenever the seat has one and there's a live offering.
+        // (An offering-usefulness gate would need the offering-INDEPENDENT legal
+        // pool count — eligibleEntities is already offering-filtered, so its
+        // count is ≤ offeringsPerTurn and can't express "more picks exist". The
+        // full legal pool is large, so a reroll is virtually always useful; the
+        // rare 1-legal-pick corner just redraws the same player, harmlessly.)
         return VStack(spacing: 0) {
             rosterBoard(focusSeat: seat)
+            if let budget = remainingBudgetLabel(seat: seat) {
+                Text(budget)
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
+            if rerollsLeft(seat: seat) > 0 && store.state.offerings != nil {
+                Button {
+                    store.reroll()
+                } label: {
+                    Label("Reroll (\(rerollsLeft(seat: seat)) left)",
+                          systemImage: "dice.fill")
+                }
+                .buttonStyle(.bordered)
+                .padding(.horizontal)
+            }
             List(shown.sorted { $0.rating > $1.rating }) { entity in
                 Button {
                     tap(entity, seat: seat)
                 } label: {
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(entity.name)
-                            Text("\(teamLabel(entity.team)) · \(entity.position)")
+                            Text(maskedName(entity))
+                            Text("\(maskedTeam(entity)) · \(entity.position)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text(String(format: "%+.1f", entity.rating))
+                        if let price = priceLabel(entity) {
+                            Text(price)
+                                .font(.callout.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(maskedRating(entity))
                             .font(.callout.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)
             }
-            .searchable(text: $searchText, prompt: "Search players")
+            .modifier(ConditionalSearchable(enabled: !isBlind, text: $searchText))
         }
         .confirmationDialog("Choose a slot",
                             isPresented: Binding(get: { pendingEntity != nil },
@@ -205,6 +268,9 @@ private struct RosterDraftContent: View {
         case .slotRejectsEntity:        return "That player can't fill that slot."
         case .rosterConstraintViolated: return "That pick breaks a roster rule."
         case .notAnOffering:            return "Pick one of the offered players."
+        case .cannotAfford:             return "Not enough budget for that player."
+        case .noRerollsLeft:            return "No rerolls left."
+        case .nothingToReroll:          return "Nothing to reroll right now."
         default:                        return "That pick isn't allowed right now."
         }
     }
@@ -257,5 +323,19 @@ private struct RosterDraftResultView: View {
         }
         .navigationTitle("Results")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Applies `.searchable` only when enabled — a blind game hides identities so
+/// search is meaningless (and would leak names).
+private struct ConditionalSearchable: ViewModifier {
+    let enabled: Bool
+    @Binding var text: String
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, prompt: "Search players")
+        } else {
+            content
+        }
     }
 }
