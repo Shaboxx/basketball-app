@@ -89,6 +89,33 @@ nonisolated enum DraftGameRegistry {
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 12,
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
+        DraftGame(
+            id: "rank-players",
+            title: "Rank Players",
+            subtitle: "Order eight stars — how close to the model can you get?",
+            systemImage: "list.number",
+            availability: .available,   // Phase 3 — CLASSIFICATION
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "tier-list",
+            title: "Tier List",
+            subtitle: "Sort twelve players into S–D tiers.",
+            systemImage: "square.stack.3d.up.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "start-bench-cut",
+            title: "Start / Bench / Cut",
+            subtitle: "Three players, three fates.",
+            systemImage: "figure.basketball",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
     ]
 
     /// Lookup by id (used by the store + setup screen). nil for an unknown id.
