@@ -10,12 +10,14 @@ nonisolated enum GamePresets {
     static let bestCurrentPlayersId = "best-current-players"
     static let fantasySalaryCapId = "fantasy-salary-cap"
     static let blindDraftId = "blind-draft"
+    static let budgetBuilderId = "budget-builder"
 
     static func definition(for gameId: String) -> GameDefinition? {
         switch gameId {
         case Self.bestCurrentPlayersId: return bestCurrentPlayers   // Self. forces expression-pattern match, not a binding
         case Self.fantasySalaryCapId: return fantasySalaryCap
         case Self.blindDraftId: return blindDraft
+        case Self.budgetBuilderId: return budgetBuilder
         default: return nil
         }
     }
@@ -79,5 +81,22 @@ nonisolated enum GamePresets {
             scoring: .teamRating,
             reveal: RevealConfig(mode: .afterSlotAssignment, hidden: [.identity, .rating]),
             specialActions: SpecialActionsConfig(rerolls: 2))
+    }
+
+    /// Draft a flex five under a tier-price cap, one player per NBA team. Better
+    /// players cost more tier-points ($1…$6 by impact); the $20 cap forces you to
+    /// balance a couple of stars against cheap role players across distinct teams.
+    /// FREE_PICK and non-shared (each participant builds their own).
+    static var budgetBuilder: GameDefinition {
+        GameDefinition(
+            id: Self.budgetBuilderId,
+            title: "Budget Builder",
+            engineType: .rosterConstruction,
+            entityConstraints: [],
+            rosterConstraints: [.uniqueBy(.team)],
+            roster: .flexFive,
+            selection: .freePick,
+            scoring: .teamRating,
+            economy: EconomyConfig(pricingMethod: .tierPrice, startingBudget: 20))
     }
 }

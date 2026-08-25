@@ -43,6 +43,15 @@ nonisolated enum DraftGameRegistry {
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
         DraftGame(
+            id: "budget-builder",
+            title: "Budget Builder",
+            subtitle: "Draft five under a cap — one per team, stars cost more.",
+            systemImage: "tag.fill",
+            availability: .available,   // Phase 2.1 — tier-price budget + one-per-team
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 8,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
             id: "best-1990s-draft",
             title: "Best 1990s Draft",
             subtitle: "Draft from the 1990s player pool.",
