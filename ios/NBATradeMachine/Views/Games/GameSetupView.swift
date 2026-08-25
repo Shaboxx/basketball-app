@@ -58,10 +58,13 @@ struct GameSetupView: View {
         .navigationTitle(game.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $started) {
-            GamePlaceholderView(game: game,
-                                settings: GameSetupSettings(humanCount: humans,
-                                                            cpuCount: cpus,
-                                                            playMode: playMode))
+            let settings = GameSetupSettings(humanCount: humans, cpuCount: cpus,
+                                             playMode: playMode)
+            if let definition = GamePresets.definition(for: game.id) {
+                RosterDraftView(definition: definition, settings: settings)
+            } else {
+                GamePlaceholderView(game: game, settings: settings)
+            }
         }
         .onAppear(perform: restore)
     }
