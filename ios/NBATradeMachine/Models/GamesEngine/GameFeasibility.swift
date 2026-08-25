@@ -39,12 +39,19 @@ nonisolated enum GameFeasibility {
     }
 
     /// A witness assignment filling every slot within budget, or nil if
-    /// impossible (or not provable within `nodeBudget`).
+    /// impossible (or not provable within `nodeBudget`). `seededRoster` are
+    /// already-drafted entities used ONLY as constraint context (roster-scope
+    /// constraints like `uniqueBy` count them); they occupy no slot in `slots`,
+    /// aren't drawn from `pool`, and aren't charged against `economy` — the
+    /// budget passed via `economy.startingBudget` is the remaining budget. The
+    /// returned witness includes `seededRoster` followed by the newly-placed
+    /// players.
     static func fill(slots: [RosterSlot], from pool: [GameEntityRecord],
                      constraints: [RosterConstraint],
-                     economy: EconomyConfig? = nil) -> [GameEntityRecord]? {
+                     economy: EconomyConfig? = nil,
+                     seededRoster: [GameEntityRecord] = []) -> [GameEntityRecord]? {
         var budget = nodeBudget
-        return fillRec(remaining: slots, roster: [], pool: pool,
+        return fillRec(remaining: slots, roster: seededRoster, pool: pool,
                        constraints: constraints, economy: economy,
                        money: economy?.startingBudget ?? Int.max, budget: &budget)
     }
