@@ -60,9 +60,14 @@ struct GameSetupView: View {
         .navigationDestination(isPresented: $started) {
             let settings = GameSetupSettings(humanCount: humans, cpuCount: cpus,
                                              playMode: playMode)
-            if let definition = GamePresets.definition(for: game.id) {
-                RosterDraftView(definition: definition, settings: settings)
-            } else {
+            switch GameLauncher.resolve(game.id) {
+            case .roster(let def):
+                RosterDraftView(definition: def, settings: settings)
+            case .classification(let def):
+                ClassificationView(definition: def)
+            case .compare(let def):
+                CompareView(definition: def)
+            case .none:
                 GamePlaceholderView(game: game, settings: settings)
             }
         }
