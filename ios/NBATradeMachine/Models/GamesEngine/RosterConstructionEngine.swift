@@ -195,3 +195,34 @@ nonisolated enum RosterConstructionEngine {
         return next
     }
 }
+
+/// A finished game (spec §25): the engine builds it; scoring stays out of the
+/// interaction loop so a future evaluator swap never touches the engine.
+nonisolated struct GameResult: Codable, Equatable {
+    let rosters: [[RosterAssignment]]
+    let scores: [Double]?     // by seat; nil when scoring == .none
+    let winnerSeat: Int?      // nil for solo games, exact ties, or scoring == .none
+}
+
+nonisolated extension RosterConstructionEngine {
+
+    static func buildResult(_ state: RosterGameState) -> GameResult {
+        let scores: [Double]?
+        switch state.definition.scoring {
+        case .none:
+            scores = nil
+        case .teamRating:
+            scores = state.rosters.map { $0.reduce(0) { $0 + $1.entity.rating } }
+        }
+        let winner: Int? = {
+            guard let scores, state.participants.count > 1,
+                  let best = scores.max() else { return nil }
+            // exact == is safe: teamRating sums identical rating multisets
+            // bit-identically. Revisit if scoring gains FP-reordering (weighted
+            // sums, averages) where should-tie sums can differ by an ULP.
+            let leaders = scores.indices.filter { scores[$0] == best }
+            return leaders.count == 1 ? leaders[0] : nil
+        }()
+        return GameResult(rosters: state.rosters, scores: scores, winnerSeat: winner)
+    }
+}
