@@ -16,6 +16,11 @@ nonisolated struct RosterAssignment: Codable, Equatable {
     let entity: GameEntityRecord
 }
 
+/// Per-seat consumable special actions (spec §12 subset — Phase 2: rerolls).
+nonisolated struct ActionInventory: Codable, Equatable {
+    var rerolls: Int
+}
+
 nonisolated enum GameStatus: String, Codable, Equatable { case active, complete }
 
 nonisolated enum GameEngineError: Error, Equatable {
@@ -28,6 +33,9 @@ nonisolated enum GameEngineError: Error, Equatable {
     case slotRejectsEntity
     case rosterConstraintViolated
     case cannotAfford
+    case noRerollsLeft
+    case nothingToReroll
+    case incoherentModifiers
 }
 
 /// The whole session — a pure value. Codable so a future online session can
@@ -44,6 +52,7 @@ nonisolated struct RosterGameState: Codable, Equatable {
     var rng: SeededRNG
     var status: GameStatus
     var budgets: [Int]?                   // per-seat remaining budget; nil ⟺ no economy (co-seeded with definition.economy at init)
+    var actionInventory: [ActionInventory]?   // per-seat special actions; nil when none
 }
 
 nonisolated enum RosterConstructionEngine {
@@ -64,6 +73,10 @@ nonisolated enum RosterConstructionEngine {
                                           pool: eligible) else {
             throw GameEngineError.infeasibleDefinition
         }
+        if let sa = definition.specialActions, sa.rerolls > 0,
+           definition.selection.method != .randomOffer {
+            throw GameEngineError.incoherentModifiers
+        }
         var state = RosterGameState(
             definition: definition,
             participants: participants,
@@ -79,6 +92,10 @@ nonisolated enum RosterConstructionEngine {
             status: .active,
             budgets: definition.economy.map {
                 Array(repeating: $0.startingBudget, count: participants.count)
+            },
+            actionInventory: definition.specialActions.map {
+                Array(repeating: ActionInventory(rerolls: $0.rerolls),
+                      count: participants.count)
             })
         state = rollOfferingsIfNeeded(state)
         return state
@@ -190,6 +207,22 @@ nonisolated enum RosterConstructionEngine {
             next = rollOfferingsIfNeeded(next)
         }
         return next
+    }
+
+    /// Re-roll the current seat's offering, consuming one reroll. Does NOT
+    /// advance the turn. Only valid on an offering-based game with a live
+    /// offering and rerolls remaining.
+    static func reroll(_ state: RosterGameState, seat: Int) throws -> RosterGameState {
+        guard currentSeat(state) == seat else { throw GameEngineError.notYourTurn }
+        guard state.offerings != nil else { throw GameEngineError.nothingToReroll }
+        guard var inv = state.actionInventory?[seat], inv.rerolls > 0 else {
+            throw GameEngineError.noRerollsLeft
+        }
+        var next = state
+        inv.rerolls -= 1
+        next.actionInventory?[seat] = inv
+        next.offerings = nil                 // rollOfferingsIfNeeded re-draws from scratch
+        return rollOfferingsIfNeeded(next)   // advances rng → a fresh offering
     }
 
     /// randomOffer: draw `offeringsPerTurn` ids for the upcoming turn from the
