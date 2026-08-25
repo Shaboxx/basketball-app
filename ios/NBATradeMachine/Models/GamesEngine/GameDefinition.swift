@@ -68,9 +68,12 @@ nonisolated enum ScoringMethod: String, Codable, Equatable {
     case none
 }
 
-/// Spec §3 GameDefinition, Phase-1 subset. The entity-constraint list IS the
-/// player pool filter (a separate PlayerPool object becomes meaningful when
-/// historical pools land — roadmap Phase 4).
+/// Spec §3 GameDefinition. Phase-1 core + Phase-2 optional modifiers. The
+/// entity-constraint list IS the player pool filter (a separate PlayerPool
+/// object becomes meaningful when historical pools land — roadmap Phase 4).
+/// The three modifiers are optional and default to nil, so every Phase-1 game
+/// (and its encoded form) is unchanged: synthesized Codable decodes absent keys
+/// as nil.
 nonisolated struct GameDefinition: Codable, Equatable, Identifiable {
     let id: String
     let title: String
@@ -80,4 +83,25 @@ nonisolated struct GameDefinition: Codable, Equatable, Identifiable {
     let roster: RosterConfig
     let selection: SelectionConfig
     let scoring: ScoringMethod
+    let economy: EconomyConfig?
+    let reveal: RevealConfig?
+    let specialActions: SpecialActionsConfig?
+
+    init(id: String, title: String, engineType: GameEngineType,
+         entityConstraints: [GameConstraint], rosterConstraints: [RosterConstraint],
+         roster: RosterConfig, selection: SelectionConfig, scoring: ScoringMethod,
+         economy: EconomyConfig? = nil, reveal: RevealConfig? = nil,
+         specialActions: SpecialActionsConfig? = nil) {
+        self.id = id
+        self.title = title
+        self.engineType = engineType
+        self.entityConstraints = entityConstraints
+        self.rosterConstraints = rosterConstraints
+        self.roster = roster
+        self.selection = selection
+        self.scoring = scoring
+        self.economy = economy
+        self.reveal = reveal
+        self.specialActions = specialActions
+    }
 }
