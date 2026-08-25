@@ -63,6 +63,15 @@ nonisolated enum RosterConstructionEngine {
                            participants: [GameParticipant],
                            pool: [GameEntityRecord],
                            seed: UInt64) throws -> RosterGameState {
+        // Slot ids must be unique. GameFeasibility.fill removes a chosen slot by
+        // id (`remaining.filter { $0.id != slot.id }`), so duplicate ids would
+        // collapse to one — a false-feasible witness that fills fewer slots than
+        // declared. No shipped preset has duplicate ids, but GameDefinition is
+        // Codable, so guard the decoded/forged path. (Sol review, 2026-08-25.)
+        let slotIds = definition.roster.slots.map(\.id)
+        guard Set(slotIds).count == slotIds.count else {
+            throw GameEngineError.infeasibleDefinition
+        }
         let eligible = pool.filter { e in
             definition.entityConstraints.allSatisfy {
                 GameConstraintEvaluator.satisfies(e, $0)

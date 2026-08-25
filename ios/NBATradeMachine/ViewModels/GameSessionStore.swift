@@ -156,8 +156,14 @@ final class GameSessionStore: ObservableObject {
             advancePhase()
             return
         }
-        // The policy consumed RNG values submitPick didn't see; keep the stream
-        // consistent so replays with the same seed stay identical.
+        // RNG bookkeeping (same seed + same actions replays identically either
+        // way — this only governs which rng position the NEXT offering rolls from):
+        // • non-randomOffer: submitPick never touches rng, so persist the policy's
+        //   advanced copy (`rng`) — otherwise the policy's draw would be lost.
+        // • randomOffer: submitPick → rollOfferingsIfNeeded already advanced
+        //   `state.rng` to roll the next offer, so DISCARD the policy's copy
+        //   (writing it back would clobber that roll). The policy's draw is
+        //   intentionally not folded into the offer stream. (Sol review, 2026-08-25.)
         if next.definition.selection.method != .randomOffer { next.rng = rng }
         state = next
         advancePhase()

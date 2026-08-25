@@ -12,6 +12,18 @@ nonisolated enum GameFeasibility {
     /// Backtracking node budget per `fill` call. Exhausting it returns nil
     /// ("not provably feasible") — conservative on purpose: an over-budget
     /// definition is rejected instead of hanging a main-thread initialize.
+    ///
+    /// KNOWN LIMITATION (Sol review, 2026-08-25): nil conflates "proven
+    /// infeasible" with "search budget exhausted". For the current presets this
+    /// never bites — every shipped game searches ≤ ~5 slots with most-restrictive
+    /// -first pruning, far under 50k nodes, so nil always means truly infeasible
+    /// and `canComplete`/`GameCPUPolicy.budgetReserved` are exact. But the
+    /// `minCountWhere` lookahead ignores `uniqueBy`, so a FUTURE large-roster game
+    /// combining a tight minCount + uniqueBy + budget could exhaust the budget and
+    /// (a) make `canComplete` reject a feasible definition, or (b) make the CPU
+    /// reserve fall back to the unrestricted set. Before such a game ships, return
+    /// a 3-outcome result (feasible / infeasible / indeterminate) and have the CPU
+    /// treat indeterminate as unsafe.
     static let nodeBudget = 50_000
 
     /// `pool` must ALREADY satisfy the definition's `entityConstraints`
