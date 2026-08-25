@@ -8,10 +8,12 @@ nonisolated enum GamePresets {
     /// The one id, shared by the switch AND the definition so a copy-paste typo
     /// can't split them. Must match a `DraftGameRegistry` card id.
     static let bestCurrentPlayersId = "best-current-players"
+    static let fantasySalaryCapId = "fantasy-salary-cap"
 
     static func definition(for gameId: String) -> GameDefinition? {
         switch gameId {
         case Self.bestCurrentPlayersId: return bestCurrentPlayers   // Self. forces expression-pattern match, not a binding
+        case Self.fantasySalaryCapId: return fantasySalaryCap
         default: return nil
         }
     }
@@ -35,5 +37,28 @@ nonisolated enum GamePresets {
             roster: .flexFive,
             selection: .snake,
             scoring: .teamRating)
+    }
+
+    /// Build the best flex-five you can afford under a real-salary cap. FREE_PICK
+    /// and non-shared, so each participant builds their own team from the full
+    /// pool; scored by summed impact rating. The `salary >= 1` entity constraint
+    /// filters out nil/$0-salary players (who would otherwise price as free).
+    /// Computed (not `static let`) for the same Sendable reason as
+    /// `bestCurrentPlayers`.
+    static var fantasySalaryCap: GameDefinition {
+        GameDefinition(
+            id: Self.fantasySalaryCapId,
+            title: "Fantasy Salary Cap",
+            engineType: .rosterConstruction,
+            entityConstraints: [
+                .field(FieldConstraint(field: .salary, op: .greaterOrEqual,
+                                       value: .number(1)))
+            ],
+            rosterConstraints: [],
+            roster: .flexFive,
+            selection: .freePick,
+            scoring: .teamRating,
+            economy: EconomyConfig(pricingMethod: .databaseValue,
+                                   startingBudget: 120_000_000))
     }
 }

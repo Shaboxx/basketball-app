@@ -67,7 +67,7 @@ nonisolated enum DraftGameRegistry {
             title: "Fantasy Salary Cap",
             subtitle: "Build a fantasy roster under a salary cap.",
             systemImage: "dollarsign.circle.fill",
-            availability: .comingSoon(reason: "Coming soon"),
+            availability: .available,   // Phase 2 — economy modifier (real-salary budget)
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 12,
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
