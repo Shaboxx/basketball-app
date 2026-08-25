@@ -29,7 +29,7 @@ nonisolated enum DraftGameRegistry {
             title: "Best Current Players",
             subtitle: "Draft the best active roster head-to-head.",
             systemImage: "star.fill",
-            availability: .comingSoon(reason: "Coming soon"),
+            availability: .available,   // first live game — ROSTER_CONSTRUCTION engine (Phase 1)
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 8,
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
