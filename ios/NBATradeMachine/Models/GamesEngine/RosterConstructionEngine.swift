@@ -100,6 +100,7 @@ nonisolated enum RosterConstructionEngine {
     /// Open slots on `seat`'s roster that accept `entity`.
     static func validSlots(_ state: RosterGameState, seat: Int,
                            entity: GameEntityRecord) -> [RosterSlot] {
+        guard state.rosters.indices.contains(seat) else { return [] }
         let filled = Set(state.rosters[seat].map(\.slotId))
         return state.definition.roster.slots.filter {
             !filled.contains($0.id) && $0.accepts(entity)
@@ -113,6 +114,7 @@ nonisolated enum RosterConstructionEngine {
     /// `seat` must be a valid index. An empty result for the current seat means
     /// the game is cornered — the session driver ends the game honestly.
     static func eligibleEntities(_ state: RosterGameState, seat: Int) -> [GameEntityRecord] {
+        guard state.rosters.indices.contains(seat) else { return [] }
         let roster = state.rosters[seat].map(\.entity)
         let ownIds = Set(roster.map(\.id))
         return state.pool.filter { e in

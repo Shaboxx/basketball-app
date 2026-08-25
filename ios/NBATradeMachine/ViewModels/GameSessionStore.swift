@@ -81,6 +81,19 @@ final class GameSessionStore: ObservableObject {
             phase = .finished(RosterConstructionEngine.buildResult(state))
             return
         }
+        // Cornered seat: opponents' picks can deplete a shared pool so the up
+        // seat has no legal move. The randomOffer roll and the CPU pick both
+        // finish honestly in that case; a human snake/freePick turn otherwise
+        // routes to a dead empty picking screen. Finish here so all three paths
+        // share the contract.
+        if RosterConstructionEngine.eligibleEntities(state, seat: seat).isEmpty {
+            var stuck = state
+            stuck.status = .complete
+            state = stuck
+            cpuTask?.cancel()
+            phase = .finished(RosterConstructionEngine.buildResult(state))
+            return
+        }
         if state.participants[seat].kind == .cpu {
             phase = .cpuThinking(seat: seat)
             scheduleCPU(seat: seat)
