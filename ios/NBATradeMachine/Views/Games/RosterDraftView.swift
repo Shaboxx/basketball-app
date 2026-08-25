@@ -271,6 +271,9 @@ private struct RosterDraftContent: View {
         case .cannotAfford:             return "Not enough budget for that player."
         case .noRerollsLeft:            return "No rerolls left."
         case .nothingToReroll:          return "Nothing to reroll right now."
+        // .incoherentModifiers/.infeasibleDefinition only throw at initialize
+        // (→ the launchFailed screen), never via lastError, so they aren't
+        // messaged here on purpose.
         default:                        return "That pick isn't allowed right now."
         }
     }
