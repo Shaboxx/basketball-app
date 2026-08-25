@@ -313,6 +313,11 @@ private struct RosterDraftResultView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    if let note = incompleteNote(seat: participant.id) {
+                        Label(note, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 } header: {
                     HStack {
                         Text(participant.displayName)
@@ -326,6 +331,29 @@ private struct RosterDraftResultView: View {
         }
         .navigationTitle("Results")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// A caption for a seat that finished with an incomplete roster. Attributes
+    /// it to budget ONLY when no still-available player is affordable within the
+    /// remaining budget; otherwise (a position/constraint/pool corner that
+    /// stranded the seat despite having cap space) it stays cause-neutral. nil
+    /// when the roster is full.
+    private func incompleteNote(seat: Int) -> String? {
+        let filled = result.rosters[seat].count
+        let total = state.definition.roster.slots.count
+        guard filled < total else { return nil }
+        let tail = "— \(filled)/\(total) filled"
+        if let econ = state.definition.economy, let remaining = state.budgets?[seat] {
+            let ownIds = Set(state.rosters[seat].map(\.entity.id))
+            let shared = state.definition.selection.sharedPool
+            let cheapestAvailable = state.pool
+                .filter { !ownIds.contains($0.id) && !(shared && state.pickedIds.contains($0.id)) }
+                .map { econ.price($0) }.min()
+            if let cheapest = cheapestAvailable, cheapest > remaining {
+                return "Ran out of budget \(tail)"
+            }
+        }
+        return "Roster incomplete \(tail)"
     }
 }
 
