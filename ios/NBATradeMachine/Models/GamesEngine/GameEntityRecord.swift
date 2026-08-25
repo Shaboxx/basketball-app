@@ -9,7 +9,26 @@ nonisolated struct GameEntityRecord: Identifiable, Codable, Equatable, Hashable 
     let team: String            // opaque team key (numeric NBA id in Phase 1); unique per team, used by uniqueBy(.team). NOT display-ready — resolve to a name for UI.
     let position: String        // "PG" | "SG" | "SF" | "PF" | "C"
     let salary: Int?            // current-year salary in dollars
-    let rating: Double          // impact rating (CPU picks + TEAM_RATING scoring)
+    let rating: Double          // overall impact rating (CPU picks + TEAM_RATING scoring + classification order)
+    // Phase-3 compare metrics — optional, additive. nil when unknown; a compare
+    // game filters its pool to entities where its chosen metric is present.
+    let offRating: Double?      // offensive impact
+    let defRating: Double?      // defensive impact
+    let minutes: Double?        // minutes per game (season)
+
+    init(id: String, name: String, team: String, position: String,
+         salary: Int?, rating: Double,
+         offRating: Double? = nil, defRating: Double? = nil, minutes: Double? = nil) {
+        self.id = id
+        self.name = name
+        self.team = team
+        self.position = position
+        self.salary = salary
+        self.rating = rating
+        self.offRating = offRating
+        self.defRating = defRating
+        self.minutes = minutes
+    }
 }
 
 /// The constraint-addressable fields of an entity (spec §6). New data (awards,

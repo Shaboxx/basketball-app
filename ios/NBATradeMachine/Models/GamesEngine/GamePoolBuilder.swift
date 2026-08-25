@@ -15,7 +15,10 @@ nonisolated enum GamePoolBuilder {
                                     team: p.teamId,
                                     position: p.position,
                                     salary: p.salaryY1,
-                                    rating: p.thetaBoard?.total ?? 0)
+                                    rating: p.thetaBoard?.total ?? 0,
+                                    offRating: p.thetaBoard?.off,
+                                    defRating: p.thetaBoard?.def,
+                                    minutes: p.relevance?.mpgSeason)
         }
     }
 }
