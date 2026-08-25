@@ -34,6 +34,15 @@ nonisolated enum DraftGameRegistry {
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
         DraftGame(
+            id: "blind-draft",
+            title: "Blind Draft",
+            subtitle: "Slot masked random players, then see who you drafted.",
+            systemImage: "eye.slash.fill",
+            availability: .available,   // Phase 2 — blind-info + reroll modifiers
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
             id: "best-1990s-draft",
             title: "Best 1990s Draft",
             subtitle: "Draft from the 1990s player pool.",

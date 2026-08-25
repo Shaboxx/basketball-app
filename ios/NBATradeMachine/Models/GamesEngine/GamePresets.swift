@@ -9,11 +9,13 @@ nonisolated enum GamePresets {
     /// can't split them. Must match a `DraftGameRegistry` card id.
     static let bestCurrentPlayersId = "best-current-players"
     static let fantasySalaryCapId = "fantasy-salary-cap"
+    static let blindDraftId = "blind-draft"
 
     static func definition(for gameId: String) -> GameDefinition? {
         switch gameId {
         case Self.bestCurrentPlayersId: return bestCurrentPlayers   // Self. forces expression-pattern match, not a binding
         case Self.fantasySalaryCapId: return fantasySalaryCap
+        case Self.blindDraftId: return blindDraft
         default: return nil
         }
     }
@@ -60,5 +62,22 @@ nonisolated enum GamePresets {
             scoring: .teamRating,
             economy: EconomyConfig(pricingMethod: .databaseValue,
                                    startingBudget: 120_000_000))
+    }
+
+    /// One masked random player per turn (`randomOffer(1)`); identity + rating
+    /// hidden until you commit them to a slot; two rerolls if you don't like the
+    /// silhouette. Scored by summed rating so the reveal is the payoff.
+    static var blindDraft: GameDefinition {
+        GameDefinition(
+            id: Self.blindDraftId,
+            title: "Blind Draft",
+            engineType: .rosterConstruction,
+            entityConstraints: [],
+            rosterConstraints: [],
+            roster: .flexFive,
+            selection: .randomOffer(1),
+            scoring: .teamRating,
+            reveal: RevealConfig(mode: .afterSlotAssignment, hidden: [.identity, .rating]),
+            specialActions: SpecialActionsConfig(rerolls: 2))
     }
 }
