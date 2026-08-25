@@ -171,9 +171,27 @@ nonisolated enum RosterConstructionEngine {
         return next
     }
 
-    /// Placeholder — implemented with randomOffer in Task 8. Kept here so
-    /// initialize compiles from day one.
+    /// randomOffer: draw `offeringsPerTurn` ids for the upcoming turn from the
+    /// entities that seat could legally pick, deterministically in `rng`. If the
+    /// legal set is smaller than the request, offer what exists; if it is empty
+    /// (unreachable for feasibility-checked presets, but constraints can corner
+    /// a game), finish the game honestly instead of deadlocking. A nil or
+    /// non-positive `offeringsPerTurn` disables the offer limit (defensive —
+    /// presets always set a positive count).
     static func rollOfferingsIfNeeded(_ state: RosterGameState) -> RosterGameState {
-        state
+        guard state.definition.selection.method == .randomOffer,
+              let n = state.definition.selection.offeringsPerTurn, n > 0,
+              let seat = currentSeat(state) else { return state }
+        var next = state
+        next.offerings = nil    // candidates must not be limited by a stale offer
+        let candidates = eligibleEntities(next, seat: seat)
+        guard !candidates.isEmpty else {
+            next.status = .complete
+            return next
+        }
+        var rng = next.rng
+        next.offerings = candidates.shuffled(using: &rng).prefix(n).map(\.id)
+        next.rng = rng
+        return next
     }
 }
