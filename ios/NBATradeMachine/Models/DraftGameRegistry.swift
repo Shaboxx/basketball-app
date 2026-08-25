@@ -116,6 +116,24 @@ nonisolated enum DraftGameRegistry {
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
                                             allowsCPU: false, allowsLocalFriends: false)
         ),
+        DraftGame(
+            id: "bigger-contract",
+            title: "Bigger Contract",
+            subtitle: "Higher or lower — who's paid more? Build a streak.",
+            systemImage: "dollarsign.arrow.circlepath",
+            availability: .available,   // Phase 3 — COMPARE
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "higher-rated",
+            title: "Higher Rated",
+            subtitle: "Who's the better player? Keep the streak alive.",
+            systemImage: "chart.line.uptrend.xyaxis",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
     ]
 
     /// Lookup by id (used by the store + setup screen). nil for an unknown id.
