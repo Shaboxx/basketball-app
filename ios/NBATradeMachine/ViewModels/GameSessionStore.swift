@@ -66,6 +66,26 @@ final class GameSessionStore: ObservableObject {
         }
     }
 
+    func reroll() {
+        guard case .picking(let seat) = phase else { return }
+        do {
+            state = try RosterConstructionEngine.reroll(state, seat: seat)
+            lastError = nil
+            // Reroll does not advance the turn, so we do NOT call advancePhase
+            // (that would re-gate a pass-and-play handoff mid-turn). The
+            // status==.complete branch is defensive: a reroll can't corner the
+            // seat today (it re-draws the same eligibility set, which was
+            // non-empty since an offering existed), but it would become
+            // reachable if reroll ever changed eligibility (e.g. an
+            // "exclude the prior offer" variant), so keep the honest finish.
+            if state.status == .complete { finish() }
+        } catch let error as GameEngineError {
+            lastError = error
+        } catch {
+            lastError = nil
+        }
+    }
+
     func clearError() { lastError = nil }
 
     // MARK: - Phase machine
@@ -74,11 +94,20 @@ final class GameSessionStore: ObservableObject {
         state.participants.filter { $0.kind == .human }.count > 1
     }
 
+    /// The single "the game is over" transition — cancel any pending CPU work
+    /// and publish the result. Four callers reach it (advancePhase early-out,
+    /// advancePhase cornered-seat, applyCPUPick no-legal-pick, reroll-into-corner);
+    /// they each ensure `state.status == .complete` first, then call this so the
+    /// finish contract lives in one place.
+    private func finish() {
+        cpuTask?.cancel()
+        phase = .finished(RosterConstructionEngine.buildResult(state))
+    }
+
     private func advancePhase() {
         guard state.status == .active,
               let seat = RosterConstructionEngine.currentSeat(state) else {
-            cpuTask?.cancel()   // make "no CPU work after the game ends" explicit
-            phase = .finished(RosterConstructionEngine.buildResult(state))
+            finish()
             return
         }
         // Cornered seat: opponents' picks can deplete a shared pool so the up
@@ -90,8 +119,7 @@ final class GameSessionStore: ObservableObject {
             var stuck = state
             stuck.status = .complete
             state = stuck
-            cpuTask?.cancel()
-            phase = .finished(RosterConstructionEngine.buildResult(state))
+            finish()
             return
         }
         if state.participants[seat].kind == .cpu {
