@@ -61,6 +61,12 @@ nonisolated enum GameCPUPolicy {
         let available = state.pool.filter { p in
             !ownIds.contains(p.id) && !(shared && state.pickedIds.contains(p.id))
         }
+        // Seed fill with the seat's already-drafted players + the candidate so
+        // roster-scope constraints (uniqueBy/totalAtMost/minCountWhere) count
+        // them — exact for economy+rosterConstraint games like Budget Builder
+        // (tier budget + one-per-team). The seed occupies no slot and isn't
+        // re-charged; the candidate's cost is taken out of `reducedEcon`.
+        let drafted = state.rosters[seat].map(\.entity)
         var safe: [GameEntityRecord] = []
         for cand in eligible.sorted(by: { $0.rating > $1.rating }) {
             guard let slot = openSlots.filter({ $0.accepts(cand) })
@@ -69,16 +75,10 @@ nonisolated enum GameCPUPolicy {
             let remainingPool = available.filter { $0.id != cand.id }
             let reducedEcon = EconomyConfig(pricingMethod: econ.pricingMethod,
                                             startingBudget: budget - econ.price(cand))
-            // FUTURE: fill starts from an EMPTY roster, so roster-scope
-            // constraints (uniqueBy/totalAtMost/minCountWhere) are checked
-            // against only the remaining picks, not the seat's already-drafted
-            // players. Exact for every shipping preset (Fantasy Salary Cap has
-            // no rosterConstraints; the one uniqueBy game has no economy). Before
-            // an economy+rosterConstraint game ships, seed fill with the seat's
-            // current roster + candidate so those aggregates count correctly.
             if GameFeasibility.fill(slots: remainingSlots, from: remainingPool,
                                     constraints: state.definition.rosterConstraints,
-                                    economy: reducedEcon) != nil {
+                                    economy: reducedEcon,
+                                    seededRoster: drafted + [cand]) != nil {
                 safe.append(cand)
                 if safe.count >= candidateWindow { break }
             }
