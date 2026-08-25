@@ -6,7 +6,7 @@ import Foundation
 nonisolated struct GameEntityRecord: Identifiable, Codable, Equatable, Hashable {
     let id: String              // canonical player slug
     let name: String
-    let team: String            // team tricode, e.g. "DEN"
+    let team: String            // opaque team key (numeric NBA id in Phase 1); unique per team, used by uniqueBy(.team). NOT display-ready — resolve to a name for UI.
     let position: String        // "PG" | "SG" | "SF" | "PF" | "C"
     let salary: Int?            // current-year salary in dollars
     let rating: Double          // impact rating (CPU picks + TEAM_RATING scoring)
