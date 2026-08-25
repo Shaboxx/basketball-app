@@ -24,7 +24,7 @@ nonisolated enum GameFieldValue: Equatable {
     case number(Double)
 }
 
-extension GameEntityRecord {
+nonisolated extension GameEntityRecord {
     func value(for field: GameField) -> GameFieldValue? {
         switch field {
         case .team:     return .string(team)
