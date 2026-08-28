@@ -52,6 +52,15 @@ nonisolated enum DraftGameRegistry {
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
         DraftGame(
+            id: "create-a-player",
+            title: "Create-A-Player",
+            subtitle: "Draft a Scorer, Defender, Playmaker & Do-It-All — best composite wins.",
+            systemImage: "wand.and.stars",
+            availability: .available,   // Phase 8 — COMPOSITE_BUILDER (slotMetric scoring)
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 8,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
             id: "best-1990s-draft",
             title: "Best 90s Draft (1996+)",   // Sol: relabel — data floor is 1996-97
             subtitle: "Draft from the late-90s player pool.",
@@ -185,6 +194,34 @@ nonisolated enum DraftGameRegistry {
             title: "Higher Rated",
             subtitle: "Who's the better player? Keep the streak alive.",
             systemImage: "chart.line.uptrend.xyaxis",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        // Phase 8 — BRACKET (new subjective-pick single-elimination engine).
+        DraftGame(
+            id: "best-player-bracket",
+            title: "Best Player Bracket",
+            subtitle: "Seed 16 stars and crown a champion, one matchup at a time.",
+            systemImage: "trophy.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "position-bracket",
+            title: "Position Bracket",
+            subtitle: "An 8-player bracket — pick your winner each round.",
+            systemImage: "list.bullet.indent",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "quick-bracket",
+            title: "Quick Bracket",
+            subtitle: "Four random players, three quick calls, one champion.",
+            systemImage: "bolt.fill",
             availability: .available,
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
                                             allowsCPU: false, allowsLocalFriends: false)

@@ -10,6 +10,8 @@ struct HistoricalRosterDraftView: View {
     @EnvironmentObject var historicalStore: HistoricalPoolStore
     let definition: GameDefinition
     let settings: GameSetupSettings
+    /// Canonical shared-challenge seed (Sol fix 1); nil for preset/creator callers.
+    var seed: UInt64? = nil
 
     @State private var store: GameSessionStore?
     @State private var launchFailed = false
@@ -64,7 +66,7 @@ struct HistoricalRosterDraftView: View {
         do {
             let state = try RosterConstructionEngine.initialize(
                 definition: definition, participants: participants,
-                pool: pool, seed: UInt64.random(in: UInt64.min...UInt64.max))
+                pool: pool, seed: seed ?? UInt64.random(in: UInt64.min...UInt64.max))
             store = GameSessionStore(state: state)
         } catch {
             launchFailed = true

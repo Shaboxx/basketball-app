@@ -5,6 +5,8 @@ import SwiftUI
 struct CompareView: View {
     @EnvironmentObject var playersVM: PlayersViewModel
     let definition: CompareDefinition
+    /// Canonical shared-challenge seed (Sol fix 1); nil for preset/creator callers.
+    var seed: UInt64? = nil
 
     @State private var store: CompareStore?
     @State private var launchFailed = false
@@ -31,13 +33,17 @@ struct CompareView: View {
     private func launchIfReady() {
         guard store == nil, !launchFailed, !playersVM.players.isEmpty else { return }
         let pool = GamePoolBuilder.pool(from: playersVM.players)
-        // R10: the only failure is notEnoughComparable (transient) — leave store
-        // nil and retry when PlayersViewModel republishes a fuller roster; never
-        // latch a permanent failure for a data-availability blip.
-        let state = try? CompareEngine.initialize(
-            definition: definition, pool: pool,
-            seed: UInt64.random(in: UInt64.min...UInt64.max))
-        store = state.map(CompareStore.init)
+        do {
+            let state = try CompareEngine.initialize(
+                definition: definition, pool: pool,
+                seed: seed ?? UInt64.random(in: UInt64.min...UInt64.max))
+            store = CompareStore(state: state)
+        } catch {
+            // Sol fix 3: the players source is loaded (guard above ⇒ non-empty), so a
+            // notEnoughComparable throw is TERMINAL, not a loading blip — latch failure
+            // and show the ContentUnavailableView rather than spinning forever.
+            launchFailed = true
+        }
     }
 }
 

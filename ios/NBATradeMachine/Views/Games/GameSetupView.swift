@@ -79,6 +79,8 @@ struct GameSetupView: View {
                 ClassificationView(definition: def)
             case .compare(let def):
                 CompareView(definition: def)
+            case .bracket(let def):
+                BracketView(definition: def)
             case .none:
                 GamePlaceholderView(game: game, settings: settings)
             }

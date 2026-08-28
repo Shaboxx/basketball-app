@@ -6,6 +6,7 @@ nonisolated enum GameLaunch: Equatable {
     case roster(GameDefinition)
     case classification(ClassificationDefinition)
     case compare(CompareDefinition)
+    case bracket(BracketDefinition)     // Phase 8 — new engine
     case none
 }
 
@@ -18,6 +19,7 @@ nonisolated enum GameLauncher {
         if let d = HistoricalPresets.definition(for: id) { return .roster(d) }
         if let d = ClassificationPresets.definition(for: id) { return .classification(d) }
         if let d = ComparePresets.definition(for: id) { return .compare(d) }
+        if let d = BracketPresets.definition(for: id) { return .bracket(d) }
         return .none
     }
 }

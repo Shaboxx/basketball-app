@@ -89,9 +89,53 @@ nonisolated struct RosterConfig: Codable, Equatable {
 
 /// How a finished game is judged (spec §§24–25 subset). `none` = side-by-side
 /// result with no declared winner — the honest default for subjective drafts.
-nonisolated enum ScoringMethod: String, Codable, Equatable {
+/// `teamRating` sums each roster's `rating`. `slotMetric` (Phase 8
+/// COMPOSITE_BUILDER) sums, per assignment, the value of the CompareMetric mapped
+/// to that assignment's `slotId` — a "Create-A-Player" style per-slot scoring
+/// policy. It is a scoring extension of ROSTER_CONSTRUCTION, NOT a new engine
+/// (Sol §112); the interaction stays "fill constrained slots from a pool".
+///
+/// Hand-written Codable so the ADDITIVE `slotMetric` case is forward/backward
+/// compatible: the two legacy cases still encode as the bare strings
+/// `"teamRating"` / `"none"` (byte-identical to the old `RawRepresentable`
+/// form), so every previously-encoded definition still decodes. `slotMetric`
+/// encodes as an object `{"slotMetric":{slotId:metric,…}}`.
+nonisolated enum ScoringMethod: Codable, Equatable, Hashable {
     case teamRating
     case none
+    case slotMetric([String: CompareMetric])
+
+    private enum CodingKeys: String, CodingKey { case slotMetric }
+
+    init(from decoder: Decoder) throws {
+        // Legacy form: a bare string ("teamRating" | "none").
+        if let single = try? decoder.singleValueContainer(),
+           let raw = try? single.decode(String.self) {
+            switch raw {
+            case "teamRating": self = .teamRating; return
+            case "none":       self = .none; return
+            default: break     // fall through to the keyed form
+            }
+        }
+        // New form: {"slotMetric": {slotId: metric, …}}.
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let map = try c.decode([String: CompareMetric].self, forKey: .slotMetric)
+        self = .slotMetric(map)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .teamRating:
+            var c = encoder.singleValueContainer()
+            try c.encode("teamRating")
+        case .none:
+            var c = encoder.singleValueContainer()
+            try c.encode("none")
+        case .slotMetric(let map):
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(map, forKey: .slotMetric)
+        }
+    }
 }
 
 /// Where a game's entity pool comes from (Phase-4.5). ADDITIVE + optional on

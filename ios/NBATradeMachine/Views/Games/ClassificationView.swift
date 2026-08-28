@@ -7,6 +7,8 @@ import SwiftUI
 struct ClassificationView: View {
     @EnvironmentObject var playersVM: PlayersViewModel
     let definition: ClassificationDefinition
+    /// Canonical shared-challenge seed (Sol fix 1); nil for preset/creator callers.
+    var seed: UInt64? = nil
 
     @State private var store: ClassificationStore?
     @State private var launchFailed = false
@@ -36,13 +38,15 @@ struct ClassificationView: View {
         do {
             let state = try ClassificationEngine.initialize(
                 definition: definition, pool: pool,
-                seed: UInt64.random(in: UInt64.min...UInt64.max))
+                seed: seed ?? UInt64.random(in: UInt64.min...UInt64.max))
             store = ClassificationStore(state: state)
         } catch ClassificationError.invalidConfig {
             launchFailed = true   // a real config bug — never resolves
         } catch {
-            // R10: insufficient data now (notEnoughSubjects) — leave store nil and
-            // retry when PlayersViewModel republishes a fuller roster.
+            // Sol fix 3: the players source is loaded (guard above ⇒ non-empty), so
+            // notEnoughSubjects is TERMINAL, not a loading blip — latch failure rather
+            // than spinning forever on a permanently-infeasible pool.
+            launchFailed = true
         }
     }
 }

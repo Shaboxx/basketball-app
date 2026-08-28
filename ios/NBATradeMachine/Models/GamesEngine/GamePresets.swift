@@ -11,6 +11,9 @@ nonisolated enum GamePresets {
     static let fantasySalaryCapId = "fantasy-salary-cap"
     static let blindDraftId = "blind-draft"
     static let budgetBuilderId = "budget-builder"
+    /// Phase-8 COMPOSITE_BUILDER — a ROSTER_CONSTRUCTION preset (NOT a new
+    /// engine), scored by `ScoringMethod.slotMetric` per category slot.
+    static let createAPlayerId = "create-a-player"
 
     static func definition(for gameId: String) -> GameDefinition? {
         switch gameId {
@@ -18,8 +21,41 @@ nonisolated enum GamePresets {
         case Self.fantasySalaryCapId: return fantasySalaryCap
         case Self.blindDraftId: return blindDraft
         case Self.budgetBuilderId: return budgetBuilder
+        case Self.createAPlayerId: return createAPlayer
         default: return nil
         }
+    }
+
+    /// COMPOSITE_BUILDER "Create-A-Player" (Phase 8): fill four category slots —
+    /// a Scorer, a Defender, a Playmaker, and a Do-It-All — from one player per
+    /// NBA team, each slot scored on the metric that fits the category. The Scorer
+    /// slot is judged on `offense`, the Defender on `defense`, and the Playmaker /
+    /// Do-It-All on `overall`; you're building the best composite by picking the
+    /// right specialist for each role. Positionless slots (any position fills any
+    /// role), one-per-team (`uniqueBy(.team)`), freePick / non-shared so each
+    /// participant builds their own. Scored by `slotMetric`, so the winner is the
+    /// higher composite sum. Reuses the existing RosterDraftView (no new View).
+    static var createAPlayer: GameDefinition {
+        let slots = [
+            RosterSlot(id: "SCORER", label: "Scorer", allowedPositions: []),
+            RosterSlot(id: "DEFENDER", label: "Defender", allowedPositions: []),
+            RosterSlot(id: "PLAYMAKER", label: "Playmaker", allowedPositions: []),
+            RosterSlot(id: "DOALL", label: "Do-It-All", allowedPositions: []),
+        ]
+        return GameDefinition(
+            id: Self.createAPlayerId,
+            title: "Create-A-Player",
+            engineType: .rosterConstruction,
+            entityConstraints: [],
+            rosterConstraints: [.uniqueBy(.team)],
+            roster: RosterConfig(slots: slots),
+            selection: .freePick,
+            scoring: .slotMetric([
+                "SCORER": .offense,
+                "DEFENDER": .defense,
+                "PLAYMAKER": .overall,
+                "DOALL": .overall,
+            ]))
     }
 
     /// Snake-draft the best current five (flex slots), one player per NBA team,

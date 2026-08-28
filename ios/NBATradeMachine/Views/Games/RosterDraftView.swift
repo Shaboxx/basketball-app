@@ -8,6 +8,8 @@ struct RosterDraftView: View {
     @EnvironmentObject var playersVM: PlayersViewModel
     let definition: GameDefinition
     let settings: GameSetupSettings
+    /// Canonical shared-challenge seed (Sol fix 1); nil for preset/creator callers.
+    var seed: UInt64? = nil
 
     @State private var store: GameSessionStore?
     @State private var launchFailed = false
@@ -35,9 +37,7 @@ struct RosterDraftView: View {
     private func launchIfReady() {
         // Called from BOTH onAppear and onReceive(players) — both fire on first
         // appearance. The `store == nil` guard + synchronous MainActor assignment
-        // make this idempotent, so the second call is a no-op. Assumes
-        // PlayersViewModel publishes the full roster atomically (non-empty ⇒
-        // complete); a partial list would latch launchFailed and not retry.
+        // make this idempotent, so the second call is a no-op.
         guard store == nil, !launchFailed, !playersVM.players.isEmpty else { return }
         let pool = GamePoolBuilder.pool(from: playersVM.players)
         let participants = GameSessionStore.participants(
@@ -45,9 +45,18 @@ struct RosterDraftView: View {
         do {
             let state = try RosterConstructionEngine.initialize(
                 definition: definition, participants: participants,
-                pool: pool, seed: UInt64.random(in: UInt64.min...UInt64.max))
+                pool: pool, seed: seed ?? UInt64.random(in: UInt64.min...UInt64.max))
             store = GameSessionStore(state: state)
+        } catch GameEngineError.incoherentModifiers {
+            // Sol fix 4: a genuine CONFIG error (never resolves) — latch always,
+            // independent of pool loading.
+            launchFailed = true
         } catch {
+            // Sol fix 4: an insufficient-pool / infeasible error. Only TERMINAL once
+            // the players source is loaded (guard above ⇒ non-empty here). If a
+            // partial roster later fills out, PlayersViewModel republishes and the
+            // onReceive retries; but a non-empty-yet-infeasible pool is permanent, so
+            // latch to show the failure UI instead of an infinite spinner (Sol fix 3).
             launchFailed = true
         }
     }

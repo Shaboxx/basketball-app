@@ -11,6 +11,13 @@ struct GamesHubView: View {
     // destination (nav destinations don't inherit the environment) so the
     // historical launch view downstream can read it.
     @EnvironmentObject var historicalStore: HistoricalPoolStore
+    // Phase-8: the daily/weekly challenge store + the custom-game creator store.
+    // Both are re-injected into pushed destinations (env doesn't inherit).
+    @EnvironmentObject var dailyStore: DailyChallengeStore
+    @EnvironmentObject var creatorStore: GameCreatorStore
+    // The live player roster, used to re-validate the daily/weekly against the LIVE
+    // pool (Sol fix 2 / spec §133) and swap to a safe preset on infeasibility.
+    @EnvironmentObject var playersVM: PlayersViewModel
     @State private var path = NavigationPath()
 
     /// `now` for availability resolution — the current wall-clock at render.
@@ -21,14 +28,37 @@ struct GamesHubView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
-                ForEach(DraftGameRegistry.all) { game in
-                    let state = game.availability.resolve(now: now)
-                    if state.isPlayable {
-                        NavigationLink(value: game.id) {
-                            GameCard(game: game, state: state)
+                // Phase-8: today's Daily / this week's Weekly at the top of the hub.
+                Section {
+                    DailyChallengeCardView()
+                        .environmentObject(setupStore)
+                        .environmentObject(historicalStore)
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
+                // Phase-8: user-authored games.
+                Section {
+                    NavigationLink {
+                        MyGamesView()
+                            .environmentObject(creatorStore)
+                            .environmentObject(setupStore)
+                            .environmentObject(historicalStore)
+                    } label: {
+                        Label("My Games", systemImage: "square.and.pencil")
+                    }
+                }
+
+                Section {
+                    ForEach(DraftGameRegistry.all) { game in
+                        let state = game.availability.resolve(now: now)
+                        if state.isPlayable {
+                            NavigationLink(value: game.id) {
+                                GameCard(game: game, state: state)
+                            }
+                        } else {
+                            GameCard(game: game, state: state)   // no navigation
                         }
-                    } else {
-                        GameCard(game: game, state: state)   // no navigation
                     }
                 }
             }
@@ -40,6 +70,15 @@ struct GamesHubView: View {
                         .environmentObject(historicalStore)
                 }
             }
+        }
+        // Sol fix 2: re-validate today's daily/weekly against the LIVE pool once the
+        // roster is available, substituting a safe base preset on infeasibility.
+        // Guarded on a non-empty pool inside the store, so a cold start (players not
+        // loaded) is a no-op until the roster arrives.
+        .onReceive(playersVM.$players) { players in
+            let pool = GamePoolBuilder.pool(from: players)
+            guard !pool.isEmpty else { return }
+            dailyStore.validate(against: pool)
         }
     }
 }
@@ -88,4 +127,7 @@ private struct GameCard: View {
     GamesHubView()
         .environmentObject(GameSetupStore())
         .environmentObject(HistoricalPoolStore())
+        .environmentObject(DailyChallengeStore())
+        .environmentObject(GameCreatorStore())
+        .environmentObject(PlayersViewModel())
 }

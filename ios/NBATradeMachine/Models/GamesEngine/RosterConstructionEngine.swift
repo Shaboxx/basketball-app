@@ -271,19 +271,40 @@ nonisolated extension RosterConstructionEngine {
 
     static func buildResult(_ state: RosterGameState) -> GameResult {
         let scores: [Double]?
+        // `slotMetric` (Phase-8 COMPOSITE_BUILDER) scores per assignment by the
+        // metric its slotId maps to; a slot with no mapping contributes 0, and a
+        // metric absent on that entity (nil) contributes 0. Reordered/weighted
+        // metric sums can differ by an ULP for a should-be tie, so its winner
+        // tie-break uses an epsilon (below) while teamRating stays bit-exact.
+        var useEpsilon = false
         switch state.definition.scoring {
         case .none:
             scores = nil
         case .teamRating:
             scores = state.rosters.map { $0.reduce(0) { $0 + $1.entity.rating } }
+        case .slotMetric(let map):
+            useEpsilon = true
+            scores = state.rosters.map { roster in
+                roster.reduce(0.0) { acc, a in
+                    guard let metric = map[a.slotId] else { return acc }
+                    return acc + (metric.value(a.entity) ?? 0)
+                }
+            }
         }
         let winner: Int? = {
             guard let scores, state.participants.count > 1,
                   let best = scores.max() else { return nil }
-            // exact == is safe: teamRating sums identical rating multisets
-            // bit-identically. Revisit if scoring gains FP-reordering (weighted
-            // sums, averages) where should-tie sums can differ by an ULP.
-            let leaders = scores.indices.filter { scores[$0] == best }
+            // teamRating sums identical rating multisets bit-identically, so exact
+            // == is safe there. slotMetric can FP-reorder → relax to an epsilon so
+            // a should-be tie isn't mis-declared a winner (risk §129). The epsilon
+            // is contained to slotMetric to keep teamRating bit-exact.
+            let leaders: [Int]
+            if useEpsilon {
+                let eps = 1e-9
+                leaders = scores.indices.filter { abs(scores[$0] - best) <= eps }
+            } else {
+                leaders = scores.indices.filter { scores[$0] == best }
+            }
             return leaders.count == 1 ? leaders[0] : nil
         }()
         return GameResult(rosters: state.rosters, scores: scores, winnerSeat: winner)
