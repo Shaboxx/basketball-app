@@ -20,7 +20,7 @@ nonisolated enum DraftGameRegistry {
             title: "Best 6-Man 2020s",
             subtitle: "Draft a six-man rotation from the 2020s.",
             systemImage: "person.3.fill",
-            availability: .comingSoon(reason: "Coming soon"),
+            availability: .available,   // Phase 4.5 — historical pool (familySixFlex)
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
@@ -53,10 +53,65 @@ nonisolated enum DraftGameRegistry {
         ),
         DraftGame(
             id: "best-1990s-draft",
-            title: "Best 1990s Draft",
-            subtitle: "Draft from the 1990s player pool.",
+            title: "Best 90s Draft (1996+)",   // Sol: relabel — data floor is 1996-97
+            subtitle: "Draft from the late-90s player pool.",
             systemImage: "clock.arrow.circlepath",
-            availability: .comingSoon(reason: "Coming soon"),
+            availability: .available,   // Phase 4.5 — historical pool (familyFive)
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        // Phase 4.5 — new historical cards (ids match HistoricalPresets).
+        DraftGame(
+            id: "all-decade-2000s",
+            title: "All-Decade 2000s",
+            subtitle: "Draft the best of the 2000s.",
+            systemImage: "calendar",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
+            id: "all-decade-2010s",
+            title: "All-Decade 2010s",
+            subtitle: "Draft the best of the 2010s.",
+            systemImage: "calendar",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
+            id: "all-time-best-five",
+            title: "All-Time Best Five",
+            subtitle: "Draft five from every eligible season since 1996-97.",
+            systemImage: "trophy.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
+            id: "champions-draft",
+            title: "Champions Draft",
+            subtitle: "Only players who won a ring.",
+            systemImage: "medal.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
+            id: "mvp-club",
+            title: "MVP Club",
+            subtitle: "Draft from the MVP winners only.",
+            systemImage: "crown.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true)
+        ),
+        DraftGame(
+            id: "all-nba-draft",
+            title: "All-NBA Draft",
+            subtitle: "Draft from All-NBA selections.",
+            systemImage: "star.circle.fill",
+            availability: .available,
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
                                             allowsCPU: true, allowsLocalFriends: true)
         ),

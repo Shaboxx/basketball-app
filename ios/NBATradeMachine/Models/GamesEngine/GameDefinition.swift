@@ -59,6 +59,32 @@ nonisolated struct RosterConfig: Codable, Equatable {
             RosterSlot(id: "P\($0)", label: "Player \($0)", allowedPositions: [])
         })
     }
+
+    // MARK: - Phase-4.5 family rosters (historical pool)
+
+    /// Guard / Guard / Wing / Wing / Big over the collapsed FAMILY codes
+    /// (GUARD/WING/BIG) that historical entities carry in `position` (Sol Option
+    /// A primary-family collapse). Each slot accepts exactly its family, so a
+    /// BIG-collapsed player fills only the Big slot, etc.
+    static let familyFive = RosterConfig(slots: [
+        RosterSlot(id: "G1", label: "Guard", allowedPositions: ["GUARD"]),
+        RosterSlot(id: "G2", label: "Guard", allowedPositions: ["GUARD"]),
+        RosterSlot(id: "W1", label: "Wing", allowedPositions: ["WING"]),
+        RosterSlot(id: "W2", label: "Wing", allowedPositions: ["WING"]),
+        RosterSlot(id: "B1", label: "Big", allowedPositions: ["BIG"]),
+    ])
+
+    /// familyFive + a 6th positionless FLEX slot (Sol: any family) — the 2020s
+    /// six-man rotation. Empty `allowedPositions` ⟹ `RosterSlot.accepts` returns
+    /// true for any entity.
+    static let familySixFlex = RosterConfig(slots: [
+        RosterSlot(id: "G1", label: "Guard", allowedPositions: ["GUARD"]),
+        RosterSlot(id: "G2", label: "Guard", allowedPositions: ["GUARD"]),
+        RosterSlot(id: "W1", label: "Wing", allowedPositions: ["WING"]),
+        RosterSlot(id: "W2", label: "Wing", allowedPositions: ["WING"]),
+        RosterSlot(id: "B1", label: "Big", allowedPositions: ["BIG"]),
+        RosterSlot(id: "FLEX", label: "Flex", allowedPositions: []),
+    ])
 }
 
 /// How a finished game is judged (spec §§24–25 subset). `none` = side-by-side
@@ -66,6 +92,46 @@ nonisolated struct RosterConfig: Codable, Equatable {
 nonisolated enum ScoringMethod: String, Codable, Equatable {
     case teamRating
     case none
+}
+
+/// Where a game's entity pool comes from (Phase-4.5). ADDITIVE + optional on
+/// `GameDefinition` — the engine NEVER reads it; only the View layer branches on
+/// it to source the pool from the live players (`.current`) or the bundled
+/// historical dataset (`.historical`). `.current` is the default, so every
+/// existing encoded definition (which lacks the key) reads as `.current`.
+///
+/// Codable by hand (an associated-value enum) so the encoded form stays small
+/// and forward-compatible: `{"kind":"current"}` or
+/// `{"kind":"historical","filter":{…}}`.
+nonisolated enum GamePoolSource: Codable, Equatable {
+    case current
+    case historical(HistoricalFilter)
+
+    private enum CodingKeys: String, CodingKey { case kind, filter }
+    private enum Kind: String, Codable { case current, historical }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try c.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .current:
+            self = .current
+        case .historical:
+            let filter = try c.decode(HistoricalFilter.self, forKey: .filter)
+            self = .historical(filter)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .current:
+            try c.encode(Kind.current, forKey: .kind)
+        case .historical(let filter):
+            try c.encode(Kind.historical, forKey: .kind)
+            try c.encode(filter, forKey: .filter)
+        }
+    }
 }
 
 /// Spec §3 GameDefinition. Phase-1 core + Phase-2 optional modifiers. The
@@ -86,12 +152,18 @@ nonisolated struct GameDefinition: Codable, Equatable, Identifiable {
     let economy: EconomyConfig?
     let reveal: RevealConfig?
     let specialActions: SpecialActionsConfig?
+    /// Phase-4.5 additive pool source. Defaults to `.current`; NO engine reads
+    /// it — only the roster DESTINATION view branches on it (HistoricalRosterDraftView
+    /// vs RosterDraftView). Decoded with `decodeIfPresent` so every Phase-1
+    /// encoded definition (which lacks the key) still decodes as `.current`.
+    let poolSource: GamePoolSource
 
     init(id: String, title: String, engineType: GameEngineType,
          entityConstraints: [GameConstraint], rosterConstraints: [RosterConstraint],
          roster: RosterConfig, selection: SelectionConfig, scoring: ScoringMethod,
          economy: EconomyConfig? = nil, reveal: RevealConfig? = nil,
-         specialActions: SpecialActionsConfig? = nil) {
+         specialActions: SpecialActionsConfig? = nil,
+         poolSource: GamePoolSource = .current) {
         self.id = id
         self.title = title
         self.engineType = engineType
@@ -103,5 +175,47 @@ nonisolated struct GameDefinition: Codable, Equatable, Identifiable {
         self.economy = economy
         self.reveal = reveal
         self.specialActions = specialActions
+        self.poolSource = poolSource
+    }
+
+    // Hand-written Codable so `poolSource` is a FORGIVING addition: an existing
+    // encoded definition (no `poolSource` key) decodes to `.current`, and all
+    // other keys keep their synthesized behavior. Every stored property is
+    // required except the modifiers (optional) + `poolSource` (defaulted).
+    enum CodingKeys: String, CodingKey {
+        case id, title, engineType, entityConstraints, rosterConstraints
+        case roster, selection, scoring, economy, reveal, specialActions, poolSource
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        engineType = try c.decode(GameEngineType.self, forKey: .engineType)
+        entityConstraints = try c.decode([GameConstraint].self, forKey: .entityConstraints)
+        rosterConstraints = try c.decode([RosterConstraint].self, forKey: .rosterConstraints)
+        roster = try c.decode(RosterConfig.self, forKey: .roster)
+        selection = try c.decode(SelectionConfig.self, forKey: .selection)
+        scoring = try c.decode(ScoringMethod.self, forKey: .scoring)
+        economy = try c.decodeIfPresent(EconomyConfig.self, forKey: .economy)
+        reveal = try c.decodeIfPresent(RevealConfig.self, forKey: .reveal)
+        specialActions = try c.decodeIfPresent(SpecialActionsConfig.self, forKey: .specialActions)
+        poolSource = try c.decodeIfPresent(GamePoolSource.self, forKey: .poolSource) ?? .current
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(engineType, forKey: .engineType)
+        try c.encode(entityConstraints, forKey: .entityConstraints)
+        try c.encode(rosterConstraints, forKey: .rosterConstraints)
+        try c.encode(roster, forKey: .roster)
+        try c.encode(selection, forKey: .selection)
+        try c.encode(scoring, forKey: .scoring)
+        try c.encodeIfPresent(economy, forKey: .economy)
+        try c.encodeIfPresent(reveal, forKey: .reveal)
+        try c.encodeIfPresent(specialActions, forKey: .specialActions)
+        try c.encode(poolSource, forKey: .poolSource)
     }
 }

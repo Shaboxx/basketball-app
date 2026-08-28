@@ -7,6 +7,10 @@ import SwiftUI
 /// so it drops into either SP1 wiring unchanged.
 struct GamesHubView: View {
     @EnvironmentObject var setupStore: GameSetupStore
+    // Phase-4.5: the historical pool store is re-injected into the setup
+    // destination (nav destinations don't inherit the environment) so the
+    // historical launch view downstream can read it.
+    @EnvironmentObject var historicalStore: HistoricalPoolStore
     @State private var path = NavigationPath()
 
     /// `now` for availability resolution — the current wall-clock at render.
@@ -33,6 +37,7 @@ struct GamesHubView: View {
                 if let game = DraftGameRegistry.game(gameId) {
                     GameSetupView(game: game)
                         .environmentObject(setupStore)   // sheets/destinations don't inherit env
+                        .environmentObject(historicalStore)
                 }
             }
         }
@@ -80,5 +85,7 @@ private struct GameCard: View {
 }
 
 #Preview {
-    GamesHubView().environmentObject(GameSetupStore())
+    GamesHubView()
+        .environmentObject(GameSetupStore())
+        .environmentObject(HistoricalPoolStore())
 }

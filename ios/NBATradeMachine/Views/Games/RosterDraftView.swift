@@ -54,7 +54,9 @@ struct RosterDraftView: View {
 }
 
 /// The session-bound content. Separate struct so the store is non-optional.
-private struct RosterDraftContent: View {
+/// Internal (not private) so `HistoricalRosterDraftView` reuses the exact same
+/// gameplay UI — only the POOL SOURCE differs between the two launch views.
+struct RosterDraftContent: View {
     @ObservedObject var store: GameSessionStore
     @EnvironmentObject var teamsVM: TeamsViewModel
     @State private var pendingEntity: GameEntityRecord?

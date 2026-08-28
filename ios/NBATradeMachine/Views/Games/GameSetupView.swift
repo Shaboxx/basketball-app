@@ -6,6 +6,9 @@ import SwiftUI
 /// out-of-window games never reach this screen (the hub doesn't navigate to them).
 struct GameSetupView: View {
     @EnvironmentObject var setupStore: GameSetupStore
+    // Phase-4.5: re-injected below onto the historical launch view (this view's
+    // own navigationDestination is a further nav level that won't inherit env).
+    @EnvironmentObject var historicalStore: HistoricalPoolStore
     let game: DraftGame
 
     @State private var humans: Int = GameSetupSettings.default.humanCount
@@ -62,7 +65,16 @@ struct GameSetupView: View {
                                              playMode: playMode)
             switch GameLauncher.resolve(game.id) {
             case .roster(let def):
-                RosterDraftView(definition: def, settings: settings)
+                // Phase-4.5: a historical pool source routes to the historical
+                // launch view (sources the bundled dataset); .current keeps the
+                // existing live-players path. Engine path is identical for both.
+                switch def.poolSource {
+                case .current:
+                    RosterDraftView(definition: def, settings: settings)
+                case .historical:
+                    HistoricalRosterDraftView(definition: def, settings: settings)
+                        .environmentObject(historicalStore)
+                }
             case .classification(let def):
                 ClassificationView(definition: def)
             case .compare(let def):
@@ -98,5 +110,6 @@ struct GameSetupView: View {
     NavigationStack {
         GameSetupView(game: DraftGameRegistry.all[0])
             .environmentObject(GameSetupStore())
+            .environmentObject(HistoricalPoolStore())
     }
 }

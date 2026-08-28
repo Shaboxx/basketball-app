@@ -12,6 +12,10 @@ nonisolated enum GameLaunch: Equatable {
 nonisolated enum GameLauncher {
     static func resolve(_ id: String) -> GameLaunch {
         if let d = GamePresets.definition(for: id) { return .roster(d) }
+        // Phase-4.5 historical presets flow through the SAME .roster destination
+        // (they're roster-construction games with a .historical pool source); the
+        // setup view branches on `def.poolSource` to pick the right pool.
+        if let d = HistoricalPresets.definition(for: id) { return .roster(d) }
         if let d = ClassificationPresets.definition(for: id) { return .classification(d) }
         if let d = ComparePresets.definition(for: id) { return .compare(d) }
         return .none
