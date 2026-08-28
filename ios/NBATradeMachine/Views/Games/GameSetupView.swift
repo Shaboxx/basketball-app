@@ -9,6 +9,10 @@ struct GameSetupView: View {
     // Phase-4.5: re-injected below onto the historical launch view (this view's
     // own navigationDestination is a further nav level that won't inherit env).
     @EnvironmentObject var historicalStore: HistoricalPoolStore
+    // Phase 7: re-injected onto OnlineSetupView (a further nav level). Injected
+    // app-wide in ContentView (Mock-backed until Firebase is configured), so it's
+    // always reachable even though the online path stays dark behind the flag.
+    @EnvironmentObject var onlineStore: OnlineGameSessionStore
     let game: DraftGame
 
     @State private var humans: Int = GameSetupSettings.default.humanCount
@@ -18,11 +22,14 @@ struct GameSetupView: View {
 
     private var caps: SetupCapabilities { game.capabilities }
 
-    /// Play modes this game actually offers (F5: local + solo-vs-CPU only).
+    /// Play modes this game actually offers. `.online` (Phase 7) appears only when
+    /// the game `allowsOnline` AND `AppConfig.onlineGamesEnabled` is on, so it stays
+    /// dark until deploy.
     private var availableModes: [PlayMode] {
         var modes: [PlayMode] = []
         if caps.allowsLocalFriends { modes.append(.localFriends) }
         if caps.allowsCPU { modes.append(.soloVsCPU) }
+        if caps.allowsOnline && OnlineGamesGate.shouldShow() { modes.append(.online) }
         return modes.isEmpty ? [.localFriends] : modes
     }
 
@@ -65,15 +72,24 @@ struct GameSetupView: View {
                                              playMode: playMode)
             switch GameLauncher.resolve(game.id) {
             case .roster(let def):
-                // Phase-4.5: a historical pool source routes to the historical
-                // launch view (sources the bundled dataset); .current keeps the
-                // existing live-players path. Engine path is identical for both.
-                switch def.poolSource {
-                case .current:
-                    RosterDraftView(definition: def, settings: settings)
-                case .historical:
-                    HistoricalRosterDraftView(definition: def, settings: settings)
-                        .environmentObject(historicalStore)
+                // Phase 7: an online roster game routes to OnlineSetupView (create /
+                // join by code); the online branch is only reachable when the game
+                // allowsOnline AND onlineGamesEnabled (see availableModes), so this
+                // stays dark until deploy. Otherwise the local path runs.
+                if playMode == .online {
+                    OnlineSetupView(definition: def, settings: settings)
+                        .environmentObject(onlineStore)
+                } else {
+                    // Phase-4.5: a historical pool source routes to the historical
+                    // launch view (sources the bundled dataset); .current keeps the
+                    // existing live-players path. Engine path is identical for both.
+                    switch def.poolSource {
+                    case .current:
+                        RosterDraftView(definition: def, settings: settings)
+                    case .historical:
+                        HistoricalRosterDraftView(definition: def, settings: settings)
+                            .environmentObject(historicalStore)
+                    }
                 }
             case .classification(let def):
                 ClassificationView(definition: def)
@@ -133,5 +149,6 @@ struct GameSetupView: View {
         GameSetupView(game: DraftGameRegistry.all[0])
             .environmentObject(GameSetupStore())
             .environmentObject(HistoricalPoolStore())
+            .environmentObject(OnlineGameSessionStore(transport: MockGameSessionTransport()))
     }
 }

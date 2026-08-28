@@ -50,11 +50,17 @@ final class GameSetupStore: ObservableObject {
     /// Pure clamp of a settings blob to capabilities: counts via
     /// `SetupCapabilities.clamp`, play mode forced to `.soloVsCPU` if local
     /// friends aren't allowed (and to `.localFriends` if CPUs aren't allowed and
-    /// the stored mode was solo-vs-CPU).
+    /// the stored mode was solo-vs-CPU). A persisted `.online` mode is coerced to a
+    /// local mode whenever the game doesn't allow online play OR the feature ships
+    /// dark, so a stale online setting never leaks the feature while
+    /// `onlineGamesEnabled` is false.
     private static func clamped(_ s: GameSetupSettings,
                                 to caps: SetupCapabilities) -> GameSetupSettings {
         let counts = caps.clamp(humans: s.humanCount, cpus: s.cpuCount)
         var mode = s.playMode
+        if mode == .online && !(caps.allowsOnline && AppConfig.onlineGamesEnabled) {
+            mode = caps.allowsLocalFriends ? .localFriends : .soloVsCPU
+        }
         if mode == .localFriends && !caps.allowsLocalFriends { mode = .soloVsCPU }
         if mode == .soloVsCPU && !caps.allowsCPU { mode = .localFriends }
         return GameSetupSettings(humanCount: counts.humans, cpuCount: counts.cpus, playMode: mode)

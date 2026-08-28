@@ -1,15 +1,20 @@
 import Foundation
 
-/// How a draft game is played. Online multiplayer is DEFERRED (scope F5) — the
-/// scaffold ships local pass-and-play + solo-vs-CPU only.
+/// How a draft game is played. `.online` (Phase 7) is server-authoritative real-time
+/// multiplayer over a `gameSessions/{id}` doc; it ships DARK behind
+/// `AppConfig.onlineGamesEnabled` (the setup screen only offers it when that flag AND the
+/// game's `SetupCapabilities.allowsOnline` are both true). The raw values are the persisted
+/// form, so `.online` appends without disturbing older stored blobs.
 nonisolated enum PlayMode: String, Codable, CaseIterable, Identifiable, Hashable {
     case localFriends   // pass-and-play on one device
     case soloVsCPU
+    case online         // Phase 7 — real-time multiplayer via a join code
     var id: String { rawValue }
     var displayName: String {
         switch self {
         case .localFriends: return "Local Pass-and-Play"
         case .soloVsCPU:    return "Solo vs CPU"
+        case .online:       return "Online with Friends"
         }
     }
 }
@@ -51,9 +56,25 @@ nonisolated struct SetupCapabilities: Equatable {
     let maxParticipants: Int    // combined humans + CPUs
     let allowsCPU: Bool
     let allowsLocalFriends: Bool
+    /// Phase 7: whether this game may be played ONLINE (server-authoritative multiplayer).
+    /// Additive with a default so every existing `SetupCapabilities(...)` call site is
+    /// unchanged; the setup screen still gates the actual entry behind
+    /// `AppConfig.onlineGamesEnabled`, so `true` here alone never surfaces online while dark.
+    var allowsOnline: Bool = false
 
     /// The hard product ceiling on total participants, regardless of config.
     static let hardCap = 15
+
+    /// Memberwise init kept explicit so the additive `allowsOnline` defaults to false — every
+    /// prior call site (which passes the first four labels) compiles unchanged.
+    init(minHumans: Int, maxParticipants: Int, allowsCPU: Bool,
+         allowsLocalFriends: Bool, allowsOnline: Bool = false) {
+        self.minHumans = minHumans
+        self.maxParticipants = maxParticipants
+        self.allowsCPU = allowsCPU
+        self.allowsLocalFriends = allowsLocalFriends
+        self.allowsOnline = allowsOnline
+    }
 
     /// Effective cap: `maxParticipants`, never above `hardCap`, never below `minHumans`.
     var effectiveCap: Int { min(max(maxParticipants, max(minHumans, 1)), Self.hardCap) }

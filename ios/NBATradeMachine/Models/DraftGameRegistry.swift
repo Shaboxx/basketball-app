@@ -30,8 +30,11 @@ nonisolated enum DraftGameRegistry {
             subtitle: "Draft the best active roster head-to-head.",
             systemImage: "star.fill",
             availability: .available,   // first live game — ROSTER_CONSTRUCTION engine (Phase 1)
-            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 8,
-                                            allowsCPU: true, allowsLocalFriends: true)
+            // Phase 7: online-playable (a .current-pool roster preset). Entry still gated by
+            // AppConfig.onlineGamesEnabled, so it stays dark until deploy.
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true,
+                                            allowsOnline: true)
         ),
         DraftGame(
             id: "blind-draft",
@@ -40,7 +43,8 @@ nonisolated enum DraftGameRegistry {
             systemImage: "eye.slash.fill",
             availability: .available,   // Phase 2 — blind-info + reroll modifiers
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
-                                            allowsCPU: true, allowsLocalFriends: true)
+                                            allowsCPU: true, allowsLocalFriends: true,
+                                            allowsOnline: true)   // Phase 7 online (gated dark)
         ),
         DraftGame(
             id: "budget-builder",
@@ -48,8 +52,9 @@ nonisolated enum DraftGameRegistry {
             subtitle: "Draft five under a cap — one per team, stars cost more.",
             systemImage: "tag.fill",
             availability: .available,   // Phase 2.1 — tier-price budget + one-per-team
-            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 8,
-                                            allowsCPU: true, allowsLocalFriends: true)
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true,
+                                            allowsOnline: true)   // Phase 7 online (gated dark)
         ),
         DraftGame(
             id: "create-a-player",
@@ -57,8 +62,9 @@ nonisolated enum DraftGameRegistry {
             subtitle: "Draft a Scorer, Defender, Playmaker & Do-It-All — best composite wins.",
             systemImage: "wand.and.stars",
             availability: .available,   // Phase 8 — COMPOSITE_BUILDER (slotMetric scoring)
-            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 8,
-                                            allowsCPU: true, allowsLocalFriends: true)
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true,
+                                            allowsOnline: true)   // Phase 7 online (gated dark)
         ),
         DraftGame(
             id: "best-1990s-draft",
@@ -208,8 +214,9 @@ nonisolated enum DraftGameRegistry {
             subtitle: "Build a fantasy roster under a salary cap.",
             systemImage: "dollarsign.circle.fill",
             availability: .available,   // Phase 2 — economy modifier (real-salary budget)
-            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 12,
-                                            allowsCPU: true, allowsLocalFriends: true)
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
+                                            allowsCPU: true, allowsLocalFriends: true,
+                                            allowsOnline: true)   // Phase 7 online (gated dark)
         ),
         DraftGame(
             id: "rank-players",
