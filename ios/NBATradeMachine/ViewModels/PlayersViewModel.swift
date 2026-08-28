@@ -82,6 +82,7 @@ final class PlayersViewModel: ObservableObject {
         self.players = players.sorted { $0.name < $1.name }
         self.playersVersion += 1
         self.isLoading = false
+        self.hasLoaded = true   // a completed adopt IS a completed load (games latch empty-vs-loading on this)
         self.errorMessage = nil
     }
 
