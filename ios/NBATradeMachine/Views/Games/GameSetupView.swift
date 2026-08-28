@@ -92,6 +92,15 @@ struct GameSetupView: View {
             case .survivor(let def):
                 SurvivorView(definition: def)
                     .environmentObject(historicalStore)
+            case .grid(let def):
+                // Phase-6 GRID sources the shared historical distinct-player pool +
+                // teammate graph from HistoricalPoolStore — re-inject (this nav level
+                // won't inherit the env).
+                GridView(definition: def)
+                    .environmentObject(historicalStore)
+            case .connection(let def):
+                ConnectionView(definition: def)
+                    .environmentObject(historicalStore)
             case .none:
                 GamePlaceholderView(game: game, settings: settings)
             }

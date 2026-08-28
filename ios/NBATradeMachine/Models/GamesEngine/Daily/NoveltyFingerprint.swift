@@ -29,6 +29,8 @@ nonisolated enum NoveltyFingerprint {
         case .guess(let d):          data = (try? enc.encode(d)) ?? Data()
         case .quiz(let d):           data = (try? enc.encode(d)) ?? Data()
         case .survivor(let d):       data = (try? enc.encode(d)) ?? Data()
+        case .grid(let d):           data = (try? enc.encode(d)) ?? Data()
+        case .connection(let d):     data = (try? enc.encode(d)) ?? Data()
         case .none:                  data = Data("none".utf8)
         }
         // Prefix a family tag so two families that happen to encode alike never
@@ -42,6 +44,8 @@ nonisolated enum NoveltyFingerprint {
         case .guess:          tag = "g|"
         case .quiz:           tag = "q|"
         case .survivor:       tag = "s|"
+        case .grid:           tag = "d|"
+        case .connection:     tag = "x|"
         case .none:           tag = "n|"
         }
         return Array(tag.utf8) + Array(data)

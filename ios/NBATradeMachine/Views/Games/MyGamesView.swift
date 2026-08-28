@@ -71,8 +71,8 @@ private struct MyGameLaunchView: View {
             CompareView(definition: def)
         case .bracket(let def):
             BracketView(definition: def)
-        case .guess, .quiz, .survivor, .none:
-            // GameDraft (creator) never authors Phase-5 single-player families, so
+        case .guess, .quiz, .survivor, .grid, .connection, .none:
+            // GameDraft (creator) never authors Phase-5/6 single-player families, so
             // these are unreachable from a saved draft — show the unavailable view.
             ContentUnavailableView("Can't launch this game",
                                    systemImage: "exclamationmark.triangle")

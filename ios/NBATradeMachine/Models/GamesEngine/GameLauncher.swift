@@ -10,6 +10,8 @@ nonisolated enum GameLaunch: Equatable {
     case guess(GuessDefinition)         // Phase 5 — new engine
     case quiz(QuizDefinition)           // Phase 5 — new engine
     case survivor(SurvivorDefinition)   // Phase 5 — new engine
+    case grid(GridDefinition)           // Phase 6 — new engine (immaculate grid)
+    case connection(ConnectionDefinition) // Phase 6 — new engine (teammate chain)
     case none
 }
 
@@ -27,6 +29,9 @@ nonisolated enum GameLauncher {
         if let d = QuizPresets.definition(for: id) { return .quiz(d) }
         if let d = SurvivorPresets.definition(for: id) { return .survivor(d) }
         if let d = BracketPresets.definition(for: id) { return .bracket(d) }
+        // Phase 6 — GRID / CONNECTION (probed after bracket).
+        if let d = GridPresets.definition(for: id) { return .grid(d) }
+        if let d = ConnectionPresets.definition(for: id) { return .connection(d) }
         return .none
     }
 }

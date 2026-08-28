@@ -95,6 +95,72 @@ nonisolated enum HistoricalPoolBuilder {
         )
     }
 
+    // MARK: - Phase-6 DISTINCT-player collapse (GRID / CONNECTION answer space)
+
+    /// Collapse the season-level dataset into DISTINCT players — one
+    /// `HistoricalPlayerEntity` per `nbaPlayerId`, keeping only `eligible == true`
+    /// season rows and UNIONING their franchises/decades/families while taking the
+    /// MAX of each career-accolade count and the best (max) rating. This is the
+    /// shared answer-space for GRID (set-membership axes) and CONNECTION (name
+    /// resolution). Pure — feedable a `HistoricalDataset` decoded off any Data blob.
+    ///
+    /// Determinism: entities are returned sorted by `id` (numeric-then-lexical is
+    /// unnecessary — the id is the stable key), so the same dataset always yields
+    /// the same ordering for reproducible seeded draws. The per-player display
+    /// `name`/`appSlug` are taken from the player's MOST-RECENT eligible season
+    /// (highest `seasonStartYear`), so the answer index shows a current name.
+    static func loadDistinctPlayers(from dataset: HistoricalDataset) -> [HistoricalPlayerEntity] {
+        // Group eligible PLAYER_SEASON rows by nbaPlayerId.
+        var grouped: [Int: [HistoricalSeasonRecord]] = [:]
+        for r in dataset.players where r.entityType == "PLAYER_SEASON" && r.eligible {
+            grouped[r.nbaPlayerId, default: []].append(r)
+        }
+
+        var entities: [HistoricalPlayerEntity] = []
+        entities.reserveCapacity(grouped.count)
+        for (playerId, rows) in grouped {
+            // Most-recent eligible season → display name / slug (tie: last in a
+            // deterministic id-sorted order so the pick is reproducible).
+            let latest = rows.max { a, b in
+                if a.seasonStartYear != b.seasonStartYear { return a.seasonStartYear < b.seasonStartYear }
+                return a.id < b.id
+            }!
+
+            var franchiseSet = Set<String>()
+            var decadeSet = Set<Int>()
+            var familySet = Set<String>()
+            var rings = 0, mvp = 0, allNba = 0, allStar = 0, allDefense = 0
+            var bestRating = -Double.greatestFiniteMagnitude
+            for r in rows {
+                franchiseSet.insert(r.team)
+                decadeSet.insert(r.decadeStartYear)
+                // Only admit the three canonical families (guards a stray token).
+                for f in r.positionFamilies where families.contains(f) { familySet.insert(f) }
+                rings      = max(rings, r.career?.rings ?? 0)
+                mvp        = max(mvp, r.career?.mvp ?? 0)
+                allNba     = max(allNba, r.career?.allNba ?? 0)
+                allStar    = max(allStar, r.career?.allStar ?? 0)
+                allDefense = max(allDefense, r.career?.allDefense ?? 0)
+                bestRating = max(bestRating, r.rating)
+            }
+
+            entities.append(HistoricalPlayerEntity(
+                id: String(playerId),
+                name: latest.name,
+                appSlug: latest.appSlug,
+                franchises: franchiseSet,
+                decades: decadeSet,
+                families: familySet,
+                careerRings: rings,
+                careerMvp: mvp,
+                careerAllNba: allNba,
+                careerAllStar: allStar,
+                careerAllDefense: allDefense,
+                bestRating: bestRating == -Double.greatestFiniteMagnitude ? 0 : bestRating))
+        }
+        return entities.sorted { $0.id < $1.id }
+    }
+
     /// Award-minimum gate: every entry in `awardMin` must be met. An unknown key
     /// (typo) or a record whose career count is absent fails the gate — thin
     /// award pools stay honest rather than silently admitting everyone.

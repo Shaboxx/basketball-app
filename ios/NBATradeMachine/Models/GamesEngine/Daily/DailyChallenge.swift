@@ -209,8 +209,8 @@ nonisolated enum DailyChallengeGenerator {
                                              subjectCount: n,
                                              candidatePoolSize: d.config.candidatePoolSize))
             return .classification(def)
-        case .guess, .quiz, .survivor:
-            // Phase-5 single-player families aren't part of the daily rotation
+        case .guess, .quiz, .survivor, .grid, .connection:
+            // Phase-5/6 single-player families aren't part of the daily rotation
             // (not in `basePresets`), so there are no knobs to vary here — pass
             // through unchanged. (Kept exhaustive so the compiler enforces that any
             // future daily-rotation addition is handled explicitly.)
@@ -228,9 +228,9 @@ nonisolated enum DailyChallengeGenerator {
         case .classification(let d): return .classification(d)
         case .compare(let d):        return .compare(d)
         case .bracket(let d):        return .bracket(d)
-        // Phase-5 families have no GameDraft.Payload case and are never generated
+        // Phase-5/6 families have no GameDraft.Payload case and are never generated
         // by the daily rotation → unreachable; fall back to a known-safe payload.
-        case .guess, .quiz, .survivor, .none:
+        case .guess, .quiz, .survivor, .grid, .connection, .none:
             return .roster(GamePresets.bestCurrentPlayers)  // unreachable
         }
     }
@@ -246,6 +246,8 @@ nonisolated enum DailyChallengeGenerator {
         case .guess(let d):          base = d.title
         case .quiz(let d):           base = d.title
         case .survivor(let d):       base = d.title
+        case .grid(let d):           base = d.title
+        case .connection(let d):     base = d.title
         case .none:                  base = "Challenge"
         }
         return "\(prefix): \(base)"

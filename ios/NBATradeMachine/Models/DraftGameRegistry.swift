@@ -284,6 +284,35 @@ nonisolated enum DraftGameRegistry {
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
                                             allowsCPU: false, allowsLocalFriends: false)
         ),
+        // Phase 6 — GRID (immaculate 3×3, eligibility-rarity scored, always solvable).
+        DraftGame(
+            id: "immaculate-grid",
+            title: "Immaculate Grid",
+            subtitle: "Fill a 3×3 — each cell needs a player who fits both headers. Rarer picks score more.",
+            systemImage: "square.grid.3x3.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "franchise-grid",
+            title: "Franchise Grid",
+            subtitle: "Every header is a team — name a player who suited up for both.",
+            systemImage: "square.grid.3x3",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        // Phase 6 — CONNECTION (teammate chain, optimality scored vs BFS shortest path).
+        DraftGame(
+            id: "six-degrees",
+            title: "Six Degrees",
+            subtitle: "Link two players by a chain of teammates — the shorter, the better.",
+            systemImage: "point.topleft.down.to.point.bottomright.curvepath.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
     ]
 
     /// Lookup by id (used by the store + setup screen). nil for an unknown id.
