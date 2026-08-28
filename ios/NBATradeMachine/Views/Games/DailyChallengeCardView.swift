@@ -6,6 +6,12 @@ import SwiftUI
 struct DailyChallengeCardView: View {
     @EnvironmentObject var dailyStore: DailyChallengeStore
     @EnvironmentObject var historicalStore: HistoricalPoolStore
+    // The launched gameplay views (RosterDraftView/CompareView/ClassificationView/
+    // BracketView) read these; a pushed NavigationLink destination does NOT inherit
+    // env objects here, so they must be re-injected onto the destination (below).
+    // Both are injected at the ContentView root, so reading them here is safe.
+    @EnvironmentObject var playersVM: PlayersViewModel
+    @EnvironmentObject var teamsVM: TeamsViewModel
 
     var body: some View {
         VStack(spacing: 10) {
@@ -13,11 +19,13 @@ struct DailyChallengeCardView: View {
                          played: dailyStore.hasPlayed(dailyStore.daily),
                          icon: "sun.max.fill", tint: .orange,
                          historicalStore: historicalStore,
+                         playersVM: playersVM, teamsVM: teamsVM,
                          onPlay: { dailyStore.markPlayed(dailyStore.daily) })
             ChallengeRow(challenge: dailyStore.weekly,
                          played: dailyStore.hasPlayed(dailyStore.weekly),
                          icon: "calendar", tint: .blue,
                          historicalStore: historicalStore,
+                         playersVM: playersVM, teamsVM: teamsVM,
                          onPlay: { dailyStore.markPlayed(dailyStore.weekly) })
         }
         .padding(.vertical, 6)
@@ -31,12 +39,16 @@ private struct ChallengeRow: View {
     let icon: String
     let tint: Color
     let historicalStore: HistoricalPoolStore
+    let playersVM: PlayersViewModel
+    let teamsVM: TeamsViewModel
     let onPlay: () -> Void
 
     var body: some View {
         NavigationLink {
             ChallengeLaunchView(challenge: challenge)
                 .environmentObject(historicalStore)
+                .environmentObject(playersVM)   // destinations don't inherit env
+                .environmentObject(teamsVM)
                 .onAppear(perform: onPlay)
         } label: {
             HStack(spacing: 12) {
