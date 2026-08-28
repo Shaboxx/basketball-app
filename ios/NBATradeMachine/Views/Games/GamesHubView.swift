@@ -16,8 +16,13 @@ struct GamesHubView: View {
     @EnvironmentObject var dailyStore: DailyChallengeStore
     @EnvironmentObject var creatorStore: GameCreatorStore
     // The live player roster, used to re-validate the daily/weekly against the LIVE
-    // pool (Sol fix 2 / spec §133) and swap to a safe preset on infeasibility.
+    // pool (Sol fix 2 / spec §133) and swap to a safe preset on infeasibility. Both
+    // playersVM + teamsVM are ALSO re-injected onto the GameSetupView destination so
+    // the current-pool RosterDraftView downstream can read them (nested nav
+    // destinations don't inherit env — otherwise starting a current-pool game
+    // crashes with "No ObservableObject of type PlayersViewModel found").
     @EnvironmentObject var playersVM: PlayersViewModel
+    @EnvironmentObject var teamsVM: TeamsViewModel
     @State private var path = NavigationPath()
 
     /// `now` for availability resolution — the current wall-clock at render.
@@ -68,6 +73,8 @@ struct GamesHubView: View {
                     GameSetupView(game: game)
                         .environmentObject(setupStore)   // sheets/destinations don't inherit env
                         .environmentObject(historicalStore)
+                        .environmentObject(playersVM)    // current-pool RosterDraftView reads these
+                        .environmentObject(teamsVM)
                 }
             }
         }

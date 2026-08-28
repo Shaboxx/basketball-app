@@ -13,6 +13,11 @@ struct GameSetupView: View {
     // app-wide in ContentView (Mock-backed until Firebase is configured), so it's
     // always reachable even though the online path stays dark behind the flag.
     @EnvironmentObject var onlineStore: OnlineGameSessionStore
+    // The live-pool roster stores. Re-injected onto the current-pool RosterDraftView
+    // below (this view's navigationDestination is a further nav level that won't
+    // inherit env). GamesHubView injects both onto this view, so reading them is safe.
+    @EnvironmentObject var playersVM: PlayersViewModel
+    @EnvironmentObject var teamsVM: TeamsViewModel
     let game: DraftGame
 
     @State private var humans: Int = GameSetupSettings.default.humanCount
@@ -68,60 +73,55 @@ struct GameSetupView: View {
         .navigationTitle(game.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $started) {
-            let settings = GameSetupSettings(humanCount: humans, cpuCount: cpus,
-                                             playMode: playMode)
-            switch GameLauncher.resolve(game.id) {
-            case .roster(let def):
-                // Phase 7: an online roster game routes to OnlineSetupView (create /
-                // join by code); the online branch is only reachable when the game
-                // allowsOnline AND onlineGamesEnabled (see availableModes), so this
-                // stays dark until deploy. Otherwise the local path runs.
-                if playMode == .online {
-                    OnlineSetupView(definition: def, settings: settings)
-                        .environmentObject(onlineStore)
-                } else {
-                    // Phase-4.5: a historical pool source routes to the historical
-                    // launch view (sources the bundled dataset); .current keeps the
-                    // existing live-players path. Engine path is identical for both.
-                    switch def.poolSource {
-                    case .current:
-                        RosterDraftView(definition: def, settings: settings)
-                    case .historical:
-                        HistoricalRosterDraftView(definition: def, settings: settings)
-                            .environmentObject(historicalStore)
-                    }
-                }
-            case .classification(let def):
-                ClassificationView(definition: def)
-            case .compare(let def):
-                CompareView(definition: def)
-            case .bracket(let def):
-                BracketView(definition: def)
-            case .guess(let def):
-                // Re-inject historicalStore for the historical pool source (this nav
-                // level won't inherit the env). Harmless for .current presets.
-                GuessView(definition: def)
-                    .environmentObject(historicalStore)
-            case .quiz(let def):
-                QuizView(definition: def)
-                    .environmentObject(historicalStore)
-            case .survivor(let def):
-                SurvivorView(definition: def)
-                    .environmentObject(historicalStore)
-            case .grid(let def):
-                // Phase-6 GRID sources the shared historical distinct-player pool +
-                // teammate graph from HistoricalPoolStore — re-inject (this nav level
-                // won't inherit the env).
-                GridView(definition: def)
-                    .environmentObject(historicalStore)
-            case .connection(let def):
-                ConnectionView(definition: def)
-                    .environmentObject(historicalStore)
-            case .none:
-                GamePlaceholderView(game: game, settings: settings)
-            }
+            // Every gameplay view is reached through THIS nested navigationDestination,
+            // which does NOT inherit the environment. Inject the stores the gameplay
+            // views read uniformly — playersVM/teamsVM (live pool: roster/classification/
+            // compare/bracket/guess/quiz/survivor) and historicalStore (bundled dataset:
+            // historical roster/guess/quiz/survivor/grid/connection). Injecting a store a
+            // given view ignores is harmless; a MISSING one crashes at render with
+            // "No ObservableObject of type … found".
+            gameplayDestination()
+                .environmentObject(playersVM)
+                .environmentObject(teamsVM)
+                .environmentObject(historicalStore)
         }
         .onAppear(perform: restore)
+    }
+
+    /// The gameplay view for this game. Kept separate so the shared environment-object
+    /// injection (playersVM/teamsVM/historicalStore) is applied once at the call site
+    /// above rather than per-branch. onlineStore is injected inline on the online branch.
+    @ViewBuilder
+    private func gameplayDestination() -> some View {
+        let settings = GameSetupSettings(humanCount: humans, cpuCount: cpus, playMode: playMode)
+        switch GameLauncher.resolve(game.id) {
+        case .roster(let def):
+            // Phase 7: an online roster game routes to OnlineSetupView (create / join by
+            // code); reachable only when the game allowsOnline AND onlineGamesEnabled
+            // (see availableModes), so it stays dark until deploy. Otherwise local.
+            if playMode == .online {
+                OnlineSetupView(definition: def, settings: settings)
+                    .environmentObject(onlineStore)
+            } else {
+                // Phase-4.5: a historical pool source routes to the historical launch
+                // view (bundled dataset); .current keeps the live-players path.
+                switch def.poolSource {
+                case .current:
+                    RosterDraftView(definition: def, settings: settings)
+                case .historical:
+                    HistoricalRosterDraftView(definition: def, settings: settings)
+                }
+            }
+        case .classification(let def): ClassificationView(definition: def)
+        case .compare(let def):        CompareView(definition: def)
+        case .bracket(let def):        BracketView(definition: def)
+        case .guess(let def):          GuessView(definition: def)
+        case .quiz(let def):           QuizView(definition: def)
+        case .survivor(let def):       SurvivorView(definition: def)
+        case .grid(let def):           GridView(definition: def)
+        case .connection(let def):     ConnectionView(definition: def)
+        case .none:                    GamePlaceholderView(game: game, settings: settings)
+        }
     }
 
     private func restore() {
