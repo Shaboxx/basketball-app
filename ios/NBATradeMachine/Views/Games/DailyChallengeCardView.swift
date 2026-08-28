@@ -78,7 +78,9 @@ private struct ChallengeLaunchView: View {
             CompareView(definition: def, seed: challenge.seed)
         case .bracket(let def):
             BracketView(definition: def, seed: challenge.seed)
-        case .none:
+        case .guess, .quiz, .survivor, .none:
+            // Phase-5 single-player families aren't part of the daily rotation →
+            // unreachable from a challenge, but keep the switch exhaustive.
             ContentUnavailableView("Can't start today's challenge",
                                    systemImage: "exclamationmark.triangle")
         }

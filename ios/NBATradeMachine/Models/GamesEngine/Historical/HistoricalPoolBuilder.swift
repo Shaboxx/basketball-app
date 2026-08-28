@@ -59,7 +59,20 @@ nonisolated enum HistoricalPoolBuilder {
             pts: r.stats?.pts,
             reb: r.stats?.reb,
             ast: r.stats?.ast,
-            netRating: r.stats?.netRating)
+            netRating: r.stats?.netRating,
+            // Phase-5 content fields — the richer stat + label surface GUESS/QUIZ/
+            // SURVIVOR draw clues, superlatives, and predicates from.
+            seasonLabel: r.seasonLabel,
+            age: r.age,
+            stl: r.stats?.stl,
+            blk: r.stats?.blk,
+            tov: r.stats?.tov,
+            fgPct: r.stats?.fgPct,
+            threePct: r.stats?.threePct,
+            ftPct: r.stats?.ftPct,
+            tsPct: r.stats?.tsPct,
+            usgPct: r.stats?.usgPct,
+            pie: r.stats?.pie)
     }
 
     /// Build the prefiltered pool from a dataset + filter. Applies (in order):

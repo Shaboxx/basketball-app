@@ -36,6 +36,7 @@ final class PlayersViewModel: ObservableObject {
     }
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published private(set) var hasLoaded = false
 
     private static let sortKey = "playersSortMode"
     private let service: FirestoreReading
@@ -63,6 +64,7 @@ final class PlayersViewModel: ObservableObject {
     func reload() async {
         isLoading = true
         defer { isLoading = false }
+        defer { hasLoaded = true }
         do {
             let p = try await service.fetchPlayers()
             self.players = p.sorted { $0.name < $1.name }

@@ -7,6 +7,9 @@ nonisolated enum GameLaunch: Equatable {
     case classification(ClassificationDefinition)
     case compare(CompareDefinition)
     case bracket(BracketDefinition)     // Phase 8 — new engine
+    case guess(GuessDefinition)         // Phase 5 — new engine
+    case quiz(QuizDefinition)           // Phase 5 — new engine
+    case survivor(SurvivorDefinition)   // Phase 5 — new engine
     case none
 }
 
@@ -19,6 +22,10 @@ nonisolated enum GameLauncher {
         if let d = HistoricalPresets.definition(for: id) { return .roster(d) }
         if let d = ClassificationPresets.definition(for: id) { return .classification(d) }
         if let d = ComparePresets.definition(for: id) { return .compare(d) }
+        // Phase 5 — GUESS / QUIZ / SURVIVOR (probed after compare, per the outline).
+        if let d = GuessPresets.definition(for: id) { return .guess(d) }
+        if let d = QuizPresets.definition(for: id) { return .quiz(d) }
+        if let d = SurvivorPresets.definition(for: id) { return .survivor(d) }
         if let d = BracketPresets.definition(for: id) { return .bracket(d) }
         return .none
     }

@@ -26,6 +26,9 @@ nonisolated enum NoveltyFingerprint {
         case .classification(let d): data = (try? enc.encode(d)) ?? Data()
         case .compare(let d):        data = (try? enc.encode(d)) ?? Data()
         case .bracket(let d):        data = (try? enc.encode(d)) ?? Data()
+        case .guess(let d):          data = (try? enc.encode(d)) ?? Data()
+        case .quiz(let d):           data = (try? enc.encode(d)) ?? Data()
+        case .survivor(let d):       data = (try? enc.encode(d)) ?? Data()
         case .none:                  data = Data("none".utf8)
         }
         // Prefix a family tag so two families that happen to encode alike never
@@ -36,6 +39,9 @@ nonisolated enum NoveltyFingerprint {
         case .classification: tag = "c|"
         case .compare:        tag = "h|"
         case .bracket:        tag = "b|"
+        case .guess:          tag = "g|"
+        case .quiz:           tag = "q|"
+        case .survivor:       tag = "s|"
         case .none:           tag = "n|"
         }
         return Array(tag.utf8) + Array(data)

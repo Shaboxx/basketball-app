@@ -81,6 +81,17 @@ struct GameSetupView: View {
                 CompareView(definition: def)
             case .bracket(let def):
                 BracketView(definition: def)
+            case .guess(let def):
+                // Re-inject historicalStore for the historical pool source (this nav
+                // level won't inherit the env). Harmless for .current presets.
+                GuessView(definition: def)
+                    .environmentObject(historicalStore)
+            case .quiz(let def):
+                QuizView(definition: def)
+                    .environmentObject(historicalStore)
+            case .survivor(let def):
+                SurvivorView(definition: def)
+                    .environmentObject(historicalStore)
             case .none:
                 GamePlaceholderView(game: game, settings: settings)
             }

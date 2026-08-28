@@ -124,16 +124,74 @@ nonisolated enum DraftGameRegistry {
             capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 6,
                                             allowsCPU: true, allowsLocalFriends: true)
         ),
+        // Phase 5 — the seasonal card is now a playable GUESS game (single-player).
         DraftGame(
             id: "nba-draft-guess",
             title: "NBA Draft Guess",
-            subtitle: "Predict the real NBA Draft — open around draft season.",
+            subtitle: "Guess the mystery player from broadening clues — open around draft season.",
             systemImage: "questionmark.circle.fill",
             availability: .seasonal(start: iso("2026-06-20T00:00:00Z"),
                                     end: iso("2027-06-25T00:00:00Z"),
                                     reason: "Opens around NBA Draft season"),
-            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 10,
-                                            allowsCPU: false, allowsLocalFriends: true)
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        // Phase 5 — GUESS cards.
+        DraftGame(
+            id: "guess-the-season",
+            title: "Guess the Season",
+            subtitle: "Reveal clues about a mystery player-season — fewer clues, more points.",
+            systemImage: "calendar.badge.clock",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "guess-the-current-player",
+            title: "Guess the Current Player",
+            subtitle: "Clues about an active player — name them in as few as possible.",
+            systemImage: "person.fill.questionmark",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        // Phase 5 — QUIZ cards.
+        DraftGame(
+            id: "nba-trivia-quiz",
+            title: "NBA Trivia Quiz",
+            subtitle: "Seeded multiple-choice trivia about today's players.",
+            systemImage: "questionmark.app.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "all-time-quiz",
+            title: "All-Time Quiz",
+            subtitle: "Seeded superlatives, rings, and which-season across NBA history.",
+            systemImage: "graduationcap.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        // Phase 5 — SURVIVOR cards.
+        DraftGame(
+            id: "survivor-name-a-player",
+            title: "Survivor: Name a Player",
+            subtitle: "Name a player who fits — no repeats. How long can you last?",
+            systemImage: "figure.run",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
+        ),
+        DraftGame(
+            id: "survivor-champions",
+            title: "Survivor: Champions",
+            subtitle: "Name champions, MVPs, and legends — no repeats — until you slip.",
+            systemImage: "medal.fill",
+            availability: .available,
+            capabilities: SetupCapabilities(minHumans: 1, maxParticipants: 1,
+                                            allowsCPU: false, allowsLocalFriends: false)
         ),
         DraftGame(
             id: "fantasy-draft",

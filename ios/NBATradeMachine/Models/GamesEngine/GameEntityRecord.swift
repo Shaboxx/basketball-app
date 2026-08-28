@@ -38,6 +38,24 @@ nonisolated struct GameEntityRecord: Identifiable, Codable, Equatable, Hashable 
     let ast: Double?
     let netRating: Double?
 
+    // Phase-5 CONTENT fields — ADDITIVE + optional (default nil so every previously
+    // encoded Phase-1..4.5 blob decodes unchanged). Populated from the historical
+    // dataset by HistoricalPoolBuilder; current-era entities leave them nil, so
+    // the evaluator's SQL-style missing-field semantics leave those games untouched.
+    // These give GUESS clues / QUIZ superlatives / SURVIVOR predicates the richer
+    // stat + label surface they need without a parallel content record type.
+    let seasonLabel: String?    // "1996-97" — human season label (display + clue)
+    let age: Double?            // player age that season
+    let stl: Double?
+    let blk: Double?
+    let tov: Double?
+    let fgPct: Double?
+    let threePct: Double?       // ⚠️ legitimately 0.0 for many pre-2015 bigs (not missing)
+    let ftPct: Double?
+    let tsPct: Double?
+    let usgPct: Double?
+    let pie: Double?
+
     init(id: String, name: String, team: String, position: String,
          salary: Int?, rating: Double,
          offRating: Double? = nil, defRating: Double? = nil, minutes: Double? = nil,
@@ -46,7 +64,11 @@ nonisolated struct GameEntityRecord: Identifiable, Codable, Equatable, Hashable 
          careerAllNba: Int? = nil, careerAllStar: Int? = nil, careerAllDefense: Int? = nil,
          draftYear: Int? = nil, draftRound: Int? = nil, draftPick: Int? = nil,
          pts: Double? = nil, reb: Double? = nil, ast: Double? = nil,
-         netRating: Double? = nil) {
+         netRating: Double? = nil,
+         seasonLabel: String? = nil, age: Double? = nil,
+         stl: Double? = nil, blk: Double? = nil, tov: Double? = nil,
+         fgPct: Double? = nil, threePct: Double? = nil, ftPct: Double? = nil,
+         tsPct: Double? = nil, usgPct: Double? = nil, pie: Double? = nil) {
         self.id = id
         self.name = name
         self.team = team
@@ -71,6 +93,17 @@ nonisolated struct GameEntityRecord: Identifiable, Codable, Equatable, Hashable 
         self.reb = reb
         self.ast = ast
         self.netRating = netRating
+        self.seasonLabel = seasonLabel
+        self.age = age
+        self.stl = stl
+        self.blk = blk
+        self.tov = tov
+        self.fgPct = fgPct
+        self.threePct = threePct
+        self.ftPct = ftPct
+        self.tsPct = tsPct
+        self.usgPct = usgPct
+        self.pie = pie
     }
 }
 
@@ -86,6 +119,9 @@ nonisolated enum GameField: String, Codable, Equatable {
     case careerRings, careerMvp, careerFinalsMvp, careerAllNba, careerAllStar, careerAllDefense
     case draftYear, draftRound, draftPick
     case pts, reb, ast, netRating
+    // Phase-5 content fields (all optional on the record).
+    case seasonLabel, age
+    case stl, blk, tov, fgPct, threePct, ftPct, tsPct, usgPct, pie
 }
 
 /// A typed field value; constraints compare like against like.
@@ -117,6 +153,18 @@ nonisolated extension GameEntityRecord {
         case .reb:              return reb.map { .number($0) }
         case .ast:              return ast.map { .number($0) }
         case .netRating:        return netRating.map { .number($0) }
+        // Phase-5 content fields.
+        case .seasonLabel:      return seasonLabel.map { .string($0) }
+        case .age:              return age.map { .number($0) }
+        case .stl:              return stl.map { .number($0) }
+        case .blk:              return blk.map { .number($0) }
+        case .tov:              return tov.map { .number($0) }
+        case .fgPct:            return fgPct.map { .number($0) }
+        case .threePct:         return threePct.map { .number($0) }
+        case .ftPct:            return ftPct.map { .number($0) }
+        case .tsPct:            return tsPct.map { .number($0) }
+        case .usgPct:           return usgPct.map { .number($0) }
+        case .pie:              return pie.map { .number($0) }
         }
     }
 }
