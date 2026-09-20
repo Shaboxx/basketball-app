@@ -35,6 +35,8 @@ On Linux, the command emits the report automatically. On macOS, `--report` selec
 
 The verified Linux build used `swift:6.2-noble` with network disabled, two CPUs, and a 3 GiB memory limit. It compiled **75 selected source files** and passed **333 tests**. The tests cover original trade-compliance decisions, roster and budget constraints, seeded state transitions, deduplication, multiple game families, error cases, and new offline integration. These tests verify software behavior; they do not evaluate the quality of player ratings or certify legal advice.
 
+[Apple CI](https://github.com/Shaboxx/basketball-app/actions/runs/35541272821) also passed the Swift suite and deterministic report on macOS using Xcode 26.3, built the iOS simulator application, and launched it successfully. The [saved screenshot](../examples/native-app.png) is the actual rendered application from that run.
+
 ## Released scope
 
 `Package.swift` and the Xcode project each select the same 75 files. Those include the original player/value contracts, trade compliance and analyzer, and pure roster, classification, compare, bracket, grid, guess, quiz, survivor, connection, historical-pool, and creator engines. The new SwiftUI front end exposes the flows listed above; it does not imply that every original application screen or every engine has a corresponding released UI.

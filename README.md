@@ -8,6 +8,10 @@ Basketball decisions cross several kinds of information: player contributions, p
 
 The repository also includes a **native SwiftUI offline application** with player exploration, original trade-compliance checks, a constrained roster draft, a seeded quiz, and a higher/lower game. Its separate fixture has **20 invented players across four teams**. [Native setup and implementation scope](ios/README.md) · [Computed native example](ios/OfflineExample.json).
 
+<img src="examples/native-app.png" alt="The running iOS offline application showing fictional players and its five navigation tabs" width="320">
+
+Actual iOS simulator capture from the [verified native build and launch](https://github.com/Shaboxx/basketball-app/actions/runs/35541272821). The displayed records are synthetic.
+
 ## Run the offline application
 
 Requirements: Python **3.12+**, a modern browser, and roughly **100 MB RAM**. The browser edition uses the standard library, has no third-party installation requirements, and requires no account or network service.

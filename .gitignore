@@ -8,4 +8,4 @@ __pycache__/
 *.sqlite*
 DerivedData/
 build/
-native-app.png
+/native-app.png
