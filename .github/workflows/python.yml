@@ -1,0 +1,16 @@
+name: Offline browser application
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+      - run: python app.py --demo
+      - name: Verify the committed example is reproducible
+        run: git diff --exit-code -- examples/demo-report.json
