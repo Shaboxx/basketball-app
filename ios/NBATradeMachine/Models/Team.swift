@@ -1,8 +1,7 @@
 import Foundation
-import FirebaseFirestore
 
 struct Team: Codable, Identifiable, Hashable {
-    @DocumentID var docId: String?
+    var docId: String? = nil
     let teamId: String
     let fullName: String
     let city: String
@@ -10,9 +9,8 @@ struct Team: Codable, Identifiable, Hashable {
     let conference: String
     let division: String
 
-    // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
-    // decoder) don't look for it in the document payload — Firestore populates
-    // @DocumentID out-of-band from the document reference. Mirrors `Player`.
+    // The optional local document identity is outside the JSON payload.
+    // The stable teamId supplies Identifiable conformance.
     enum CodingKeys: String, CodingKey {
         case teamId, fullName, city, name, conference, division
     }

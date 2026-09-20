@@ -1,8 +1,7 @@
 import Foundation
-import FirebaseFirestore
 
 struct Player: Codable, Identifiable, Hashable {
-    @DocumentID var docId: String?
+    var docId: String? = nil
     let slug: String
     let name: String
     let teamId: String
@@ -86,10 +85,9 @@ struct Player: Codable, Identifiable, Hashable {
         let asOf: String?
     }
 
-    // Explicit CodingKeys excludes `docId` so JSONDecoder (and Firestore's
-    // decoder) don't look for it in the document payload. Firestore populates
-    // @DocumentID out-of-band from the document reference.
-    // IMPORTANT: every stored property of `Player` except `@DocumentID docId`
+    // Explicit CodingKeys excludes the optional local `docId`; standalone
+    // JSON decoding uses the stable slug when that identity is absent.
+    // IMPORTANT: every stored property of `Player` except `docId`
     // MUST be listed below. A property missing from this enum will silently
     // decode as nil (or fail to encode) without any compile-time warning.
     enum CodingKeys: String, CodingKey {

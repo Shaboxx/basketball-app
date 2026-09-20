@@ -1,0 +1,30 @@
+{
+  "draft" : [
+    {
+      "player" : "Sample Player 11",
+      "slot" : "SCORER",
+      "team" : "coast"
+    },
+    {
+      "player" : "Sample Player 10",
+      "slot" : "DEFENDER",
+      "team" : "prairie"
+    },
+    {
+      "player" : "Sample Player 18",
+      "slot" : "PLAYMAKER",
+      "team" : "ridge"
+    },
+    {
+      "player" : "Sample Player 4",
+      "slot" : "DOALL",
+      "team" : "lake"
+    }
+  ],
+  "draft_complete" : true,
+  "example_salary_matching_limit" : 17936000,
+  "mode" : "deterministic synthetic offline demonstration",
+  "players" : 20,
+  "quiz_questions" : 8,
+  "teams" : 4
+}

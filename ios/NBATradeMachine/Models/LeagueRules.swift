@@ -1,8 +1,7 @@
 import Foundation
-import FirebaseFirestore
 
 struct LeagueRules: Codable {
-    @DocumentID var docId: String?
+    var docId: String? = nil
     let season: String
     let salaryCap: Int
     let taxLevel: Int
@@ -43,8 +42,7 @@ extension LeagueRules {
     /// Tiny cap so all modest test salaries — even a star-dumping team's
     /// post-trade total — stay in the over-cap tier, exercising the 125%/200%
     /// salary-matching band rather than the under-cap room path. Built via the
-    /// memberwise init with a nil @DocumentID (a plain JSONDecoder can't satisfy
-    /// the out-of-band docId key).
+    /// memberwise init with a nil local document identity.
     static func testFixture(season: String = "2025-26",
                             salaryCap: Int = 1_000_000,
                             taxLevel: Int = 200_000_000,
