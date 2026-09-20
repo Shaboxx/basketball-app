@@ -1,0 +1,109 @@
+{
+  "data": {
+    "kind": "synthetic",
+    "teams": 4,
+    "players": 24
+  },
+  "balanced_trade": {
+    "salary_matching_passed": true,
+    "sides": [
+      {
+        "team": "Harbor Falcons",
+        "outgoing": 22000000,
+        "incoming": 22250000,
+        "post_trade_payroll": 112250000,
+        "tier": "overCap",
+        "incoming_limit": 29936000,
+        "salary_match": true,
+        "offense_delta": 0.13,
+        "defense_delta": -0.09
+      },
+      {
+        "team": "Mesa Owls",
+        "outgoing": 22250000,
+        "incoming": 22000000,
+        "post_trade_payroll": 113750000,
+        "tier": "overCap",
+        "incoming_limit": 30186000,
+        "salary_match": true,
+        "offense_delta": -0.13,
+        "defense_delta": 0.09
+      }
+    ],
+    "scope": "One-for-one salary matching only. Pick protections, exceptions, timing and all other eligibility rules are not evaluated.",
+    "data_kind": "synthetic"
+  },
+  "salary_mismatch": {
+    "salary_matching_passed": false,
+    "sides": [
+      {
+        "team": "Harbor Falcons",
+        "outgoing": 3000000,
+        "incoming": 22250000,
+        "post_trade_payroll": 131250000,
+        "tier": "overCap",
+        "incoming_limit": 6250000,
+        "salary_match": false,
+        "offense_delta": 2.28,
+        "defense_delta": -1.99
+      },
+      {
+        "team": "Mesa Owls",
+        "outgoing": 22250000,
+        "incoming": 3000000,
+        "post_trade_payroll": 94750000,
+        "tier": "underCap",
+        "incoming_limit": 22500000,
+        "salary_match": true,
+        "offense_delta": -2.28,
+        "defense_delta": 1.99
+      }
+    ],
+    "scope": "One-for-one salary matching only. Pick protections, exceptions, timing and all other eligibility rules are not evaluated.",
+    "data_kind": "synthetic"
+  },
+  "lineup": {
+    "players": [
+      "Harbor Player 1",
+      "Harbor Player 2",
+      "Harbor Player 3",
+      "Harbor Player 4",
+      "Harbor Player 5"
+    ],
+    "positions_covered": true,
+    "assignment": [
+      {
+        "position": "PG",
+        "player": "Harbor Player 1"
+      },
+      {
+        "position": "SG",
+        "player": "Harbor Player 2"
+      },
+      {
+        "position": "SF",
+        "player": "Harbor Player 3"
+      },
+      {
+        "position": "PF",
+        "player": "Harbor Player 4"
+      },
+      {
+        "position": "C",
+        "player": "Harbor Player 5"
+      }
+    ],
+    "salary": 86000000,
+    "mean_offense": 1.54,
+    "mean_defense": 0.16,
+    "interpretation": "Arithmetic summaries of invented inputs. No interaction effects or prediction claim."
+  },
+  "contract": {
+    "player": "Harbor Player 1",
+    "bird_tier": "non",
+    "max_first_year": 25000000,
+    "resign_max": 25000000,
+    "cap_hold": 25000000,
+    "scope": "Synthetic rule inputs demonstrating contract calculations. Not a current league contract offer."
+  }
+}

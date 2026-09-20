@@ -1,0 +1,1 @@
+"""Basketball application domain logic."""

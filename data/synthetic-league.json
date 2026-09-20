@@ -1,0 +1,435 @@
+{
+  "schema_version": 1,
+  "data_kind": "synthetic",
+  "teams": [
+    {
+      "id": "harbor",
+      "name": "Harbor Falcons",
+      "payroll": 112000000,
+      "color": "#167d75"
+    },
+    {
+      "id": "mesa",
+      "name": "Mesa Owls",
+      "payroll": 114000000,
+      "color": "#aa6744"
+    },
+    {
+      "id": "valley",
+      "name": "Valley Comets",
+      "payroll": 163000000,
+      "color": "#667cc1"
+    },
+    {
+      "id": "summit",
+      "name": "Summit Bears",
+      "payroll": 188000000,
+      "color": "#9a5c85"
+    }
+  ],
+  "players": [
+    {
+      "id": "harbor-1",
+      "name": "Harbor Player 1",
+      "team": "harbor",
+      "role": "Lead guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 22000000,
+      "offense": 2.4,
+      "defense": -0.6,
+      "years_of_service": 3,
+      "tenure": 0
+    },
+    {
+      "id": "harbor-2",
+      "name": "Harbor Player 2",
+      "team": "harbor",
+      "role": "Shooter",
+      "positions": [
+        "SG",
+        "SF"
+      ],
+      "salary": 17000000,
+      "offense": 1.97,
+      "defense": -0.22,
+      "years_of_service": 4,
+      "tenure": 1
+    },
+    {
+      "id": "harbor-3",
+      "name": "Harbor Player 3",
+      "team": "harbor",
+      "role": "Wing",
+      "positions": [
+        "SF",
+        "PF"
+      ],
+      "salary": 15000000,
+      "offense": 1.54,
+      "defense": 0.16,
+      "years_of_service": 5,
+      "tenure": 2
+    },
+    {
+      "id": "harbor-4",
+      "name": "Harbor Player 4",
+      "team": "harbor",
+      "role": "Forward",
+      "positions": [
+        "PF",
+        "C"
+      ],
+      "salary": 14000000,
+      "offense": 1.11,
+      "defense": 0.54,
+      "years_of_service": 6,
+      "tenure": 3
+    },
+    {
+      "id": "harbor-5",
+      "name": "Harbor Player 5",
+      "team": "harbor",
+      "role": "Center",
+      "positions": [
+        "C"
+      ],
+      "salary": 18000000,
+      "offense": 0.68,
+      "defense": 0.92,
+      "years_of_service": 7,
+      "tenure": 0
+    },
+    {
+      "id": "harbor-6",
+      "name": "Harbor Player 6",
+      "team": "harbor",
+      "role": "Reserve guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 3000000,
+      "offense": 0.25,
+      "defense": 1.3,
+      "years_of_service": 8,
+      "tenure": 1
+    },
+    {
+      "id": "mesa-1",
+      "name": "Mesa Player 1",
+      "team": "mesa",
+      "role": "Lead guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 22250000,
+      "offense": 2.53,
+      "defense": -0.69,
+      "years_of_service": 3,
+      "tenure": 0
+    },
+    {
+      "id": "mesa-2",
+      "name": "Mesa Player 2",
+      "team": "mesa",
+      "role": "Shooter",
+      "positions": [
+        "SG",
+        "SF"
+      ],
+      "salary": 17250000,
+      "offense": 2.1,
+      "defense": -0.31,
+      "years_of_service": 4,
+      "tenure": 1
+    },
+    {
+      "id": "mesa-3",
+      "name": "Mesa Player 3",
+      "team": "mesa",
+      "role": "Wing",
+      "positions": [
+        "SF",
+        "PF"
+      ],
+      "salary": 15250000,
+      "offense": 1.67,
+      "defense": 0.07,
+      "years_of_service": 5,
+      "tenure": 2
+    },
+    {
+      "id": "mesa-4",
+      "name": "Mesa Player 4",
+      "team": "mesa",
+      "role": "Forward",
+      "positions": [
+        "PF",
+        "C"
+      ],
+      "salary": 14250000,
+      "offense": 1.24,
+      "defense": 0.45,
+      "years_of_service": 6,
+      "tenure": 3
+    },
+    {
+      "id": "mesa-5",
+      "name": "Mesa Player 5",
+      "team": "mesa",
+      "role": "Center",
+      "positions": [
+        "C"
+      ],
+      "salary": 18250000,
+      "offense": 0.81,
+      "defense": 0.83,
+      "years_of_service": 7,
+      "tenure": 0
+    },
+    {
+      "id": "mesa-6",
+      "name": "Mesa Player 6",
+      "team": "mesa",
+      "role": "Reserve guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 3250000,
+      "offense": 0.38,
+      "defense": 1.21,
+      "years_of_service": 8,
+      "tenure": 1
+    },
+    {
+      "id": "valley-1",
+      "name": "Valley Player 1",
+      "team": "valley",
+      "role": "Lead guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 22500000,
+      "offense": 2.66,
+      "defense": -0.78,
+      "years_of_service": 3,
+      "tenure": 0
+    },
+    {
+      "id": "valley-2",
+      "name": "Valley Player 2",
+      "team": "valley",
+      "role": "Shooter",
+      "positions": [
+        "SG",
+        "SF"
+      ],
+      "salary": 17500000,
+      "offense": 2.23,
+      "defense": -0.4,
+      "years_of_service": 4,
+      "tenure": 1
+    },
+    {
+      "id": "valley-3",
+      "name": "Valley Player 3",
+      "team": "valley",
+      "role": "Wing",
+      "positions": [
+        "SF",
+        "PF"
+      ],
+      "salary": 15500000,
+      "offense": 1.8,
+      "defense": -0.02,
+      "years_of_service": 5,
+      "tenure": 2
+    },
+    {
+      "id": "valley-4",
+      "name": "Valley Player 4",
+      "team": "valley",
+      "role": "Forward",
+      "positions": [
+        "PF",
+        "C"
+      ],
+      "salary": 14500000,
+      "offense": 1.37,
+      "defense": 0.36,
+      "years_of_service": 6,
+      "tenure": 3
+    },
+    {
+      "id": "valley-5",
+      "name": "Valley Player 5",
+      "team": "valley",
+      "role": "Center",
+      "positions": [
+        "C"
+      ],
+      "salary": 18500000,
+      "offense": 0.94,
+      "defense": 0.74,
+      "years_of_service": 7,
+      "tenure": 0
+    },
+    {
+      "id": "valley-6",
+      "name": "Valley Player 6",
+      "team": "valley",
+      "role": "Reserve guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 3500000,
+      "offense": 0.51,
+      "defense": 1.12,
+      "years_of_service": 8,
+      "tenure": 1
+    },
+    {
+      "id": "summit-1",
+      "name": "Summit Player 1",
+      "team": "summit",
+      "role": "Lead guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 22750000,
+      "offense": 2.79,
+      "defense": -0.87,
+      "years_of_service": 3,
+      "tenure": 0
+    },
+    {
+      "id": "summit-2",
+      "name": "Summit Player 2",
+      "team": "summit",
+      "role": "Shooter",
+      "positions": [
+        "SG",
+        "SF"
+      ],
+      "salary": 17750000,
+      "offense": 2.36,
+      "defense": -0.49,
+      "years_of_service": 4,
+      "tenure": 1
+    },
+    {
+      "id": "summit-3",
+      "name": "Summit Player 3",
+      "team": "summit",
+      "role": "Wing",
+      "positions": [
+        "SF",
+        "PF"
+      ],
+      "salary": 15750000,
+      "offense": 1.93,
+      "defense": -0.11,
+      "years_of_service": 5,
+      "tenure": 2
+    },
+    {
+      "id": "summit-4",
+      "name": "Summit Player 4",
+      "team": "summit",
+      "role": "Forward",
+      "positions": [
+        "PF",
+        "C"
+      ],
+      "salary": 14750000,
+      "offense": 1.5,
+      "defense": 0.27,
+      "years_of_service": 6,
+      "tenure": 3
+    },
+    {
+      "id": "summit-5",
+      "name": "Summit Player 5",
+      "team": "summit",
+      "role": "Center",
+      "positions": [
+        "C"
+      ],
+      "salary": 18750000,
+      "offense": 1.07,
+      "defense": 0.65,
+      "years_of_service": 7,
+      "tenure": 0
+    },
+    {
+      "id": "summit-6",
+      "name": "Summit Player 6",
+      "team": "summit",
+      "role": "Reserve guard",
+      "positions": [
+        "PG",
+        "SG"
+      ],
+      "salary": 3750000,
+      "offense": 0.64,
+      "defense": 1.03,
+      "years_of_service": 8,
+      "tenure": 1
+    }
+  ],
+  "notes": "All names, salaries, contribution inputs and team payrolls are invented. Payroll includes unlisted fictional roster members.",
+  "cap_levels": {
+    "salary_cap": 100000000,
+    "tax": 140000000,
+    "first_apron": 160000000,
+    "second_apron": 180000000
+  },
+  "contract_rules": {
+    "minimumSalaryByYearsOfService": {
+      "0": 1000000,
+      "1": 1100000,
+      "2": 1200000,
+      "3": 1300000,
+      "4": 1400000,
+      "5": 1500000,
+      "6": 1600000,
+      "7": 1700000,
+      "8": 1800000,
+      "9": 1900000,
+      "10": 2000000
+    },
+    "maximumSalary": {
+      "yearsOfService_0_to_6": {
+        "percentOfCap": 25,
+        "amount": 25000000
+      },
+      "yearsOfService_7_to_9": {
+        "percentOfCap": 30,
+        "amount": 30000000
+      },
+      "yearsOfService_10_plus": {
+        "percentOfCap": 35,
+        "amount": 35000000
+      }
+    },
+    "capHolds": {
+      "earlyBird": 1.3,
+      "birdAboveAvg": 1.5,
+      "birdBelowAvg": 1.9,
+      "nonBird": 1.2,
+      "rookieScaleCompletionAboveAvg": 2.5,
+      "rookieScaleCompletionBelowAvg": 3
+    },
+    "systemLevels": {
+      "averagePlayerSalary": 10000000
+    }
+  }
+}
