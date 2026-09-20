@@ -1,0 +1,36 @@
+name: Native application and original engines
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  portable-swift:
+    runs-on: ubuntu-latest
+    container: swift:6.2-noble@sha256:9bea530093ffff8cf6c259991715ee843fe4d0f932e612f7f4b79cca6e00db87
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --jobs 2
+      - run: swift run --jobs 2 basketball-native --report
+  apple-app:
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test original engines and compile the macOS application
+        run: swift test --jobs 2
+      - name: Run the native deterministic example
+        run: swift run --jobs 2 basketball-native --report
+      - name: Build the offline iOS application
+        run: xcodebuild -quiet -project ios/BasketballOffline.xcodeproj -scheme BasketballOffline -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/native CODE_SIGNING_ALLOWED=NO build
+      - name: Launch the iOS application and capture its actual UI
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; data=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime, devices in sorted(data.items(), reverse=True) if "iOS" in runtime for d in devices if "iPhone" in d["name"]))')
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          xcrun simctl install "$SIMULATOR_ID" build/native/Build/Products/Debug-iphonesimulator/BasketballOffline.app
+          xcrun simctl launch "$SIMULATOR_ID" dev.portfolio.basketballoffline
+          sleep 4
+          xcrun simctl io "$SIMULATOR_ID" screenshot native-app.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-application-preview
+          path: native-app.png

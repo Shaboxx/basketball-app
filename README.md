@@ -6,6 +6,8 @@ Basketball decisions cross several kinds of information: player contributions, p
 
 **My contribution — Shawn Vazin:** application modeling, player and team exploration, trade and contract logic, lineup tools, and iterative development around concrete user needs. The [user-story record](docs/user-stories.md) links those needs to genuine development commits. The [separate PyTorch model](https://github.com/Shaboxx/basketball-player-evaluation) focuses on possession modeling and evaluation.
 
+The repository also includes a **native SwiftUI offline application** with player exploration, original trade-compliance checks, a constrained roster draft, a seeded quiz, and a higher/lower game. Its separate fixture has **20 invented players across four teams**. [Native setup and implementation scope](ios/README.md) · [Computed native example](ios/OfflineExample.json).
+
 ## Run the offline application
 
 Requirements: Python **3.12+**, a modern browser, and roughly **100 MB RAM**. The browser edition uses the standard library, has no third-party installation requirements, and requires no account or network service.
@@ -50,7 +52,16 @@ flowchart LR
 
 The browser workbench is a complete runnable public edition. It uses the original pure contract calculations in [`core/offseason_cba.py`](core/offseason_cba.py). Its salary matcher ports `TradeCompliance.allowedIncoming` from the retained Swift engine. The lineup builder searches for a distinct eligible player for each position rather than assigning a player twice.
 
-The [`ios/NBATradeMachine`](ios/NBATradeMachine) tree preserves reviewed Swift application components: models, player/team views, trade constraints, lineup explanations, fantasy scoring, and deterministic basketball games. The full connected iOS client is not a turnkey build from those files alone. Live data feeds, account and hosted-session features, production configuration, and bundled real-player data are outside this public edition. Each runnable target is documented separately; the presence of a historical component does not imply that every original screen is enabled in the browser.
+The [`ios/NBATradeMachine`](ios/NBATradeMachine) tree preserves reviewed Swift application components: models, player/team views, trade constraints, lineup explanations, fantasy scoring, and deterministic basketball games. Explicit SwiftPM and Xcode targets select 75 original and offline runtime files for the runnable native application; the other components remain inspectable historical source. Live data feeds, account and hosted-session features, production configuration, and bundled real-player data are outside this public edition. Each runnable target is documented separately; the presence of a historical component does not imply that every original screen is enabled in either offline interface.
+
+With **Swift 6.2+** installed, the original engines also run headlessly on Linux or macOS:
+
+```bash
+swift test --jobs 2
+swift run --jobs 2 basketball-native --report
+```
+
+On macOS, `swift run basketball-native` opens the SwiftUI application. For iOS, open `ios/BasketballOffline.xcodeproj` in Xcode 26.3+ and run the shared **BasketballOffline** scheme in a simulator. No Firebase setup, account, signing identity, or data subscription is needed for the simulator. [Native details](ios/README.md) distinguish the offline target from the broader retained source.
 
 The public browser trade tool checks **one-for-one salary matching only**. It does not check every roster, pick, exception, timing, or transaction rule implemented elsewhere in the Swift code. “Pass” is scoped to the displayed salary check. The historical constants are preserved as implementation evidence; the example's cap table is fictional and is not presented as current league policy.
 
@@ -65,6 +76,8 @@ The public browser trade tool checks **one-for-one salary matching only**. It do
 | Browser interaction | Search, trade evaluation, lineup and contract workflows | Outputs computed by the local API |
 
 The automated Python suite contains **seven tests** covering domain boundaries and real HTTP requests. These are functional checks, not a measured business result or a claim of predictive basketball accuracy. Offense/defense values in the browser are invented inputs; lineup means ignore player interactions. The separate model repository contains the machine-learning evaluation.
+
+The native suite contains **333 tests**, including retained original engine regressions and seven new offline integration checks. It covers the actual Swift trade, player, and deterministic game logic. The native CLI demonstrates a completed constrained draft, an eight-question quiz, and salary matching from the original engine. CI runs the Python application, the Swift suite on Linux and macOS, and an iOS simulator build and launch.
 
 ## Authentic history
 
