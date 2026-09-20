@@ -81,7 +81,7 @@ The native suite contains **333 tests**, including retained original engine regr
 
 ## Authentic history
 
-The public history retains **377 relevant development commits** from **May–August 2026**, selected by an explicit file allowlist. Original author dates and commit descriptions are preserved. Filtering changes commit hashes and removes commits with no retained changes. The histories may mention features beyond the offline target because the corresponding development work was broader than this release.
+The public history retains **377 relevant development commits** from **May–August 2026**, selected by an explicit file allowlist. Original author dates and commit descriptions are preserved. Filtering changes commit hashes and removes commits with no retained changes. Preview-only blocks containing named real-player fixtures were removed throughout the retained history; the application code before those blocks is preserved unchanged. The histories may mention features beyond the offline target because the corresponding development work was broader than this release.
 
 The offline browser edition, fixture, public documentation, and CI were added on **September 20, 2026** in commits describing actual release work. The user stories were organized retrospectively from implementation evidence; they are not backdated planning artifacts. See [user stories and commit links](docs/user-stories.md).
 
